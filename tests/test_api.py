@@ -110,6 +110,15 @@ def test_history_is_replayed_unchanged_and_mode_notes_only_on_change(setup):
     assert third_call[-1]["content"] == modes["maths"]["instruction"]
 
 
+def test_haiku_is_not_sent_the_fallback_setting(tmp_path):
+    claude = fake_client([message([text_block("hi")])])
+    web = TestClient(create_app(settings(model="claude-haiku-5-5", db_path=tmp_path / "h.db"), client=claude))
+    ask(web, new_chat(web), "hello")
+    call = claude.beta.messages.calls[0]
+    assert call["model"] == "claude-haiku-5-5"
+    assert "fallbacks" not in call and "betas" not in call
+
+
 def test_refusals_are_not_saved(setup):
     web, _ = setup([message([], stop_reason="refusal")])
     conversation_id = new_chat(web)

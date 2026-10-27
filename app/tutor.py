@@ -121,6 +121,10 @@ async def stream_reply(client, cfg: settings, messages: list[dict]) -> AsyncIter
     events are text, cite, and final
     """
     cites = citation_list()
+    options = {}
+    # haiku has no fallback model, so the retry setting is only sent to the bigger models
+    if not cfg.model.startswith("claude-haiku"):
+        options = {"fallbacks": "default", "betas": [fallback_beta]}
     async with client.beta.messages.stream(
         model=cfg.model,
         max_tokens=cfg.max_tokens,
@@ -128,8 +132,7 @@ async def stream_reply(client, cfg: settings, messages: list[dict]) -> AsyncIter
         messages=messages,
         output_config={"effort": cfg.effort},
         cache_control={"type": "ephemeral"},
-        fallbacks="default",
-        betas=[fallback_beta],
+        **options,
     ) as stream:
         async for event in stream:
             if event.type == "text":
