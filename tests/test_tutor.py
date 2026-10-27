@@ -18,12 +18,12 @@ def test_documents_come_before_the_question_with_citations_on():
     assert blocks[1]["source"] == {"type": "file", "file_id": "file_b"}
 
 
-def test_history_keeps_blocks_exactly_as_returned():
-    content = [thinking_block(), text_block("hello")]
+def test_history_keeps_blocks_as_returned_minus_citations():
+    content = [thinking_block(), text_block("hello", [page_citation("hi", 1, 2)])]
     blocks = history_blocks(content)
     assert blocks == [
         {"type": "thinking", "thinking": "", "signature": "sig123"},
-        {"type": "text", "text": "hello", "citations": None},
+        {"type": "text", "text": "hello"},
     ]
 
 

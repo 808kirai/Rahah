@@ -49,10 +49,16 @@ def user_content(text: str, files: list[stored_file]) -> list[dict]:
 def history_blocks(content: list) -> list[dict]:
     """turn claude's reply into blocks that can be sent back next turn
 
-    blocks are kept exactly as returned, except after a mid answer fallback, where
-    only text survives from before the last fallback marker, as the api requires
+    blocks are kept as returned with two exceptions
+    citations are taken off text blocks, because the api rejects page citations into
+    files api documents when they are sent back, the page keeps its own copy for display
+    after a mid answer fallback only text survives from before the last fallback marker,
+    as the api requires
     """
     blocks = [b.to_dict(mode="json") for b in content]
+    for b in blocks:
+        if b.get("type") == "text":
+            b.pop("citations", None)
     last_fallback = max((i for i, b in enumerate(blocks) if b.get("type") == "fallback"), default=-1)
     return [
         b for i, b in enumerate(blocks)

@@ -1,7 +1,7 @@
 """local sqlite storage for conversations, messages and uploaded files
 
-messages keep the exact content blocks sent to and returned by claude, so the
-history can be replayed byte for byte on the next turn
+messages keep the content blocks exactly as they are sent to claude, so every
+later turn replays the same history byte for byte
 """
 
 import json
