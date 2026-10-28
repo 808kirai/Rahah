@@ -972,6 +972,60 @@ button.picker-heading:focus-visible {
     flex-shrink: 0;
 }
 
+/* camera sheet, a live preview with the buttons underneath */
+.camera-stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--card);
+    background: #0e1014;
+    overflow: hidden;
+}
+
+.camera-stage video,
+.camera-stage img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.camera-stage video[hidden],
+.camera-stage img[hidden] {
+    display: none;
+}
+
+/* the front camera is shown like a mirror, the photo itself isn't flipped */
+.camera-stage video.mirror {
+    transform: scaleX(-1);
+}
+
+.camera-note {
+    position: absolute;
+    max-width: 80%;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #c9ccd6;
+}
+
+.camera-note[hidden] {
+    display: none;
+}
+
+.camera-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.camera-actions .spacer {
+    flex: 1;
+}
+
+.camera-actions [hidden] {
+    display: none;
+}
+
 /* text, date and time boxes in the sheets, pills like everything else */
 .text-input {
     width: 100%;

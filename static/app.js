@@ -560,6 +560,159 @@ composer_box.addEventListener("drop", (event) => {
     if (event.dataTransfer.files.length) upload_files([...event.dataTransfer.files]);
 });
 
+// photos, from the camera, the gallery or pasted in, shrunk first so they upload quickly
+// claude reads images up to about this many pixels on the long side, so nothing is lost
+const photo_edge = 1600;
+
+function photo_name() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `photo-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+}
+
+function canvas_to_file(canvas, name) {
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob ? new File([blob], name, { type: "image/jpeg" }) : null), "image/jpeg", 0.9));
+}
+
+function draw_scaled(source, width, height) {
+    const scale = Math.min(1, photo_edge / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas;
+}
+
+async function shrink_photo(file) {
+    // gifs can move, and small images are fine as they are
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || !window.createImageBitmap) return file;
+    try {
+        const bitmap = await createImageBitmap(file);
+        const big = Math.max(bitmap.width, bitmap.height) > photo_edge || file.size > 4 * 1024 * 1024;
+        if (!big) return file;
+        const canvas = draw_scaled(bitmap, bitmap.width, bitmap.height);
+        const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+        return (await canvas_to_file(canvas, name)) || file;
+    } catch (e) {
+        // a format this browser can't open goes up as it is, and the server explains if it can't read it either
+        return file;
+    }
+}
+
+async function add_photos(files) {
+    const ready = await Promise.all([...files].map(shrink_photo));
+    upload_files(ready);
+}
+
+input.addEventListener("paste", (event) => {
+    const images = [...(event.clipboardData?.files || [])].filter((f) => f.type.startsWith("image/"));
+    if (!images.length) return;
+    event.preventDefault();
+    // pasted screenshots have no real name, so they get a dated one
+    add_photos(images.map((f) => new File([f], f.name && f.name !== "image.png" ? f.name : photo_name().replace(".jpg", ".png"), { type: f.type })));
+});
+
+// the camera sheet, a live preview, then the shot to keep or retake
+
+const camera_sheet = el("camera-sheet");
+const camera_video = el("camera-video");
+const camera = { stream: null, facing: "environment", file: null, url: "" };
+
+function camera_state(mode) {
+    // live, shot or off when there's no camera to show
+    el("camera-video").hidden = mode !== "live";
+    el("camera-shot").hidden = mode !== "shot";
+    el("camera-snap").hidden = mode !== "live";
+    el("camera-retake").hidden = mode !== "shot";
+    el("camera-use").hidden = mode !== "shot";
+    if (mode !== "live") el("camera-flip").hidden = true;
+}
+
+function camera_note(text) {
+    el("camera-note").textContent = text;
+    el("camera-note").hidden = !text;
+}
+
+function stop_camera() {
+    camera.stream?.getTracks().forEach((track) => track.stop());
+    camera.stream = null;
+    camera_video.srcObject = null;
+}
+
+async function start_camera() {
+    stop_camera();
+    camera_note("");
+    camera_state("live");
+    if (!navigator.mediaDevices?.getUserMedia) {
+        camera_state("off");
+        camera_note("This browser can't open a camera here. Choose a photo instead.");
+        return;
+    }
+    try {
+        camera.stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: camera.facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+            audio: false,
+        });
+        camera_video.srcObject = camera.stream;
+        camera_video.classList.toggle("mirror", camera.facing === "user");
+        await camera_video.play();
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        el("camera-flip").hidden = devices.filter((d) => d.kind === "videoinput").length < 2;
+    } catch (error) {
+        stop_camera();
+        camera_state("off");
+        camera_note(error.name === "NotAllowedError"
+            ? "Rahah isn't allowed to use the camera. Allow it in the browser's site settings, or choose a photo instead."
+            : "Rahah couldn't find a camera to use. Choose a photo instead.");
+    }
+}
+
+function open_camera() {
+    camera.file = null;
+    camera_sheet.showModal();
+    start_camera();
+}
+
+async function take_photo() {
+    if (!camera.stream || !camera_video.videoWidth) return;
+    const canvas = draw_scaled(camera_video, camera_video.videoWidth, camera_video.videoHeight);
+    camera.file = await canvas_to_file(canvas, photo_name());
+    if (!camera.file) return;
+    if (camera.url) URL.revokeObjectURL(camera.url);
+    camera.url = URL.createObjectURL(camera.file);
+    el("camera-shot").src = camera.url;
+    // the camera light goes off while the student looks at the shot
+    stop_camera();
+    camera_state("shot");
+}
+
+el("camera").addEventListener("click", open_camera);
+el("camera-close").addEventListener("click", () => camera_sheet.close());
+el("camera-snap").addEventListener("click", take_photo);
+el("camera-retake").addEventListener("click", start_camera);
+el("camera-flip").addEventListener("click", () => {
+    camera.facing = camera.facing === "environment" ? "user" : "environment";
+    start_camera();
+});
+el("camera-use").addEventListener("click", () => {
+    const file = camera.file;
+    camera_sheet.close();
+    if (file) upload_files([file]);
+});
+el("camera-choose").addEventListener("click", () => el("photo-input").click());
+el("photo-input").addEventListener("change", () => {
+    const files = [...el("photo-input").files];
+    el("photo-input").value = "";
+    if (!files.length) return;
+    camera_sheet.close();
+    add_photos(files);
+});
+camera_sheet.addEventListener("close", () => {
+    stop_camera();
+    if (camera.url) URL.revokeObjectURL(camera.url);
+    camera.url = "";
+});
+
 // home rows, laid out like a streaming app
 // each section has its own suggestion rows of three cards, and a card with a tool opens that tool instead of a chat
 

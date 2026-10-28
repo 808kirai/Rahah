@@ -99,6 +99,10 @@
                             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
                         <input type="file" id="file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif,.py,.js,.ts,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.kt,.swift,.r,.sql,.sh,.html,.css,.json,.csv">
+                        <button type="button" class="icon-btn" id="camera" aria-label="Take or choose a photo" title="Take or choose a photo">
+                            <svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+                        </button>
+                        <input type="file" id="photo-input" multiple hidden accept="image/*">
                         <textarea id="input" rows="1" placeholder="Ask anything, or drop a PDF here" aria-label="Message"></textarea>
                         <button type="submit" class="send-btn" id="send" aria-label="Send" disabled>
                             <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
@@ -150,6 +154,32 @@
                 <button class="btn btn-accent" type="submit" id="sheet-submit">Make flashcards</button>
             </div>
         </form>
+    </dialog>
+
+    <dialog class="sheet camera-sheet" id="camera-sheet" aria-labelledby="camera-title">
+        <div class="sheet-form">
+            <div class="sheet-top">
+                <h2 id="camera-title">Add a photo</h2>
+                <button class="icon-btn" type="button" id="camera-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <div class="camera-stage">
+                <video id="camera-video" playsinline muted></video>
+                <img id="camera-shot" alt="The photo you just took" hidden>
+                <p class="camera-note" id="camera-note" hidden></p>
+            </div>
+            <div class="camera-actions">
+                <button class="btn btn-soft btn-small" type="button" id="camera-choose">Choose a photo</button>
+                <span class="spacer"></span>
+                <button class="icon-btn" type="button" id="camera-flip" aria-label="Switch camera" title="Switch camera" hidden>
+                    <svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3.5M20 15a8 8 0 0 1-14 3.5"/><path d="M18 2.5v3h-3M6 21.5v-3h3"/></svg>
+                </button>
+                <button class="btn btn-ghost" type="button" id="camera-retake" hidden>Retake</button>
+                <button class="btn btn-accent" type="button" id="camera-snap">Take photo</button>
+                <button class="btn btn-accent" type="button" id="camera-use" hidden>Use photo</button>
+            </div>
+        </div>
     </dialog>
 
     <dialog class="sheet" id="reminder-sheet" aria-labelledby="reminder-title">
