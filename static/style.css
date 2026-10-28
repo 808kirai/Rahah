@@ -104,6 +104,7 @@ svg {
 /* every button is an oval */
 .btn {
     display: inline-flex;
+    text-decoration: none;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
@@ -403,8 +404,9 @@ body:not(.is-page) .chat-title {
     gap: 0.75rem;
     padding: 0.7rem var(--gutter) 1rem;
     overflow-x: auto;
-    scroll-snap-type: x proximity;
+    scroll-snap-type: x mandatory;
     scroll-padding: 0 var(--gutter);
+    overscroll-behavior-x: contain;
     scroll-behavior: smooth;
     scrollbar-width: none;
 }
@@ -481,13 +483,13 @@ body:not(.is-page) .chat-title {
     text-align: left;
     color: #ffffff;
     scroll-snap-align: start;
-    transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+    transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
 }
 
 .tile:hover,
 .tile:focus-visible {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 30px var(--shadow);
+    transform: translateY(-6px);
+    box-shadow: 0 18px 40px var(--shadow);
 }
 
 .tile strong {
@@ -522,13 +524,13 @@ body:not(.is-page) .chat-title {
     background: var(--surface);
     overflow: hidden;
     scroll-snap-align: start;
-    transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+    transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
 }
 
 .chat-card:hover,
 .chat-card:focus-within {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 30px var(--shadow);
+    transform: translateY(-6px);
+    box-shadow: 0 18px 40px var(--shadow);
 }
 
 .chat-card-art {
@@ -671,12 +673,37 @@ body:not(.is-page) .chat-title {
     box-shadow: 0 30px 80px var(--shadow);
 }
 
+.sheet {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+    transition: opacity 0.3s var(--ease-out), transform 0.45s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+}
+
 .sheet[open] {
-    animation: rise 0.35s var(--ease-out);
+    opacity: 1;
+    transform: none;
+}
+
+@starting-style {
+    .sheet[open] {
+        opacity: 0;
+        transform: translateY(18px) scale(0.98);
+    }
 }
 
 .sheet::backdrop {
+    background: rgba(10, 12, 18, 0);
+    transition: background-color 0.3s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+}
+
+.sheet[open]::backdrop {
     background: rgba(10, 12, 18, 0.55);
+}
+
+@starting-style {
+    .sheet[open]::backdrop {
+        background: rgba(10, 12, 18, 0);
+    }
 }
 
 .sheet-form {
@@ -1026,6 +1053,400 @@ body:not(.is-page) .chat-title {
 .score-note {
     margin-top: 0.4rem;
     color: var(--text-2);
+}
+
+/* performance, stat tiles, charts and tables, all in the accent on slate */
+.performance {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.5rem var(--gutter) 1.5rem;
+    animation: fade 0.5s var(--ease-out);
+}
+
+.stat-card {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: clamp(190px, 17vw, 240px);
+    min-height: 132px;
+    padding: 1rem 1.15rem;
+    border-radius: var(--card);
+    background: var(--surface);
+    text-align: left;
+    scroll-snap-align: start;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.stat-value {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.9rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+
+.stat-value.small {
+    font-size: 1.2rem;
+    letter-spacing: -0.01em;
+}
+
+.stat-note {
+    font-size: 0.78rem;
+    color: var(--text-2);
+}
+
+.stat-card .spark {
+    margin-top: auto;
+    padding-top: 0.4rem;
+    overflow: visible;
+}
+
+.spark path {
+    fill: none;
+    stroke: var(--text-2);
+    stroke-width: 1.5;
+    opacity: 0.7;
+}
+
+.spark circle {
+    fill: var(--accent);
+}
+
+.stat-card.more {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-2);
+    transition: background-color 0.2s, color 0.2s, transform var(--dur) var(--ease-out);
+}
+
+.stat-card.more:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.grade-pill {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.7rem;
+    height: 1.7rem;
+    padding: 0 0.45rem;
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+.delta {
+    font-weight: 600;
+}
+
+.delta.up {
+    color: var(--mint-text);
+}
+
+.delta.down {
+    color: var(--mauve);
+}
+
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.9rem;
+}
+
+.kpis .stat-card {
+    width: auto;
+}
+
+.perf-card {
+    position: relative;
+    padding: 1.1rem 1.25rem 1.25rem;
+    border-radius: 22px;
+    background: var(--surface);
+}
+
+.perf-head h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.perf-head p {
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-2);
+}
+
+.perf-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* line chart */
+.chart {
+    position: relative;
+}
+
+/* charts set their own strokes, so they don't take the icon outline every other svg gets */
+.chart svg,
+.spark {
+    display: block;
+    overflow: visible;
+    fill: none;
+    stroke: none;
+}
+
+.chart .grid {
+    stroke: var(--border);
+    stroke-width: 1;
+}
+
+.chart .tick {
+    fill: var(--text-2);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.chart .area {
+    fill: var(--accent);
+    opacity: 0.1;
+}
+
+.chart .line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.chart .end-dot,
+.chart .hover-dot {
+    fill: var(--accent);
+    stroke: var(--surface);
+    stroke-width: 2;
+}
+
+.chart .end-label {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chart .crosshair {
+    stroke: var(--text-2);
+    stroke-width: 1;
+    opacity: 0.6;
+}
+
+.chart .hit {
+    fill: transparent;
+    cursor: crosshair;
+}
+
+.chart-tip {
+    position: absolute;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    min-width: 9rem;
+    max-width: 16rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 14px;
+    background: var(--surface-2);
+    box-shadow: 0 10px 30px var(--shadow);
+    font-size: 0.78rem;
+    color: var(--text-2);
+    transform: translate(-50%, calc(-100% - 14px));
+    pointer-events: none;
+}
+
+.chart-tip.floating {
+    position: fixed;
+    z-index: 40;
+    transform: translate(-50%, calc(-100% - 8px));
+}
+
+.chart-tip[hidden] {
+    display: none;
+}
+
+.chart-tip strong {
+    font-size: 1rem;
+    color: var(--text);
+}
+
+/* subject bars, they grow from the left and carry their value at the tip */
+.bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.bar-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 10rem) 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 10px;
+}
+
+.bar-label {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bar-track {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.bar {
+    flex-shrink: 0;
+    width: calc((100% - 5.5rem) * var(--v) / 100);
+    height: 14px;
+    border-radius: 0 4px 4px 0;
+    background: var(--accent);
+    transition: filter 0.2s;
+}
+
+.bar-value,
+.col-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* grade columns */
+.columns {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 10px;
+}
+
+.col-plot {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    width: 100%;
+    height: 130px;
+    border-bottom: 1px solid var(--border);
+}
+
+.col-value {
+    margin-bottom: 0.3rem;
+}
+
+.col-bar {
+    width: 22px;
+    border-radius: 4px 4px 0 0;
+    background: var(--accent);
+    transition: filter 0.2s;
+}
+
+.col-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-2);
+}
+
+.bar-row:hover .bar,
+.bar-row:focus-visible .bar,
+.col:hover .col-bar,
+.col:focus-visible .col-bar {
+    filter: brightness(1.18);
+}
+
+.scale-note {
+    margin-top: 0.8rem;
+    font-size: 0.75rem;
+    color: var(--text-2);
+}
+
+/* tables */
+.perf-details summary {
+    display: inline-flex;
+    margin-top: 0.75rem;
+    padding: 0.4rem 0.95rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.perf-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.table-wrap {
+    margin-top: 0.5rem;
+    overflow-x: auto;
+}
+
+.table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.table-wrap th {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-2);
+    white-space: nowrap;
+}
+
+.table-wrap td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.table-wrap tr:last-child td {
+    border-bottom: none;
+}
+
+.table-wrap .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.table-wrap .row-action {
+    text-align: right;
 }
 
 /* chat messages */
@@ -1405,6 +1826,7 @@ body:not(.is-page) .chat-title {
 
 .is-home:not(.drawer-open) .tab[data-tab="home"],
 .is-recents:not(.drawer-open) .tab[data-tab="recents"],
+.is-performance:not(.drawer-open) .tab[data-tab="performance"],
 .drawer-open .tab[data-tab="chats"] {
     background: var(--surface-2);
     color: var(--text);
@@ -1639,6 +2061,115 @@ body:not(.is-page) .chat-title {
     to { opacity: 1; }
 }
 
+/* motion, everything eases out and plays once */
+
+/* headings, rows and cards fade up the first time they scroll into view */
+.reveal:not(.shown),
+.reveal-row:not(.shown) .row-title,
+.reveal-row:not(.shown) .row-track > *,
+.reveal-grid:not(.shown) > * {
+    opacity: 0;
+}
+
+.reveal.shown,
+.reveal-row.shown .row-title {
+    animation: fade-up 0.7s var(--ease-out) backwards;
+}
+
+.reveal-row.shown .row-track > *,
+.reveal-grid.shown > * {
+    animation: fade-up 0.7s var(--ease-out) backwards;
+    animation-delay: calc(var(--i, 0) * 70ms + 60ms);
+}
+
+.row-track > :nth-child(2), .card-grid > :nth-child(2) { --i: 1; }
+.row-track > :nth-child(3), .card-grid > :nth-child(3) { --i: 2; }
+.row-track > :nth-child(4), .card-grid > :nth-child(4) { --i: 3; }
+.row-track > :nth-child(5), .card-grid > :nth-child(5) { --i: 4; }
+.row-track > :nth-child(n + 6), .card-grid > :nth-child(n + 6) { --i: 5; }
+
+/* the home and recents pages settle on a row as you scroll down */
+.is-page .thread {
+    scroll-snap-type: y proximity;
+}
+
+.is-page .row,
+.is-page .category-title,
+.is-page .group-title,
+.is-page .perf-card {
+    scroll-snap-align: start;
+    scroll-margin-top: 0.5rem;
+}
+
+/* the first thing on each page is the first stop, so the page stays at the top when it loads */
+.is-page .greeting,
+.is-page .recents,
+.is-page .performance {
+    scroll-snap-align: start;
+    scroll-margin-top: 2rem;
+}
+
+/* buttons give a small squeeze when pressed */
+.icon-btn,
+.tab,
+.choice,
+.option {
+    transition-property: background-color, color, border-color, opacity, transform;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--ease-out);
+}
+
+.btn:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.send-btn:active:not(:disabled),
+.option:active:not(:disabled),
+.tab:active,
+.choice:active,
+.tile:active {
+    transform: scale(0.96);
+    transition-duration: 0.12s;
+}
+
+.row-arrow:active {
+    transform: translateY(-50%) scale(0.92);
+}
+
+/* a faint line under the top bar once the page has scrolled */
+.nav {
+    position: relative;
+    z-index: 5;
+    transition: box-shadow 0.35s var(--ease-out);
+}
+
+.nav.scrolled {
+    box-shadow: 0 1px 0 var(--border), 0 12px 24px -20px var(--shadow);
+}
+
+/* quiz feedback and results ease in */
+#quiz-feedback > * {
+    animation: fade-up 0.45s var(--ease-out) backwards;
+}
+
+#quiz-feedback > * + * {
+    animation-delay: 0.08s;
+}
+
+.quiz-results {
+    animation: fade-up 0.6s var(--ease-out) backwards;
+}
+
+/* switching between light and dark cross fades */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.35s;
+    animation-timing-function: var(--ease-out);
+}
+
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
+}
+
 /* phones and small tablets */
 @media (max-width: 720px) {
     :root {
@@ -1652,8 +2183,31 @@ body:not(.is-page) .chat-title {
         border-radius: 28px 28px 0 0;
     }
 
-    .field-row {
+    .field-row,
+    .perf-grid {
         grid-template-columns: 1fr;
+    }
+
+    .bar-row {
+        grid-template-columns: minmax(80px, 7rem) 1fr;
+    }
+
+    .kpis {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+    }
+
+    .kpis .stat-card {
+        min-height: 0;
+        padding: 0.85rem 0.95rem;
+    }
+
+    .kpis .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .kpis .stat-value.small {
+        font-size: 1.05rem;
     }
 
     .face {

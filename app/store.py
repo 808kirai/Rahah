@@ -48,7 +48,15 @@ create table if not exists study_sets (
     created real not null,
     updated real not null
 );
+create table if not exists quiz_attempts (
+    id integer primary key autoincrement,
+    set_id text not null references study_sets(id) on delete cascade,
+    score integer not null,
+    total integer not null,
+    created real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
+create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
 
 
@@ -207,15 +215,29 @@ class store:
             return None
         return {**dict(row), "items": json.loads(row["items"])}
 
-    def record_score(self, set_id: str, score: int) -> int:
-        # keeps the best score and moves the set to the front of its row
+    def record_score(self, set_id: str, score: int, total: int) -> int:
+        # every attempt is kept for the performance page, and the best score moves the set to the front of its row
+        now = time.time()
         with self._connect() as db:
             db.execute(
+                "insert into quiz_attempts (set_id, score, total, created) values (?, ?, ?, ?)",
+                (set_id, score, total, now),
+            )
+            db.execute(
                 "update study_sets set best_score = max(coalesce(best_score, 0), ?), updated = ? where id = ?",
-                (score, time.time(), set_id),
+                (score, now, set_id),
             )
             row = db.execute("select best_score from study_sets where id = ?", (set_id,)).fetchone()
         return row["best_score"]
+
+    def quiz_attempts(self) -> list[dict]:
+        # oldest first, with the quiz each attempt belongs to
+        with self._connect() as db:
+            rows = db.execute(
+                "select a.set_id, s.title, s.mode, a.score, a.total, a.created "
+                "from quiz_attempts a join study_sets s on s.id = a.set_id order by a.created, a.id"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def delete_set(self, set_id: str) -> None:
         with self._connect() as db:

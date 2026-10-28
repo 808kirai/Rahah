@@ -13,7 +13,8 @@ What it does today
 - Maths is rendered from LaTeX and code blocks are highlighted with a copy button
 - Summaries of uploaded notes or a topic, with the same page sources
 - Flashcard decks made from a topic or notes, to flip through and shuffle
-- Multiple choice quizzes with explanations, and the best score is kept
+- Multiple choice quizzes with explanations, and every attempt is kept
+- A performance page with your average, grades, scores over time, results by subject and a table of every quiz, plus a summary under Exam on the home page
 - A home page laid out like a streaming app, with rows for each subject and your saved decks and quizzes
 - Chats are saved and listed under Recents and Chats
 - Dark and light themes
@@ -49,6 +50,7 @@ Project layout
 - `app/main.py` - The web server and its routes
 - `app/tutor.py` - The prompt, request building and streaming from Claude
 - `app/study.py` - Flashcards and quizzes, asked for as structured JSON and checked before saving
+- `app/performance.py` - Quiz attempts turned into percentages, grades and summaries
 - `app/modes.py` - Subject modes and the instruction each one adds
 - `app/store.py` - Local SQLite storage for chats, uploaded files and study sets
 - `app/config.py` - Settings read from the environment

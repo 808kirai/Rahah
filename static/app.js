@@ -21,6 +21,7 @@ const state = {
     groups: { study: "Study", exam: "Exam", code: "Code" },
     sets: [], // saved flashcard decks and quizzes
     study: null, // the open deck or quiz and where the student is in it
+    performance: null, // quiz results worked out by the server
 };
 
 const icons = {
@@ -184,22 +185,32 @@ function add_notice(message_el, text) {
     message_el.appendChild(note);
 }
 
-// home and recents are pages, a deck or quiz is a study view, anything else in the thread is a chat
+// home, recents and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
+
+const page_titles = { home: "Home", recents: "Recents", performance: "Performance" };
+
+function current_view() {
+    if (el("welcome")) return "home";
+    if (el("recents")) return "recents";
+    if (el("performance")) return "performance";
+    if (el("study")) return "study";
+    return "chat";
+}
 
 function sync_view() {
-    const view = el("welcome") ? "home" : el("recents") ? "recents" : el("study") ? "study" : "chat";
+    const view = current_view();
     document.body.classList.toggle("is-home", view === "home");
     document.body.classList.toggle("is-recents", view === "recents");
+    document.body.classList.toggle("is-performance", view === "performance");
     document.body.classList.toggle("is-study", view === "study");
-    document.body.classList.toggle("is-page", view === "home" || view === "recents");
-    el("page-title").textContent = view === "recents" ? "Recents" : "Home";
+    document.body.classList.toggle("is-page", view in page_titles);
+    el("page-title").textContent = page_titles[view] || "Home";
+    sync_nav_line();
 }
 
 function leave_home() {
-    if (!el("welcome") && !el("recents") && !el("study")) return;
-    el("welcome")?.remove();
-    el("recents")?.remove();
-    el("study")?.remove();
+    if (current_view() === "chat") return;
+    ["welcome", "recents", "performance", "study"].forEach((id) => el(id)?.remove());
     sync_view();
 }
 
@@ -532,7 +543,7 @@ function render_rows() {
             + sets("study")
             + (study_subjects.length ? row_html("Pick a subject", study_subjects.map(subject_tile).join("")) : "")
             + shelf_rows("study"),
-        exam: saved("exam") + sets("exam") + shelf_rows("exam"),
+        exam: '<div id="performance-exam"></div>' + saved("exam") + sets("exam") + shelf_rows("exam"),
         code: saved("code") + sets("code") + shelf_rows("code"),
     };
     rows.innerHTML = Object.entries(sections).map(([group, html]) => `
@@ -542,6 +553,7 @@ function render_rows() {
         </section>`).join("");
     render_continue();
     render_set_rows();
+    render_performance_row();
 }
 
 function render_continue() {
@@ -763,17 +775,20 @@ async function delete_set(s) {
     }
     if (el("study") && state.study && state.study.set.id === s.id) start_new_chat();
     else load_sets();
+    load_performance();
 }
 
 // the sheet that sets up a tool
 
 function mode_options_html() {
-    return Object.entries(state.groups).map(([group, label]) => {
+    const option = (m) => `<option value="${m.id}" title="${escape_html(m.hint)}">${escape_html(m.name)}</option>`;
+    const grouped = Object.entries(state.groups).map(([group, label]) => {
         const items = state.modes.filter((m) => m.group === group);
-        if (!items.length) return "";
-        const options = items.map((m) => `<option value="${m.id}" title="${escape_html(m.hint)}">${escape_html(m.name)}</option>`).join("");
-        return `<optgroup label="${escape_html(label)}">${options}</optgroup>`;
-    }).join("") || '<option value="general">General study</option>';
+        return items.length ? `<optgroup label="${escape_html(label)}">${items.map(option).join("")}</optgroup>` : "";
+    }).join("");
+    // an older server sends subjects without groups, so they're listed plainly rather than dropped
+    if (grouped) return grouped;
+    return state.modes.length ? state.modes.map(option).join("") : '<option value="general">General study</option>';
 }
 
 function show_sheet_error(text) {
@@ -1079,6 +1094,7 @@ async function next_question() {
         s.set.best_score = (await response.json()).best_score;
         if (el("study") && state.study === s) render_results();
         load_sets();
+        load_performance();
     } catch (error) {}
 }
 
@@ -1159,6 +1175,332 @@ document.addEventListener("keydown", (event) => {
     } else if (/^[1-6]$/.test(event.key)) {
         answer_option(Number(event.key) - 1);
     }
+});
+
+// performance, quiz scores as percentages and grades, on its own page and as a row under exam
+
+function short_date(seconds) {
+    return new Date(seconds * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function plural(n, word) {
+    return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+function delta_html(change) {
+    if (change === null || change === undefined) return "Your first attempt";
+    if (change === 0) return "Same as the one before";
+    const up = change > 0;
+    return `<span class="delta ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${plural(Math.abs(change), "point")}</span> on the one before`;
+}
+
+// the last few scores as a small line, older ones muted and the latest in the accent
+function sparkline(points) {
+    const values = points.slice(-12).map((p) => p.percent);
+    if (values.length < 2) return "";
+    const width = 120;
+    const height = 30;
+    const x = (i) => 2 + (i / (values.length - 1)) * (width - 6);
+    const y = (v) => 3 + (1 - v / 100) * (height - 6);
+    const path = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+    const last = values.length - 1;
+    return `<svg class="spark" width="${width}" height="${height}" style="width: ${width}px; height: ${height}px" aria-hidden="true">
+        <path d="${path}"/><circle cx="${x(last)}" cy="${y(values[last])}" r="3"/>
+    </svg>`;
+}
+
+function stat_card(label, value, note, extra = "", small = false) {
+    return `<div class="stat-card">
+        <span class="stat-label">${label}</span>
+        <span class="stat-value${small ? " small" : ""}">${value}</span>
+        <span class="stat-note">${note}</span>
+        ${extra}
+    </div>`;
+}
+
+function grade_pill(grade) {
+    return `<span class="grade-pill" aria-label="Grade ${grade}">${grade}</span>`;
+}
+
+async function load_performance() {
+    try {
+        const response = await api("/api/performance");
+        state.performance = await response.json();
+    } catch (error) {
+        return;
+    }
+    render_performance_row();
+    render_performance();
+}
+
+function render_performance_row() {
+    const slot = el("performance-exam");
+    if (!slot) return;
+    const o = state.performance && state.performance.overall;
+    if (!o) {
+        slot.innerHTML = "";
+        return;
+    }
+    slot.innerHTML = row_html("Your performance", [
+        stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} questions right`, sparkline(state.performance.timeline)),
+        stat_card("Latest quiz", `${o.latest}%`, delta_html(o.change)),
+        stat_card("Quizzes taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`),
+        `<button class="stat-card more" type="button" data-performance>See all your results ${icons.next}</button>`,
+    ].join(""));
+}
+
+function show_performance() {
+    if (state.busy) return;
+    state.conversation_id = null;
+    state.pending = [];
+    render_attachments();
+    mode_select.value = state.default_mode;
+    sync_placeholder();
+    history.replaceState(null, "", "#/performance");
+    set_title("");
+    document.title = "Performance · Rahah";
+    thread.innerHTML = '<div class="performance" id="performance"></div>';
+    thread.scrollTop = 0;
+    render_performance();
+    sync_view();
+    load_performance();
+    close_drawer();
+}
+
+function render_performance() {
+    const page = el("performance");
+    if (!page || !state.performance) return;
+    const p = state.performance;
+    const o = p.overall;
+    if (!o) {
+        page.innerHTML = `<div class="recents-empty">
+            <strong>No scores yet</strong>
+            Take a quiz and your percentages and grades show up here.
+            <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a quiz</button></div>
+        </div>`;
+        return;
+    }
+    const best = p.subjects[0];
+    const weakest = o.weakest_subject ? p.subjects[p.subjects.length - 1] : null;
+    const max_count = Math.max(...p.grades.map((g) => g.count), 1);
+    const scale = p.scale.map((s, i) => (i === p.scale.length - 1 ? `${s.grade} below ${p.scale[i - 1].min}%` : `${s.grade} ${s.min}%+`)).join(" · ");
+
+    page.innerHTML = `
+        <div class="kpis">
+            ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} questions right`, sparkline(p.timeline))}
+            ${stat_card("Latest quiz", `${o.latest}%`, delta_html(o.change))}
+            ${stat_card("Quizzes taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`)}
+            ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
+        </div>
+
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>Scores over time</h3>
+                <p>Each quiz attempt as a percentage, oldest on the left</p>
+            </div>
+            <div class="chart" id="timeline-chart"></div>
+            <details class="perf-details">
+                <summary>Show as a table</summary>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Date</th><th>Quiz</th><th class="num">Score</th><th class="num">Percent</th><th>Grade</th></tr></thead>
+                    <tbody>${p.timeline.slice().reverse().map((t) => `<tr>
+                        <td>${short_date(t.created)}</td><td>${escape_html(t.title)}</td>
+                        <td class="num">${t.score} / ${t.total}</td><td class="num">${t.percent}%</td><td>${grade_pill(t.grade)}</td>
+                    </tr>`).join("")}</tbody>
+                </table></div>
+            </details>
+        </section>
+
+        <div class="perf-grid">
+            <section class="perf-card">
+                <div class="perf-head">
+                    <h3>By subject</h3>
+                    <p>Average across every attempt</p>
+                </div>
+                <div class="bars">${p.subjects.map((s) => `
+                    <div class="bar-row" tabindex="0" data-tip="${escape_html(mode_name(s.mode))}" data-tip-value="${s.average}%" data-tip-note="Grade ${s.grade} · ${plural(s.attempts, "attempt")}">
+                        <span class="bar-label">${escape_html(mode_name(s.mode))}</span>
+                        <span class="bar-track">
+                            <span class="bar" style="--v: ${Math.max(s.average, 1)}"></span>
+                            <span class="bar-value">${s.average}% · ${s.grade}</span>
+                        </span>
+                    </div>`).join("")}
+                </div>
+            </section>
+            <section class="perf-card">
+                <div class="perf-head">
+                    <h3>Grades</h3>
+                    <p>How many attempts landed on each grade</p>
+                </div>
+                <div class="columns">${p.grades.map((g) => `
+                    <div class="col" tabindex="0" data-tip="Grade ${g.grade}" data-tip-value="${plural(g.count, "attempt")}" data-tip-note="${Math.round((g.count / o.attempts) * 100)}% of all attempts">
+                        <span class="col-plot">
+                            <span class="col-value">${g.count}</span>
+                            <span class="col-bar" style="height: ${(g.count / max_count) * 100}%"></span>
+                        </span>
+                        <span class="col-label">${g.grade}</span>
+                    </div>`).join("")}
+                </div>
+                <p class="scale-note">${scale}</p>
+            </section>
+        </div>
+
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>Your quizzes</h3>
+                <p>Most recent first</p>
+            </div>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Quiz</th><th>Subject</th><th class="num">Attempts</th><th class="num">Best</th><th class="num">Latest</th><th>Best grade</th><th></th></tr></thead>
+                <tbody>${p.quizzes.map((q) => `<tr>
+                    <td>${escape_html(q.title)}</td><td>${escape_html(mode_name(q.mode))}</td>
+                    <td class="num">${q.attempts}</td><td class="num">${q.best}%</td><td class="num">${q.latest}%</td>
+                    <td>${grade_pill(q.grade)}</td>
+                    <td class="row-action"><a class="btn btn-soft btn-small" href="#/set/${q.id}">Retake</a></td>
+                </tr>`).join("")}</tbody>
+            </table></div>
+        </section>
+        <div class="chart-tip floating" id="perf-tip" hidden></div>`;
+    draw_timeline();
+}
+
+// the line chart is drawn at the box's real width, so lines and text never stretch
+function draw_timeline() {
+    const box = el("timeline-chart");
+    if (!box || !state.performance) return;
+    const points = state.performance.timeline;
+    const width = Math.max(box.clientWidth, 260);
+    const height = 220;
+    const pad = { left: 44, right: 52, top: 14, bottom: 30 };
+    const plot_w = width - pad.left - pad.right;
+    const plot_h = height - pad.top - pad.bottom;
+    const x = (i) => pad.left + (points.length === 1 ? plot_w / 2 : (i / (points.length - 1)) * plot_w);
+    const y = (v) => pad.top + plot_h - (v / 100) * plot_h;
+    const last = points.length - 1;
+    const line = points.map((pt, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(pt.percent).toFixed(1)}`).join("");
+    const area = points.length > 1 ? `${line}L${x(last).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}Z` : "";
+    const grid = [0, 25, 50, 75, 100].map((t) => `
+        <line class="grid" x1="${pad.left}" x2="${width - pad.right}" y1="${y(t)}" y2="${y(t)}"/>
+        <text class="tick" x="${pad.left - 10}" y="${y(t)}" text-anchor="end" dominant-baseline="middle">${t}%</text>`).join("");
+    const dates = points.length > 1
+        ? `<text class="tick" x="${x(0)}" y="${height - 8}" text-anchor="start">${short_date(points[0].created)}</text>
+           <text class="tick" x="${x(last)}" y="${height - 8}" text-anchor="end">${short_date(points[last].created)}</text>`
+        : `<text class="tick" x="${x(0)}" y="${height - 8}" text-anchor="middle">${short_date(points[0].created)}</text>`;
+
+    box.innerHTML = `
+        <svg width="${width}" height="${height}" style="width: ${width}px; height: ${height}px" tabindex="0" role="img"
+            aria-label="Quiz scores over time, ${points.length} attempts, latest ${points[last].percent} percent. Use the arrow keys to read each one.">
+            ${grid}
+            ${area ? `<path class="area" d="${area}"/>` : ""}
+            <path class="line" d="${line}"/>
+            <line class="crosshair" x1="0" x2="0" y1="${pad.top}" y2="${y(0)}" visibility="hidden"/>
+            <circle class="end-dot" cx="${x(last)}" cy="${y(points[last].percent)}" r="4.5"/>
+            <circle class="hover-dot" r="5" visibility="hidden"/>
+            <text class="end-label" x="${x(last) + 11}" y="${y(points[last].percent)}" dominant-baseline="middle">${points[last].percent}%</text>
+            ${dates}
+            <rect class="hit" x="${pad.left - 12}" y="0" width="${plot_w + 24}" height="${height}"/>
+        </svg>
+        <div class="chart-tip" hidden></div>`;
+
+    const svg = box.querySelector("svg");
+    const tip = box.querySelector(".chart-tip");
+    const crosshair = svg.querySelector(".crosshair");
+    const dot = svg.querySelector(".hover-dot");
+    let current = last;
+
+    const show = (i) => {
+        current = i;
+        const pt = points[i];
+        const cx = x(i);
+        const cy = y(pt.percent);
+        crosshair.setAttribute("x1", cx);
+        crosshair.setAttribute("x2", cx);
+        crosshair.setAttribute("visibility", "visible");
+        dot.setAttribute("cx", cx);
+        dot.setAttribute("cy", cy);
+        dot.setAttribute("visibility", "visible");
+        tip.replaceChildren();
+        const strong = document.createElement("strong");
+        strong.textContent = `${pt.percent}%`;
+        const detail = document.createElement("span");
+        detail.textContent = `Grade ${pt.grade} · ${pt.score} of ${pt.total}`;
+        const name = document.createElement("span");
+        name.textContent = `${pt.title} · ${short_date(pt.created)}`;
+        tip.append(strong, detail, name);
+        tip.hidden = false;
+        tip.style.left = `${Math.min(Math.max(cx, 90), width - 90)}px`;
+        tip.style.top = `${cy}px`;
+    };
+    const hide = () => {
+        crosshair.setAttribute("visibility", "hidden");
+        dot.setAttribute("visibility", "hidden");
+        tip.hidden = true;
+    };
+
+    svg.addEventListener("pointermove", (event) => {
+        const left = event.clientX - svg.getBoundingClientRect().left;
+        const i = points.length === 1 ? 0 : Math.round(((left - pad.left) / plot_w) * last);
+        show(Math.min(Math.max(i, 0), last));
+    });
+    svg.addEventListener("pointerleave", hide);
+    svg.addEventListener("focus", () => show(current));
+    svg.addEventListener("blur", hide);
+    svg.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            event.preventDefault();
+            show(Math.min(Math.max(current + (event.key === "ArrowRight" ? 1 : -1), 0), last));
+        }
+    });
+}
+
+let timeline_frame = 0;
+window.addEventListener("resize", () => {
+    if (!el("timeline-chart") || timeline_frame) return;
+    timeline_frame = requestAnimationFrame(() => {
+        timeline_frame = 0;
+        draw_timeline();
+    });
+});
+
+// one shared tooltip for the subject bars and grade columns, on hover and keyboard focus
+function show_perf_tip(mark) {
+    const tip = el("perf-tip");
+    if (!tip) return;
+    tip.replaceChildren();
+    const strong = document.createElement("strong");
+    strong.textContent = mark.dataset.tipValue;
+    const name = document.createElement("span");
+    name.textContent = mark.dataset.tip;
+    const note = document.createElement("span");
+    note.textContent = mark.dataset.tipNote;
+    tip.append(strong, name, note);
+    const box = mark.getBoundingClientRect();
+    tip.style.left = `${box.left + box.width / 2}px`;
+    tip.style.top = `${box.top}px`;
+    tip.hidden = false;
+}
+
+function hide_perf_tip() {
+    const tip = el("perf-tip");
+    if (tip) tip.hidden = true;
+}
+
+thread.addEventListener("pointerover", (event) => {
+    const mark = event.target.closest("#performance [data-tip]");
+    if (mark) show_perf_tip(mark);
+});
+thread.addEventListener("pointerout", (event) => {
+    if (event.target.closest("#performance [data-tip]") && !event.relatedTarget?.closest?.("#performance [data-tip]")) hide_perf_tip();
+});
+thread.addEventListener("focusin", (event) => {
+    const mark = event.target.closest("#performance [data-tip]");
+    if (mark) show_perf_tip(mark);
+});
+thread.addEventListener("focusout", hide_perf_tip);
+thread.addEventListener("scroll", hide_perf_tip, { passive: true });
+
+thread.addEventListener("click", (event) => {
+    if (event.target.closest("[data-performance]")) show_performance();
 });
 
 // conversations and the my chats drawer
@@ -1250,6 +1592,7 @@ function start_new_chat() {
     show_welcome();
     load_history();
     load_sets();
+    load_performance();
     close_drawer();
     input.focus({ preventScroll: true });
 }
@@ -1257,6 +1600,10 @@ function start_new_chat() {
 function route() {
     if (location.hash === "#/recents") {
         if (!el("recents")) show_recents();
+        return;
+    }
+    if (location.hash === "#/performance") {
+        if (!el("performance")) show_performance();
         return;
     }
     const set_match = location.hash.match(/^#\/set\/([0-9a-f]+)$/);
@@ -1271,6 +1618,7 @@ function route() {
 window.addEventListener("hashchange", route);
 el("new-chat").addEventListener("click", start_new_chat);
 document.querySelectorAll("[data-recents]").forEach((button) => button.addEventListener("click", show_recents));
+document.querySelectorAll(".tabs [data-performance]").forEach((button) => button.addEventListener("click", show_performance));
 document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
     event.preventDefault();
     start_new_chat();
@@ -1296,6 +1644,45 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && el("drawer").classList.contains("open")) close_drawer();
 });
 
+// motion, rows fade up once as they scroll into view, all of it skipped when someone prefers less motion
+
+const calm = matchMedia("(prefers-reduced-motion: reduce)");
+const reveal_kinds = [[".row", "reveal-row"], [".card-grid", "reveal-grid"], [".category-title, .group-title, .greeting, .kpis, .perf-card, .perf-grid", "reveal"]];
+let reveal_frame = 0;
+
+const reveal_observer = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add("shown");
+            reveal_observer.unobserve(entry.target);
+        });
+    }, { root: thread, rootMargin: "0px 0px -6% 0px", threshold: 0.1 })
+    : null;
+
+function reveal_new() {
+    reveal_frame = 0;
+    if (!reveal_observer || calm.matches) return;
+    reveal_kinds.forEach(([selector, name]) => {
+        thread.querySelectorAll(selector).forEach((item) => {
+            if (item.classList.contains(name)) return;
+            item.classList.add(name);
+            reveal_observer.observe(item);
+        });
+    });
+}
+
+// anything new in the thread is picked up before it is first painted, so nothing flashes
+new MutationObserver(() => {
+    if (!reveal_frame) reveal_frame = requestAnimationFrame(reveal_new);
+}).observe(thread, { childList: true, subtree: true });
+
+function sync_nav_line() {
+    document.querySelector(".nav").classList.toggle("scrolled", thread.scrollTop > 8);
+}
+
+thread.addEventListener("scroll", sync_nav_line, { passive: true });
+
 // theme
 
 function sync_theme_label() {
@@ -1307,11 +1694,16 @@ function sync_theme_label() {
 
 el("theme-toggle").addEventListener("click", () => {
     const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", next);
+    const apply = () => {
+        document.documentElement.setAttribute("data-theme", next);
+        sync_theme_label();
+    };
+    // the browser cross fades the whole page where it can
+    if (document.startViewTransition && !calm.matches) document.startViewTransition(apply);
+    else apply();
     try {
         localStorage.setItem("rahah-theme", next);
     } catch (e) {}
-    sync_theme_label();
 });
 
 // composer
@@ -1360,6 +1752,7 @@ async function start() {
     render_rows();
     load_history();
     load_sets();
+    load_performance();
     route();
     input.focus({ preventScroll: true });
 }

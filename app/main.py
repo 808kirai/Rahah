@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from .config import load_settings, settings
 from .modes import default_mode, groups, modes, public_modes
+from .performance import summarise
 from .store import store
 from .study import kinds, make_set, max_items, study_error, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
@@ -294,7 +295,11 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         study_set = set_or_404(set_id)
         if study_set["kind"] != "quiz" or body.score > study_set["size"]:
             raise HTTPException(400, "That score doesn't fit this set.")
-        return {"best_score": db.record_score(set_id, body.score)}
+        return {"best_score": db.record_score(set_id, body.score, study_set["size"])}
+
+    @app.get("/api/performance")
+    def performance():
+        return summarise(db.quiz_attempts())
 
     @app.delete("/api/sets/{set_id}")
     def delete_set(set_id: str):
