@@ -152,6 +152,16 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(404, "That conversation doesn't exist.")
         return conversation
 
+    @app.middleware("http")
+    async def always_check_for_changes(request, call_next):
+        # the page, its styles and its script are checked again on every load, so a change shows up
+        # without a hard refresh, and an unchanged file only costs a quick not modified reply
+        response = await call_next(request)
+        path = request.url.path
+        if path == "/" or path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     @app.get("/")
     def index():
         return FileResponse(static_dir / "index.html")

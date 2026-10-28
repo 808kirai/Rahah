@@ -181,12 +181,13 @@ svg {
     color: var(--text);
 }
 
-/* layout */
+/* layout, the window never scrolls, only the thread inside it does */
 .main {
     display: flex;
     flex-direction: column;
     height: 100vh;
     height: 100dvh;
+    overflow: hidden;
 }
 
 /* three columns so the page title sits in the middle, the sides grow evenly and never overlap it */
@@ -443,8 +444,11 @@ button.picker-heading:focus-visible {
     display: block;
 }
 
-/* thread, the one scrolling area for both home and chat */
+/* thread, the one scrolling area for both home and chat
+   it holds its own positioned pieces, like the hidden copy katex puts beside every formula,
+   which would otherwise stretch the whole page and let it scroll past the disclaimer */
 .thread {
+    position: relative;
     flex: 1;
     overflow-y: auto;
     padding: 1rem 1.5rem;

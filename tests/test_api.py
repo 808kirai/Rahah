@@ -38,6 +38,18 @@ def ask(web, conversation_id, text, mode="general", file_ids=()):
     return read_events(response)
 
 
+def test_the_page_and_its_files_are_checked_for_changes_on_every_load(setup):
+    web, _ = setup()
+    for path in ("/", "/static/style.css", "/static/app.js"):
+        assert web.get(path).headers["cache-control"] == "no-cache"
+    # an unchanged file comes back as a short not modified reply
+    first = web.get("/static/style.css")
+    again = web.get("/static/style.css", headers={"If-None-Match": first.headers["etag"]})
+    assert again.status_code == 304
+    # api replies are left alone
+    assert "cache-control" not in web.get("/api/modes").headers
+
+
 def test_page_and_modes_load(setup):
     web, _ = setup()
     assert "Rahah" in web.get("/").text
