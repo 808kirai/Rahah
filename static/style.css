@@ -972,14 +972,107 @@ button.picker-heading:focus-visible {
     flex-shrink: 0;
 }
 
-/* voice typing, the mic turns purple and the message box glows while it listens, nothing pulses */
-.mic-btn[hidden] {
+/* the + button and its menu of files, photo and voice, opening upwards from the message box */
+.input-tools {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.tools-btn svg {
+    transition: transform 0.3s var(--ease-out);
+}
+
+.tools-btn[aria-expanded="true"] {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.tools-btn[aria-expanded="true"] .icon-plus {
+    transform: rotate(45deg);
+}
+
+.tools-btn .icon-mic,
+.tools-btn.listening .icon-plus {
     display: none;
 }
 
-.mic-btn[aria-pressed="true"] {
+/* while listening the + is a purple mic, and the message box glows, nothing pulses */
+.tools-btn.listening {
     background: var(--accent);
     color: var(--on-accent);
+}
+
+.tools-btn.listening .icon-mic {
+    display: block;
+}
+
+.input-menu {
+    position: absolute;
+    bottom: calc(100% + 14px);
+    left: -5px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 280px;
+    max-width: calc(100vw - 24px);
+    padding: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--surface);
+    box-shadow: 0 18px 50px var(--shadow);
+    animation: picker-in-up 0.22s var(--ease-out);
+}
+
+.input-menu[hidden],
+.input-option[hidden] {
+    display: none;
+}
+
+.input-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.5rem 0.9rem 0.5rem 0.5rem;
+    border-radius: var(--pill);
+    text-align: left;
+    color: var(--text);
+    transition: background-color 0.15s;
+}
+
+.input-option:hover,
+.input-option:focus-visible {
+    background: var(--surface-2);
+    outline: none;
+}
+
+.opt-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+}
+
+.opt-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.input-option strong {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.input-option small {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--text-2);
 }
 
 .composer-box.listening {

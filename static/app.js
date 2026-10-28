@@ -546,7 +546,6 @@ async function upload_files(files) {
     }
 }
 
-el("attach").addEventListener("click", () => file_input.click());
 file_input.addEventListener("change", () => {
     upload_files([...file_input.files]);
     file_input.value = "";
@@ -617,10 +616,11 @@ input.addEventListener("paste", (event) => {
 // voice typing, the browser turns speech into words in the message box and rahah reads the words
 // claude can't hear audio, so only the text is ever sent
 
-const mic = el("mic");
+const tools_btn = el("attach");
+const input_menu = el("input-menu");
 const speech_engine = () => window.SpeechRecognition || window.webkitSpeechRecognition;
 const voice = { rec: null, base: "", heard: "", error: "" };
-mic.hidden = !speech_engine();
+el("voice-option").hidden = !speech_engine();
 
 const voice_errors = {
     "not-allowed": "Rahah isn't allowed to use the microphone. Allow it in the browser's site settings.",
@@ -636,11 +636,12 @@ function composer_hint(text) {
     composer_hint.timer = setTimeout(sync_placeholder, 6000);
 }
 
+// while listening the + button becomes a purple mic, and tapping it stops
 function set_listening(on) {
-    const label = on ? "Stop listening" : "Speak your question";
-    mic.setAttribute("aria-pressed", String(on));
-    mic.setAttribute("aria-label", label);
-    mic.title = label;
+    const label = on ? "Stop listening" : "Add files, a photo or your voice";
+    tools_btn.classList.toggle("listening", on);
+    tools_btn.setAttribute("aria-label", label);
+    tools_btn.title = label;
     composer_box.classList.toggle("listening", on);
     if (on) input.placeholder = "Listening, say your question…";
     else sync_placeholder();
@@ -706,7 +707,53 @@ function start_voice() {
     }
 }
 
-mic.addEventListener("click", () => (voice.rec ? stop_voice() : start_voice()));
+// the + menu, files, a photo or voice
+
+function close_input_menu(refocus = false) {
+    if (input_menu.hidden) return;
+    input_menu.hidden = true;
+    tools_btn.setAttribute("aria-expanded", "false");
+    if (refocus) tools_btn.focus();
+}
+
+function open_input_menu() {
+    input_menu.hidden = false;
+    tools_btn.setAttribute("aria-expanded", "true");
+    input_menu.querySelector(".input-option:not([hidden])")?.focus();
+}
+
+tools_btn.addEventListener("click", () => {
+    if (voice.rec) stop_voice();
+    else if (input_menu.hidden) open_input_menu();
+    else close_input_menu();
+});
+
+input_menu.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-input]");
+    if (!option) return;
+    close_input_menu();
+    if (option.dataset.input === "files") file_input.click();
+    else if (option.dataset.input === "photo") open_camera();
+    else start_voice();
+});
+
+input_menu.addEventListener("keydown", (event) => {
+    const options = [...input_menu.querySelectorAll(".input-option:not([hidden])")];
+    const at = options.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+        event.preventDefault();
+        close_input_menu(true);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        options[(at + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus();
+    } else if (event.key === "Tab") {
+        close_input_menu();
+    }
+});
+
+document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".input-tools")) close_input_menu();
+});
 
 // the camera sheet, a live preview, then the shot to keep or retake
 
@@ -782,7 +829,6 @@ async function take_photo() {
     camera_state("shot");
 }
 
-el("camera").addEventListener("click", open_camera);
 el("camera-close").addEventListener("click", () => camera_sheet.close());
 el("camera-snap").addEventListener("click", take_photo);
 el("camera-retake").addEventListener("click", start_camera);
