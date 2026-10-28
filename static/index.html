@@ -24,6 +24,17 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="is-home is-page">
+    <!-- a slight wobble for the card sketches, so they read as drawn by hand -->
+    <svg class="filters" aria-hidden="true">
+        <filter id="rough">
+            <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="7"/>
+            <feDisplacementMap in="SourceGraphic" scale="3.2"/>
+        </filter>
+        <filter id="rough-2">
+            <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="21"/>
+            <feDisplacementMap in="SourceGraphic" scale="3.6"/>
+        </filter>
+    </svg>
     <main class="main">
         <header class="nav">
             <div class="nav-left">
@@ -64,9 +75,9 @@
                     <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
                     <span>Chats</span>
                 </button>
-                <button class="tab" type="button" data-foryou data-tab="foryou">
-                    <svg viewBox="0 0 24 24"><path d="M11 4.5l1.8 4.7 4.7 1.8-4.7 1.8L11 17.5l-1.8-4.7L4.5 11l4.7-1.8z"/><path d="M18.5 3.5v4M16.5 5.5h4"/></svg>
-                    <span>For you</span>
+                <button class="tab" type="button" data-recommendations data-tab="recommendations">
+                    <svg viewBox="0 0 24 24"><path d="M2.5 3.5h8.5v17H2.5z"/><path d="M4.5 8l1.1 1.1L7.9 7M4.5 12.5l1.1 1.1 2.3-2.1M4.5 17h3.5"/><path d="M15 8.5V2.8M13 4.8l2-2 2 2"/><path d="M18 10.3a3.9 3.9 0 0 0-2.3 7V19h4.6v-1.7a3.9 3.9 0 0 0-2.3-7z"/><path d="M16.4 21.3h3.2M22.7 14.2h1M21.5 11l.8-.8"/></svg>
+                    <span>Suggestions</span>
                 </button>
                 <button class="tab" type="button" data-performance data-tab="performance">
                     <svg viewBox="0 0 24 24"><path d="M5 20V12M12 20V5M19 20v-8"/></svg>
@@ -160,6 +171,7 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="/static/sketches.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

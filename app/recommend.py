@@ -18,6 +18,14 @@ kinds = ("review", "next", "related")
 actions = ("ask", "flashcards", "quiz", "summary", "open")
 max_recommendations = 9
 
+# the drawings the page can show on a card, kept in step with static/sketches.js
+sketches = (
+    "bulb", "graph", "sigma", "pi", "triangle", "calculator", "chart", "flask", "atom", "bolt", "planet",
+    "dna", "cell", "leaf", "heart", "brain", "code", "laptop", "bug", "database", "gear", "book", "quill",
+    "speech", "globe", "columns", "castle", "clock", "checklist", "cards", "pencil", "notes", "trophy",
+    "target", "magnifier", "rocket", "music", "coins", "people", "sun",
+)
+
 
 def schema() -> dict:
     return {
@@ -28,6 +36,7 @@ def schema() -> dict:
                 "items": {
                     "type": "object",
                     "properties": {
+                        "topic": {"type": "string"},
                         "kind": {"type": "string", "enum": list(kinds)},
                         "title": {"type": "string"},
                         "reason": {"type": "string"},
@@ -35,8 +44,9 @@ def schema() -> dict:
                         "action": {"type": "string", "enum": list(actions)},
                         "prompt": {"type": "string"},
                         "set_id": {"type": "string"},
+                        "sketch": {"type": "string", "enum": list(sketches)},
                     },
-                    "required": ["kind", "title", "reason", "mode", "action", "prompt", "set_id"],
+                    "required": ["topic", "kind", "title", "reason", "mode", "action", "prompt", "set_id", "sketch"],
                     "additionalProperties": False,
                 },
             },
@@ -96,6 +106,11 @@ set_id is empty for every action except open. mode is the subject that fits best
 words. reason is one short sentence to the student saying why, for example "You scored 55% on cell \
 biology, so a quick review would help."
 
+topic names the area a suggestion belongs to in two to four words, like Cell biology or Python \
+functions, and suggestions are shown grouped under it. Give suggestions about the same area exactly the \
+same topic, and aim for two to four topics in all. sketch is the drawing that best shows what the \
+suggestion is about, picked from the allowed names: {sketch_names}.
+
 The student's history:
 
 {history}"""
@@ -113,16 +128,20 @@ def clean(data: dict, set_ids: set[str]) -> list[dict]:
             continue
         if action != "open" and not prompt:
             continue
+        sketch = r.get("sketch") if r.get("sketch") in sketches else ""
+        # without a topic the suggestion goes under its subject
+        topic = clean_text(r.get("topic"))[:40] or modes[mode]["name"]
         picked.append({
-            "kind": kind, "title": title[:80], "reason": reason[:240], "mode": mode, "action": action,
-            "prompt": prompt[:2000] if action != "open" else "", "set_id": set_id if action == "open" else "",
+            "topic": topic, "kind": kind, "title": title[:80], "reason": reason[:240], "mode": mode,
+            "action": action, "prompt": prompt[:2000] if action != "open" else "",
+            "set_id": set_id if action == "open" else "", "sketch": sketch,
         })
     return picked[:max_recommendations]
 
 
 async def recommend(client, cfg: settings, chats: list[dict], sets: list[dict], results: dict) -> list[dict]:
     """asks claude for suggestions and returns the ones that check out"""
-    text = ask_text.format(count=6, history=describe_history(chats, sets, results))
+    text = ask_text.format(count=6, sketch_names=", ".join(sketches), history=describe_history(chats, sets, results))
     async with client.beta.messages.stream(
         model=cfg.model,
         max_tokens=16000,

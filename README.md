@@ -18,7 +18,8 @@ What it does today
 - A performance page with your average, grades, scores over time, results by subject and a table of every quiz, plus a summary under Exam on the home page
 - A home page laid out like a streaming app, with rows for each subject and your saved decks and quizzes
 - Chats are saved and listed on the Chats tab, grouped by day, with search
-- A For you tab with suggestions of what to study next, picked by Claude from your chats, decks and quiz scores, to review weak areas, take the next step or try a related topic
+- A Suggestions tab with ideas of what to study next, picked by Claude from your chats, decks and quiz scores and grouped by topic, to review weak areas, take the next step or try a related topic
+- Every card has a small hand drawn sketch of what it's about, which draws itself in once when the card first shows
 - Dark and light themes
 
 Setup
@@ -76,7 +77,7 @@ Each reply is saved as Claude returned it, minus the citation details, and sent 
 
 Code runs on Anthropic's servers with Claude's code execution tool, in a sandbox with no internet. Each chat keeps its sandbox for about an hour after its last run, so files and installed packages carry over between questions, and a new one starts after that. Charts and files a run makes are fetched through Rahah, and only plain images are shown in the page, anything else is downloaded.
 
-Suggestions on the For you tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
+Suggestions on the Suggestions tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
 
 If Claude's safety checks decline a request, the request is retried on a fallback model automatically. A turn that still fails is not saved, and the question goes back into the message box.
 

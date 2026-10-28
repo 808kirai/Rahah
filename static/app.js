@@ -15,7 +15,7 @@ const state = {
     pending: [], // files attached to the next message, each {key, id, name, kind, status}
     busy: false,
     conversations: [], // recent chats for the chats page and the continue studying row
-    recs: null, // suggestions for the for you page
+    recs: null, // suggestions for the recommendations page
     recs_loading: false,
     recs_error: "",
     modes: [],
@@ -284,14 +284,14 @@ function add_notice(message_el, text) {
     message_el.appendChild(note);
 }
 
-// home, chats, for you and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
+// home, chats, recommendations and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats", foryou: "For you", performance: "Performance" };
+const page_titles = { home: "Home", chats: "Chats", recommendations: "Suggestions", performance: "Performance" };
 
 function current_view() {
     if (el("welcome")) return "home";
     if (el("chats")) return "chats";
-    if (el("foryou")) return "foryou";
+    if (el("recommendations")) return "recommendations";
     if (el("performance")) return "performance";
     if (el("study")) return "study";
     return "chat";
@@ -301,7 +301,7 @@ function sync_view() {
     const view = current_view();
     document.body.classList.toggle("is-home", view === "home");
     document.body.classList.toggle("is-chats", view === "chats");
-    document.body.classList.toggle("is-foryou", view === "foryou");
+    document.body.classList.toggle("is-recommendations", view === "recommendations");
     document.body.classList.toggle("is-performance", view === "performance");
     document.body.classList.toggle("is-study", view === "study");
     document.body.classList.toggle("is-page", view in page_titles);
@@ -311,7 +311,7 @@ function sync_view() {
 
 function leave_home() {
     if (current_view() === "chat") return;
-    ["welcome", "chats", "foryou", "performance", "study"].forEach((id) => el(id)?.remove());
+    ["welcome", "chats", "recommendations", "performance", "study"].forEach((id) => el(id)?.remove());
     sync_view();
 }
 
@@ -597,6 +597,7 @@ function time_ago(seconds) {
 
 function prompt_tile(item) {
     return `<button class="tile poster tone-${tone(item.mode)}" type="button" data-mode="${item.mode}" data-text="${escape_html(item.text)}" title="${escape_html(item.text)}">
+        ${sketch_html(sketch_for(`${item.title} ${item.text}`, item.mode))}
         <strong>${escape_html(item.title)}</strong>
         <span class="tile-sub">${escape_html(mode_name(item.mode))}</span>
     </button>`;
@@ -604,6 +605,7 @@ function prompt_tile(item) {
 
 function subject_tile(mode) {
     return `<button class="tile subject poster tone-${tone(mode.id)}" type="button" data-pick="${mode.id}" title="${escape_html(mode.hint)}">
+        ${sketch_html(mode_sketches[mode.id] || "bulb", "inline")}
         <strong>${escape_html(mode.name)}</strong>
     </button>`;
 }
@@ -611,6 +613,7 @@ function subject_tile(mode) {
 function chat_card(c) {
     return `<div class="chat-card">
         <a class="chat-card-art poster tone-${tone(c.mode)}" href="#/c/${c.id}" aria-label="Open ${escape_html(c.title)}">
+            ${sketch_html(sketch_for(c.title, c.mode))}
             <span class="play">${icons.play}</span>
         </a>
         <div class="chat-card-info">
@@ -807,9 +810,9 @@ thread.addEventListener("click", (event) => {
     if (event.target.closest("[data-home]")) start_new_chat();
 });
 
-// for you page, suggestions from claude based on what the student has studied
+// recommendations page, suggestions from claude based on what the student has studied, grouped by topic
 
-const rec_kinds = { review: "Review", next: "Next steps", related: "Related topics" };
+const rec_kinds = { review: "Review", next: "Next step", related: "Related" };
 const rec_actions = {
     ask: { label: "Ask", icon: "chat" },
     flashcards: { label: "Flashcards", icon: "cards" },
@@ -825,16 +828,31 @@ function rec_action(item) {
 
 function rec_card(item, i) {
     const action = rec_action(item);
+    // claude picks the sketch, older picks without one get a drawing from their words
+    const sketch = item.sketch && sketches[item.sketch] ? item.sketch : sketch_for(`${item.title} ${item.prompt}`, item.mode);
+    const kind = rec_kinds[item.kind] ? ` · ${rec_kinds[item.kind]}` : "";
     return `<button class="tile rec poster tone-${tone(item.mode)}" type="button" data-rec="${i}">
         <span class="rec-chip">${icons[action.icon]}${escape_html(action.label)}</span>
+        ${sketch_html(sketch)}
         <strong>${inline_markdown(item.title)}</strong>
         <span class="tile-sub">${inline_markdown(item.reason)}</span>
-        <span class="rec-subject">${escape_html(mode_name(item.mode))}</span>
+        <span class="rec-subject">${escape_html(mode_name(item.mode))}${kind}</span>
     </button>`;
 }
 
-function render_foryou() {
-    const page = el("foryou");
+// suggestions about the same topic sit together, in the order claude ranked them
+function rec_groups(items) {
+    const groups = new Map();
+    items.forEach((item, i) => {
+        const topic = item.topic || mode_name(item.mode);
+        if (!groups.has(topic)) groups.set(topic, []);
+        groups.get(topic).push([item, i]);
+    });
+    return [...groups];
+}
+
+function render_recommendations() {
+    const page = el("recommendations");
     if (!page) return;
     const recs = state.recs;
     if (!recs) {
@@ -862,17 +880,16 @@ function render_foryou() {
         page.innerHTML = top + error + (note ? `<p class="page-note wait">${note}</p>` : "");
         return;
     }
-    page.innerHTML = top + error + Object.entries(rec_kinds).map(([kind, title]) => {
-        const cards = recs.items.map((item, i) => (item.kind === kind ? rec_card(item, i) : "")).join("");
-        return cards ? `<h3 class="group-title">${title}</h3><div class="card-grid">${cards}</div>` : "";
-    }).join("");
+    page.innerHTML = top + error + rec_groups(recs.items).map(([topic, entries]) => `
+        <h3 class="group-title">${escape_html(topic)}</h3>
+        <div class="card-grid">${entries.map(([item, i]) => rec_card(item, i)).join("")}</div>`).join("");
 }
 
 async function make_recommendations() {
     if (state.recs_loading) return;
     state.recs_loading = true;
     state.recs_error = "";
-    render_foryou();
+    render_recommendations();
     try {
         const response = await api("/api/recommendations", { method: "POST" });
         state.recs = await response.json();
@@ -880,7 +897,7 @@ async function make_recommendations() {
         state.recs_error = error.message;
     }
     state.recs_loading = false;
-    render_foryou();
+    render_recommendations();
 }
 
 async function load_recommendations() {
@@ -891,16 +908,16 @@ async function load_recommendations() {
         state.recs = { items: [], has_activity: true, created: null, fresh: false };
         state.recs_error = error.message;
     }
-    render_foryou();
+    render_recommendations();
     // new picks are only asked for when something new has been studied since the last ones
     if (state.recs.has_activity && !state.recs.fresh && !state.recs_error) make_recommendations();
 }
 
-function show_foryou() {
+function show_recommendations() {
     if (state.busy) return;
-    enter_page("#/for-you", "For you", '<div class="list-page" id="foryou"></div>');
+    enter_page("#/suggestions", "Suggestions", '<div class="list-page" id="recommendations"></div>');
     state.recs_error = "";
-    render_foryou();
+    render_recommendations();
     sync_view();
     load_sets();
     load_recommendations();
@@ -952,10 +969,13 @@ const sheet_copy = {
 const sheet = el("sheet");
 const sheet_state = { tool: "flashcards", files: [], pick: 10, opened: 0 };
 
+const tool_sketches = { summary: "notes", flashcards: "cards", quiz: "checklist" };
+
 function tool_tile(id, mode) {
     const t = tools[id];
     return `<button class="tile tool poster tone-${t.tone}" type="button" data-tool="${id}" data-mode="${mode}">
         <span class="tool-icon">${icons[t.icon]}</span>
+        ${sketch_html(tool_sketches[id] || "notes")}
         <strong>${escape_html(t.title)}</strong>
         <span class="tile-sub">${escape_html(t.sub)}</span>
     </button>`;
@@ -970,6 +990,7 @@ function set_detail(s) {
 function set_card(s) {
     return `<div class="chat-card">
         <a class="chat-card-art poster tone-${tone(s.mode)}" href="#/set/${s.id}" aria-label="Open ${escape_html(s.title)}">
+            ${sketch_html(sketch_for(s.title, s.mode))}
             <span class="play outline">${s.kind === "quiz" ? icons.quiz : icons.cards}</span>
         </a>
         <div class="chat-card-info">
@@ -1658,8 +1679,11 @@ function sparkline(points) {
     </svg>`;
 }
 
+const stat_sketches = { "Average score": "chart", "Latest quiz": "pencil", "Quizzes taken": "checklist", "Best subject": "trophy" };
+
 function stat_card(label, value, note, extra = "", small = false) {
     return `<div class="stat-card">
+        ${stat_sketches[label] ? sketch_html(stat_sketches[label], "small") : ""}
         <span class="stat-label">${label}</span>
         <span class="stat-value${small ? " small" : ""}">${value}</span>
         <span class="stat-note">${note}</span>
@@ -2020,8 +2044,9 @@ function route() {
         if (!el("chats")) show_chats();
         return;
     }
-    if (location.hash === "#/for-you") {
-        if (!el("foryou")) show_foryou();
+    // the suggestions page was called for you and then recommendations, so those links still land here
+    if (["#/suggestions", "#/recommendations", "#/for-you"].includes(location.hash)) {
+        if (!el("recommendations")) show_recommendations();
         return;
     }
     if (location.hash === "#/performance") {
@@ -2039,7 +2064,7 @@ function route() {
 
 window.addEventListener("hashchange", route);
 document.querySelectorAll(".tabs [data-chats]").forEach((button) => button.addEventListener("click", show_chats));
-document.querySelectorAll(".tabs [data-foryou]").forEach((button) => button.addEventListener("click", show_foryou));
+document.querySelectorAll(".tabs [data-recommendations]").forEach((button) => button.addEventListener("click", show_recommendations));
 document.querySelectorAll(".tabs [data-performance]").forEach((button) => button.addEventListener("click", show_performance));
 document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
     event.preventDefault();

@@ -772,6 +772,82 @@ button.picker-heading:focus-visible {
     font-size: 0.95rem;
 }
 
+/* hand drawn sketches on cards, each line draws itself in once when the card first shows */
+.filters {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.sketch {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.8rem;
+    width: 54px;
+    height: 54px;
+    color: rgba(255, 255, 255, 0.86);
+    stroke-width: 2.3;
+    pointer-events: none;
+}
+
+.sketch.inline {
+    position: static;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 0.3rem;
+}
+
+.sketch.small {
+    top: 0.9rem;
+    right: 0.95rem;
+    width: 38px;
+    height: 38px;
+    color: var(--accent-text);
+    opacity: 0.8;
+    stroke-width: 2.6;
+}
+
+.sketch g > * {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+    animation: sketch-draw 1.3s var(--ease-out) backwards;
+    animation-delay: calc(var(--i, 0) * 70ms + var(--s, 0) * 220ms + 150ms);
+}
+
+.sketch .pass {
+    opacity: 0.4;
+    stroke-width: 1.4;
+}
+
+/* the second pass follows a moment behind the first */
+.sketch .pass > * {
+    animation-duration: 1.6s;
+}
+
+.sketch g > :nth-child(2) { --s: 1; }
+.sketch g > :nth-child(3) { --s: 2; }
+.sketch g > :nth-child(4) { --s: 3; }
+.sketch g > :nth-child(n + 5) { --s: 4; }
+
+@keyframes sketch-draw {
+    from {
+        stroke-dashoffset: 1;
+    }
+}
+
+/* a card waiting to scroll into view keeps its sketch for then */
+.reveal-row:not(.shown) .sketch g > *,
+.reveal-grid:not(.shown) .sketch g > *,
+.reveal:not(.shown) .sketch g > * {
+    animation-play-state: paused;
+}
+
+.chat-card-art,
+.stat-card {
+    position: relative;
+}
+
 /* a suggestion card, what to do on top, then the topic and why */
 .card-grid .tile {
     width: auto;
@@ -2273,7 +2349,7 @@ button.picker-heading:focus-visible {
 
 .is-home .tab[data-tab="home"],
 .is-chats .tab[data-tab="chats"],
-.is-foryou .tab[data-tab="foryou"],
+.is-recommendations .tab[data-tab="recommendations"],
 .is-performance .tab[data-tab="performance"] {
     background: var(--surface-2);
     color: var(--text);

@@ -77,6 +77,16 @@ def test_reopening_a_set_needs_a_real_set():
     assert picked[0]["set_id"] == "set_a" and picked[0]["prompt"] == ""
 
 
+def test_topics_and_sketches_are_checked():
+    picked = clean({"recommendations": [
+        pick(topic="Calculus basics", sketch="graph"),
+        pick(topic="", sketch="dragon"),
+    ]}, set())
+    assert picked[0]["topic"] == "Calculus basics" and picked[0]["sketch"] == "graph"
+    # no topic falls back to the subject, and an unknown drawing is left for the page to choose
+    assert picked[1]["topic"] == "Maths" and picked[1]["sketch"] == ""
+
+
 def test_history_mentions_weak_scores():
     results = {
         "overall": {"attempts": 1},
