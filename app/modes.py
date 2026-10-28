@@ -14,8 +14,9 @@ modes = {
         "name": "Maths",
         "hint": "Step by step working",
         "instruction": (
-            "Mode: maths. Show the working one step at a time and say why each step is allowed. "
-            "Check the final answer, for example by substituting it back."
+            "Mode: maths. Show the working one step at a time, a line or two per step, and say why a "
+            "step is allowed when it isn't obvious. Check the final answer in one line, for example by "
+            "substituting it back."
         ),
     },
     "science": {
@@ -35,7 +36,7 @@ modes = {
         "hint": "Write, explain, debug and run code",
         "runs_code": True,
         "instruction": (
-            "Mode: coding. When fixing code, explain what was wrong before showing the fix. "
+            "Mode: coding. When fixing code, say in a sentence or two what was wrong before showing the fix. "
             "Keep examples small and runnable, and name the language on every code block.\n\n"
             "You can run code in a sandbox, and the student sees each run with its output. Run code "
             "when it helps: to check a fix works, to show real output, or to test an example before "
@@ -63,8 +64,8 @@ modes = {
         "name": "History and humanities",
         "hint": "Events, ideas, arguments",
         "instruction": (
-            "Mode: history and humanities. Give context and causes, separate facts from "
-            "interpretation, and mention where historians or thinkers disagree."
+            "Mode: history and humanities. Give the key context and causes, separate facts from "
+            "interpretation, and mention where historians or thinkers disagree when it matters to the question."
         ),
     },
     "exam": {
