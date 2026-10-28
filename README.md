@@ -19,6 +19,7 @@ What it does today
 - A home page laid out like a streaming app, with rows for each subject and your saved decks and quizzes
 - Chats are saved and listed on the Chats tab, grouped by day, with search
 - A Suggestions tab with ideas of what to study next, picked by Claude from your chats, decks and quiz scores and grouped by topic, to review weak areas, take the next step or try a related topic
+- A Reminders tab for exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, a pop up and a desktop notification while Rahah is open, calendar files so phones remind you too, and a Plan revision button that asks Rahah for help
 - Every card has a small hand drawn sketch of what it's about, which draws itself in once when the card first shows
 - Dark and light themes
 
@@ -54,6 +55,7 @@ Project layout
 - `app/tutor.py` - The prompt, request building and streaming from Claude
 - `app/study.py` - Flashcards and quizzes, asked for as structured JSON and checked before saving
 - `app/performance.py` - Quiz attempts turned into percentages, grades and summaries
+- `app/reminders.py` - Reminder dates, checks and calendar files
 - `app/recommend.py` - Suggestions of what to study next, asked for as structured JSON from the study history
 - `app/modes.py` - Subject modes and the instruction each one adds
 - `app/store.py` - Local SQLite storage for chats, uploaded files and study sets
@@ -76,6 +78,8 @@ Uploaded files go to the Claude Files API once and are referenced by id after th
 Each reply is saved as Claude returned it, minus the citation details, and sent back unchanged on every later turn. The citations are kept separately for the page, because Claude rejects page citations into uploaded files when they are sent back. Changing the subject mode adds a short system note to the conversation instead of changing the main prompt, which keeps the earlier part of the chat cached and cheaper.
 
 Code runs on Anthropic's servers with Claude's code execution tool, in a sandbox with no internet. Each chat keeps its sandbox for about an hour after its last run, so files and installed packages carry over between questions, and a new one starts after that. Charts and files a run makes are fetched through Rahah, and only plain images are shown in the page, anything else is downloaded.
+
+Reminders are worked out from the student's own calendar dates, so a reminder lands on the right day wherever the page is opened. A web page can only remind you while it's open, so each reminder can also be added to a calendar app with the same alerts built in.
 
 Suggestions on the Suggestions tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
 

@@ -16,6 +16,7 @@ from .config import load_settings, settings
 from .modes import default_mode, groups, menu_groups, modes, public_modes, runs_code
 from .performance import summarise
 from .recommend import has_activity, recommend, signature
+from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
 from .store import store
 from .study import kinds, make_set, max_items, study_error, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
@@ -58,6 +59,14 @@ class new_conversation_in(BaseModel):
 
 class score_in(BaseModel):
     score: int = Field(ge=0)
+
+
+class done_in(BaseModel):
+    done: bool
+
+
+class seen_in(BaseModel):
+    day: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 class message_in(BaseModel):
@@ -367,8 +376,9 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     def performance():
         return summarise(db.quiz_attempts())
 
-    def study_history() -> tuple[list[dict], list[dict], dict]:
-        return db.list_conversations(limit=20), db.list_sets(limit=20), summarise(db.quiz_attempts())
+    def study_history() -> tuple[list[dict], list[dict], dict, list[dict]]:
+        deadlines = [r for r in db.list_reminders() if is_upcoming(r)][:10]
+        return db.list_conversations(limit=20), db.list_sets(limit=20), summarise(db.quiz_attempts()), deadlines
 
     def recommendations_body(saved: dict | None, history: tuple) -> dict:
         # fresh means nothing new has been studied since these were picked
@@ -401,6 +411,66 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(502, friendly_error(error))
         db.save_recommendations(items, signature(*history))
         return recommendations_body(db.get_recommendations(), history)
+
+    # reminders, the page works out today's date itself, since that depends on where the student is
+
+    def reminder_out(reminder: dict) -> dict:
+        return {**reminder, "reminder_days": reminder_days(reminder["lead_days"], reminder["every_days"])}
+
+    def reminder_or_404(reminder_id: str) -> dict:
+        reminder = db.get_reminder(reminder_id)
+        if not reminder:
+            raise HTTPException(404, "That reminder doesn't exist.")
+        return reminder
+
+    def calendar_response(reminders: list[dict], name: str) -> Response:
+        return Response(
+            calendar_file(reminders),
+            media_type="text/calendar; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{safe_filename(name)}.ics"'},
+        )
+
+    @app.get("/api/reminders")
+    def list_reminders():
+        return {"reminders": [reminder_out(r) for r in db.list_reminders()], "kinds": reminder_kinds}
+
+    @app.post("/api/reminders")
+    def new_reminder(body: reminder_in):
+        return reminder_out(db.get_reminder(db.save_reminder(body.model_dump())))
+
+    @app.put("/api/reminders/{reminder_id}")
+    def edit_reminder(reminder_id: str, body: reminder_in):
+        reminder_or_404(reminder_id)
+        return reminder_out(db.get_reminder(db.save_reminder(body.model_dump(), reminder_id)))
+
+    @app.post("/api/reminders/{reminder_id}/done")
+    def finish_reminder(reminder_id: str, body: done_in):
+        reminder_or_404(reminder_id)
+        db.set_reminder_done(reminder_id, body.done)
+        return reminder_out(db.get_reminder(reminder_id))
+
+    @app.post("/api/reminders/{reminder_id}/seen")
+    def saw_reminder(reminder_id: str, body: seen_in):
+        reminder_or_404(reminder_id)
+        return {"seen": db.mark_reminder_seen(reminder_id, body.day)}
+
+    @app.delete("/api/reminders/{reminder_id}")
+    def delete_reminder(reminder_id: str):
+        reminder_or_404(reminder_id)
+        db.delete_reminder(reminder_id)
+        return {"ok": True}
+
+    @app.get("/api/reminders/calendar.ics")
+    def all_reminders_calendar():
+        upcoming = [r for r in db.list_reminders() if is_upcoming(r)]
+        if not upcoming:
+            raise HTTPException(404, "There are no upcoming reminders to add.")
+        return calendar_response(upcoming, "rahah reminders")
+
+    @app.get("/api/reminders/{reminder_id}/calendar.ics")
+    def reminder_calendar(reminder_id: str):
+        reminder = reminder_or_404(reminder_id)
+        return calendar_response([reminder], reminder["title"])
 
     @app.delete("/api/sets/{set_id}")
     def delete_set(set_id: str):

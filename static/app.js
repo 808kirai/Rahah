@@ -15,6 +15,8 @@ const state = {
     pending: [], // files attached to the next message, each {key, id, name, kind, status}
     busy: false,
     conversations: [], // recent chats for the chats page and the continue studying row
+    reminders: [], // exams, cats, midterms, assignments and events, soonest first
+    reminder_kinds: { exam: "Exam", cat: "CAT", midterm: "Midterm", assignment: "Assignment", event: "Event" },
     recs: null, // suggestions for the recommendations page
     recs_loading: false,
     recs_error: "",
@@ -47,6 +49,9 @@ const icons = {
     check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    bell: '<svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24"><path d="M5 19l1-4L16 5l3 3L9 18z"/><path d="M14 7l3 3"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>',
 };
 
 function escape_html(text) {
@@ -60,6 +65,8 @@ async function api(path, options = {}) {
         try {
             const body = await response.json();
             if (typeof body.detail === "string") detail = body.detail;
+            // a form the server turned down lists what was wrong with each field
+            else if (Array.isArray(body.detail)) detail = body.detail.map((d) => String(d.msg || "").replace(/^Value error, /, "")).join(" ");
         } catch (e) {}
         throw new Error(detail);
     }
@@ -286,12 +293,13 @@ function add_notice(message_el, text) {
 
 // home, chats, recommendations and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats", recommendations: "Suggestions", performance: "Performance" };
+const page_titles = { home: "Home", chats: "Chats", recommendations: "Suggestions", reminders: "Reminders", performance: "Performance" };
 
 function current_view() {
     if (el("welcome")) return "home";
     if (el("chats")) return "chats";
     if (el("recommendations")) return "recommendations";
+    if (el("reminders")) return "reminders";
     if (el("performance")) return "performance";
     if (el("study")) return "study";
     return "chat";
@@ -302,6 +310,7 @@ function sync_view() {
     document.body.classList.toggle("is-home", view === "home");
     document.body.classList.toggle("is-chats", view === "chats");
     document.body.classList.toggle("is-recommendations", view === "recommendations");
+    document.body.classList.toggle("is-reminders", view === "reminders");
     document.body.classList.toggle("is-performance", view === "performance");
     document.body.classList.toggle("is-study", view === "study");
     document.body.classList.toggle("is-page", view in page_titles);
@@ -311,7 +320,7 @@ function sync_view() {
 
 function leave_home() {
     if (current_view() === "chat") return;
-    ["welcome", "chats", "recommendations", "performance", "study"].forEach((id) => el(id)?.remove());
+    ["welcome", "chats", "recommendations", "reminders", "performance", "study"].forEach((id) => el(id)?.remove());
     sync_view();
 }
 
@@ -657,7 +666,7 @@ function render_rows() {
             + sets("study")
             + (study_subjects.length ? row_html("Pick a subject", study_subjects.map(subject_tile).join("")) : "")
             + shelf_rows("study"),
-        exam: '<div id="performance-exam"></div>' + saved("exam") + sets("exam") + shelf_rows("exam"),
+        exam: '<div id="reminders-exam"></div><div id="performance-exam"></div>' + saved("exam") + sets("exam") + shelf_rows("exam"),
         code: saved("code") + sets("code") + shelf_rows("code"),
     };
     rows.innerHTML = Object.entries(sections).map(([group, html]) => `
@@ -668,6 +677,7 @@ function render_rows() {
     render_continue();
     render_set_rows();
     render_performance_row();
+    render_reminder_row();
 }
 
 function render_continue() {
@@ -934,6 +944,421 @@ thread.addEventListener("click", (event) => {
     if (!item) return;
     if (item.action === "open") open_set(item.set_id);
     else open_sheet(item.action, item.mode, item.prompt);
+});
+
+// reminders for exams, cats, midterms, assignments and other events
+// dates are the student's own calendar dates, so today is worked out here rather than on the server
+
+const reminder_every = [[1, "Every day"], [2, "Every 2 days"], [3, "Every 3 days"], [7, "Every week"]];
+const reminder_lead = [[3, "3 days before"], [7, "1 week before"], [14, "2 weeks before"], [30, "1 month before"]];
+const reminder_sketches = { exam: "checklist", cat: "pencil", midterm: "clock", assignment: "notes", event: "calendar" };
+const revision_kinds = ["exam", "cat", "midterm"];
+const reminder_form = { kind: "exam", every: 2, lead: 7, editing: null };
+const toasted = new Set(); // reminders already shown as a pop up in this visit
+
+function iso_day(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function local_today() {
+    return iso_day(new Date());
+}
+
+function parse_day(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function shift_day(iso, days) {
+    const d = parse_day(iso);
+    d.setDate(d.getDate() + days);
+    return iso_day(d);
+}
+
+function days_left(iso) {
+    // counted on whole calendar days, so clock changes don't throw it off by one
+    const [a, b] = [parse_day(local_today()), parse_day(iso)];
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+}
+
+function nice_day(iso) {
+    return parse_day(iso).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+// the same rule as the server, starting lead days before, every few days, plus the day before and the day itself
+function reminder_offsets(lead, every) {
+    const days = new Set([1, 0]);
+    for (let d = lead; d > 1; d -= every) days.add(d);
+    return [...days].sort((a, b) => b - a);
+}
+
+function reminder_dates(r) {
+    return (r.reminder_days || reminder_offsets(r.lead_days, r.every_days)).map((d) => shift_day(r.due_date, -d));
+}
+
+function countdown(left) {
+    if (left === 0) return { big: "Today", small: "" };
+    if (left === 1) return { big: "Tomorrow", small: "" };
+    return { big: String(left), small: "days to go" };
+}
+
+function reminder_message(r) {
+    const left = days_left(r.due_date);
+    const name = `${state.reminder_kinds[r.kind] || "Event"}: ${r.title}`;
+    const at = r.due_time ? ` at ${r.due_time}` : "";
+    if (left === 0) return `${name} is today${at}`;
+    if (left === 1) return `${name} is tomorrow${at}`;
+    return `${name} is in ${left} days, on ${nice_day(r.due_date)}${at}`;
+}
+
+function is_upcoming(r) {
+    return !r.done && days_left(r.due_date) >= 0;
+}
+
+function next_reminder(r) {
+    const today = local_today();
+    const next = reminder_dates(r).find((d) => d >= today && !(d === today && r.seen.includes(today)));
+    if (!next) return "";
+    return next === today ? "Reminding you today" : `Next reminder ${nice_day(next)}`;
+}
+
+function every_text(r) {
+    return (reminder_every.find(([v]) => v === r.every_days)?.[1] || `Every ${r.every_days} days`).toLowerCase();
+}
+
+function help_text(r) {
+    const when = `${nice_day(r.due_date)}${r.due_time ? ` at ${r.due_time}` : ""}`;
+    const notes = r.notes ? ` My notes: ${r.notes}` : "";
+    const kind = (state.reminder_kinds[r.kind] || "event").toLowerCase();
+    if (revision_kinds.includes(r.kind)) {
+        const left = days_left(r.due_date);
+        const away = left === 0 ? "It's today." : left === 1 ? "It's tomorrow." : `That's ${left} days away.`;
+        return `Help me plan my revision for my ${kind}, ${r.title}, on ${when}. ${away} Ask me what it covers first if you need to.${notes}`;
+    }
+    if (r.kind === "assignment") return `Help me get started on my assignment, ${r.title}, due ${when}. Help me break it into steps I can finish in time.${notes}`;
+    return `Help me get ready for ${r.title} on ${when}.${notes}`;
+}
+
+function reminder_card(r) {
+    const left = days_left(r.due_date);
+    const past = r.done || left < 0;
+    const count = past ? { big: r.done ? "Done" : "Past", small: "" } : countdown(left);
+    const kind = state.reminder_kinds[r.kind] || "Event";
+    const sketch = sketch_for(r.title, r.mode, reminder_sketches[r.kind]);
+    const subject = r.mode ? ` · ${escape_html(mode_name(r.mode))}` : "";
+    const next = past ? "" : next_reminder(r);
+    return `<div class="reminder-card${past ? " past" : ""}${!past && left <= 1 ? " soon" : ""}">
+        <div class="reminder-art poster tone-${tone(r.mode || "exam")}">
+            <span class="rec-chip">${escape_html(kind)}</span>
+            ${sketch_html(sketch)}
+            <div class="countdown"><strong>${count.big}</strong>${count.small ? `<span>${count.small}</span>` : ""}</div>
+        </div>
+        <div class="reminder-info">
+            <strong title="${escape_html(r.title)}">${escape_html(r.title)}</strong>
+            <span>${nice_day(r.due_date)}${r.due_time ? ` · ${escape_html(r.due_time)}` : ""}${subject}</span>
+            ${next ? `<span class="reminder-next">${next} · ${every_text(r)}</span>` : ""}
+            ${r.notes ? `<span class="reminder-notes" title="${escape_html(r.notes)}">${escape_html(r.notes)}</span>` : ""}
+            <div class="reminder-actions">
+                ${past ? "" : `<button class="btn btn-soft btn-small" type="button" data-rem-help="${r.id}">${revision_kinds.includes(r.kind) ? "Plan revision" : "Get help"}</button>`}
+                <span class="spacer"></span>
+                <button class="icon-btn" type="button" data-rem-done="${r.id}" aria-label="${r.done ? "Mark as not done" : "Mark as done"}" title="${r.done ? "Mark as not done" : "Mark as done"}">${r.done ? icons.close : icons.check}</button>
+                <button class="icon-btn" type="button" data-rem-edit="${r.id}" aria-label="Edit ${escape_html(r.title)}" title="Edit">${icons.pencil}</button>
+                <a class="icon-btn" href="/api/reminders/${r.id}/calendar.ics" download aria-label="Add ${escape_html(r.title)} to your calendar" title="Add to calendar">${icons.calendar}</a>
+                <button class="icon-btn" type="button" data-rem-delete="${r.id}" aria-label="Delete ${escape_html(r.title)}" title="Delete">${icons.trash}</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function notification_tools() {
+    if (!("Notification" in window)) return "";
+    if (Notification.permission === "default") {
+        return `<button class="btn btn-soft btn-small" type="button" data-notify>${icons.bell}Turn on notifications</button>`;
+    }
+    if (Notification.permission === "denied") return '<span class="page-note">Notifications are blocked in this browser\'s settings</span>';
+    return `<span class="page-note on">${icons.check}Notifications on</span>`;
+}
+
+function render_reminders() {
+    const page = el("reminders");
+    if (!page) return;
+    const upcoming = state.reminders.filter(is_upcoming);
+    const soon = upcoming.filter((r) => days_left(r.due_date) <= 7);
+    const later = upcoming.filter((r) => days_left(r.due_date) > 7);
+    // the most recently finished come first
+    const finished = state.reminders.filter((r) => !is_upcoming(r)).reverse();
+    const tools = `<div class="page-tools">
+        <p class="page-note">Rahah reminds you while it's open. Add reminders to your calendar to get them on your phone too.</p>
+        <div class="tool-buttons">
+            ${notification_tools()}
+            ${upcoming.length ? `<a class="btn btn-soft btn-small" href="/api/reminders/calendar.ics" download>${icons.calendar}Add all to calendar</a>` : ""}
+            <button class="btn btn-accent btn-small" type="button" data-rem-add>${icons.plus}Add a reminder</button>
+        </div>
+    </div>`;
+    if (!state.reminders.length) {
+        page.innerHTML = tools + `<div class="page-empty">
+            <strong>No reminders yet</strong>
+            Add your exams, CATs, midterms and assignment deadlines, and Rahah reminds you as they come up.
+            <div><button class="btn btn-accent" type="button" data-rem-add>Add a reminder</button></div>
+        </div>`;
+        return;
+    }
+    const group = (title, items) => items.length
+        ? `<h3 class="group-title">${title}</h3><div class="card-grid reminder-grid">${items.map(reminder_card).join("")}</div>`
+        : "";
+    page.innerHTML = tools + group("This week", soon) + group("Coming up", later) + group("Done and past", finished);
+}
+
+function render_reminder_row() {
+    const box = el("reminders-exam");
+    if (!box) return;
+    const upcoming = state.reminders.filter(is_upcoming).slice(0, 6);
+    const add_tile = `<button class="tile poster tone-exam" type="button" data-rem-add>
+        ${sketch_html("calendar")}
+        <strong>${upcoming.length ? "Add another reminder" : "Set a reminder"}</strong>
+        <span class="tile-sub">Exams, CATs, midterms and deadlines</span>
+    </button>`;
+    box.innerHTML = row_html("Coming up", upcoming.map(reminder_card).join("") + add_tile);
+}
+
+function sync_reminder_badge() {
+    // how many things are due in the next three days
+    const close = state.reminders.filter((r) => is_upcoming(r) && days_left(r.due_date) <= 3).length;
+    const badge = el("reminder-badge");
+    badge.hidden = !close;
+    badge.textContent = close;
+    badge.parentElement.setAttribute("aria-label", close ? `Reminders, ${close} coming up soon` : "Reminders");
+}
+
+async function load_reminders() {
+    try {
+        const response = await api("/api/reminders");
+        const body = await response.json();
+        state.reminders = body.reminders;
+        if (body.kinds) state.reminder_kinds = body.kinds;
+    } catch (error) {
+        return;
+    }
+    render_reminders();
+    render_reminder_row();
+    sync_reminder_badge();
+    check_reminders();
+}
+
+// anything due a reminder today is shown once as a pop up, and as a notification when they're on
+function check_reminders() {
+    const today = local_today();
+    state.reminders.forEach((r) => {
+        if (!is_upcoming(r) || r.seen.includes(today) || toasted.has(r.id)) return;
+        if (!reminder_dates(r).includes(today)) return;
+        toasted.add(r.id);
+        show_toast(r);
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                new Notification(reminder_message(r), { body: r.notes || "Open Rahah to plan for it.", tag: `${r.id}-${today}`, icon: "/static/img/icon-180.png" });
+            } catch (e) {}
+        }
+        r.seen.push(today);
+        api(`/api/reminders/${r.id}/seen`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ day: today }),
+        }).catch(() => {});
+    });
+}
+
+function show_toast(r) {
+    const box = el("toasts");
+    // only a few at a time, the reminders page lists the rest
+    if (box.children.length >= 3) return;
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerHTML = `${sketch_html(reminder_sketches[r.kind] || "calendar", "small")}
+        <div class="toast-text"><strong>${escape_html(reminder_message(r))}</strong>${r.notes ? `<span>${escape_html(r.notes)}</span>` : ""}</div>
+        <div class="toast-actions">
+            <button class="btn btn-accent btn-small" type="button" data-rem-help="${r.id}">${revision_kinds.includes(r.kind) ? "Plan revision" : "Get help"}</button>
+            <button class="icon-btn" type="button" data-toast-close aria-label="Dismiss">${icons.close}</button>
+        </div>`;
+    box.appendChild(toast);
+}
+
+el("toasts").addEventListener("click", (event) => {
+    const toast = event.target.closest(".toast");
+    if (!toast) return;
+    if (event.target.closest("[data-toast-close]") || event.target.closest("[data-rem-help]")) toast.remove();
+});
+
+function show_reminders() {
+    if (state.busy) return;
+    enter_page("#/reminders", "Reminders", '<div class="list-page" id="reminders"></div>');
+    render_reminders();
+    sync_view();
+    load_reminders();
+}
+
+// the add and edit sheet
+
+const reminder_sheet = el("reminder-sheet");
+
+function choice_buttons(items, picked, name) {
+    return items.map(([value, label]) =>
+        `<button class="choice" type="button" data-${name}="${value}" aria-pressed="${String(value) === String(picked)}">${escape_html(label)}</button>`).join("");
+}
+
+function render_reminder_choices() {
+    el("reminder-kinds").innerHTML = choice_buttons(Object.entries(state.reminder_kinds), reminder_form.kind, "kind");
+    el("reminder-every").innerHTML = choice_buttons(reminder_every, reminder_form.every, "every");
+    el("reminder-lead").innerHTML = choice_buttons(reminder_lead, reminder_form.lead, "lead");
+    preview_reminders();
+}
+
+function preview_reminders() {
+    const due = el("reminder-date").value;
+    const preview = el("reminder-preview");
+    if (!due) {
+        preview.textContent = "Pick a date to see when you'll be reminded.";
+        return;
+    }
+    const today = local_today();
+    const dates = reminder_offsets(reminder_form.lead, reminder_form.every).map((d) => shift_day(due, -d)).filter((d) => d >= today);
+    if (!dates.length) {
+        preview.textContent = "That date has already passed.";
+        return;
+    }
+    const before = dates.filter((d) => d !== due);
+    if (!before.length) preview.textContent = "You'll be reminded on the day.";
+    else if (before.length > 4) preview.textContent = `${before.length} reminders starting ${nice_day(before[0])}, then one on the day.`;
+    else preview.textContent = `Reminders on ${before.map(nice_day).join(", ")}, then one on the day.`;
+}
+
+function open_reminder_sheet(r = null) {
+    reminder_form.editing = r ? r.id : null;
+    reminder_form.kind = r ? r.kind : "exam";
+    reminder_form.every = r ? r.every_days : 2;
+    reminder_form.lead = r ? r.lead_days : 7;
+    el("reminder-title").textContent = r ? "Edit reminder" : "Add a reminder";
+    el("reminder-submit").textContent = r ? "Save changes" : "Save reminder";
+    el("reminder-name").value = r ? r.title : "";
+    el("reminder-date").value = r ? r.due_date : "";
+    el("reminder-date").min = r ? "" : local_today();
+    el("reminder-time").value = r ? r.due_time : "";
+    el("reminder-notes").value = r ? r.notes : "";
+    el("reminder-mode").innerHTML = mode_options_html();
+    el("reminder-mode").value = r ? r.mode || "general" : (mode_select.value || state.default_mode);
+    el("reminder-error").hidden = true;
+    render_reminder_choices();
+    reminder_sheet.showModal();
+    el("reminder-name").focus();
+}
+
+["kind", "every", "lead"].forEach((name) => {
+    const box = { kind: "reminder-kinds", every: "reminder-every", lead: "reminder-lead" }[name];
+    el(box).addEventListener("click", (event) => {
+        const button = event.target.closest(`[data-${name}]`);
+        if (!button) return;
+        const value = button.dataset[name];
+        reminder_form[name] = name === "kind" ? value : Number(value);
+        el(box).querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        preview_reminders();
+    });
+});
+
+el("reminder-date").addEventListener("input", preview_reminders);
+el("reminder-close").addEventListener("click", () => reminder_sheet.close());
+el("reminder-cancel").addEventListener("click", () => reminder_sheet.close());
+
+el("reminder-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const show_error = (text) => {
+        el("reminder-error").textContent = text;
+        el("reminder-error").hidden = false;
+    };
+    const title = el("reminder-name").value.trim();
+    const due_date = el("reminder-date").value;
+    if (!title) return show_error("Give it a title, like Biology paper 2.");
+    if (!due_date) return show_error("Pick the date it's on.");
+    const body = {
+        kind: reminder_form.kind, title, due_date, due_time: el("reminder-time").value,
+        mode: el("reminder-mode").value === "general" ? "" : el("reminder-mode").value,
+        every_days: reminder_form.every, lead_days: reminder_form.lead, notes: el("reminder-notes").value,
+    };
+    const editing = reminder_form.editing;
+    el("reminder-submit").disabled = true;
+    try {
+        await api(editing ? `/api/reminders/${editing}` : "/api/reminders", {
+            method: editing ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        reminder_sheet.close();
+        await load_reminders();
+    } catch (error) {
+        show_error(error.message);
+    } finally {
+        el("reminder-submit").disabled = false;
+    }
+});
+
+// buttons on reminder cards, wherever they're drawn
+document.addEventListener("click", async (event) => {
+    const find = (name) => event.target.closest(`[data-${name}]`);
+    if (find("rem-add")) {
+        open_reminder_sheet();
+        return;
+    }
+    if (find("notify")) {
+        await Notification.requestPermission();
+        render_reminders();
+        return;
+    }
+    const help = find("rem-help");
+    if (help) {
+        const r = state.reminders.find((x) => x.id === help.dataset.remHelp);
+        if (r) open_sheet("ask", r.mode || "exam", help_text(r));
+        return;
+    }
+    const edit = find("rem-edit");
+    if (edit) {
+        const r = state.reminders.find((x) => x.id === edit.dataset.remEdit);
+        if (r) open_reminder_sheet(r);
+        return;
+    }
+    const done = find("rem-done");
+    if (done) {
+        const r = state.reminders.find((x) => x.id === done.dataset.remDone);
+        if (!r) return;
+        try {
+            await api(`/api/reminders/${r.id}/done`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ done: !r.done }),
+            });
+        } catch (error) {
+            alert(error.message);
+        }
+        load_reminders();
+        return;
+    }
+    const remove = find("rem-delete");
+    if (remove) {
+        const r = state.reminders.find((x) => x.id === remove.dataset.remDelete);
+        if (!r || !confirm(`Delete the reminder for "${r.title}"?`)) return;
+        try {
+            await api(`/api/reminders/${r.id}`, { method: "DELETE" });
+        } catch (error) {
+            alert(error.message);
+        }
+        load_reminders();
+    }
+});
+
+// a new day can start while the page is open, so reminders are checked again now and then
+setInterval(check_reminders, 15 * 60 * 1000);
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        check_reminders();
+        sync_reminder_badge();
+    }
 });
 
 // study tools, summaries go through chat, flashcards and quizzes are saved sets
@@ -1221,6 +1646,7 @@ el("setup-actions").addEventListener("click", (event) => {
 make_picker(mode_select, open_setup);
 make_picker(el("sheet-mode"));
 make_picker(setup_mode);
+make_picker(el("reminder-mode"));
 
 function show_sheet_error(text) {
     el("sheet-error").textContent = text;
@@ -2049,6 +2475,10 @@ function route() {
         if (!el("recommendations")) show_recommendations();
         return;
     }
+    if (location.hash === "#/reminders") {
+        if (!el("reminders")) show_reminders();
+        return;
+    }
     if (location.hash === "#/performance") {
         if (!el("performance")) show_performance();
         return;
@@ -2065,6 +2495,7 @@ function route() {
 window.addEventListener("hashchange", route);
 document.querySelectorAll(".tabs [data-chats]").forEach((button) => button.addEventListener("click", show_chats));
 document.querySelectorAll(".tabs [data-recommendations]").forEach((button) => button.addEventListener("click", show_recommendations));
+document.querySelectorAll(".tabs [data-reminders]").forEach((button) => button.addEventListener("click", show_reminders));
 document.querySelectorAll(".tabs [data-performance]").forEach((button) => button.addEventListener("click", show_performance));
 document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
     event.preventDefault();
@@ -2182,6 +2613,7 @@ async function start() {
     load_history();
     load_sets();
     load_performance();
+    load_reminders();
     route();
     input.focus({ preventScroll: true });
 }

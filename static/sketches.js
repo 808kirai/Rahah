@@ -22,7 +22,7 @@ const sketches = {
     laptop: '<path d="M13 14h38v28H13z"/><path d="M6 48h52l-4 7H10z"/><path d="M19 22l6 5-6 5M29 34h10"/>',
     bug: '<ellipse cx="32" cy="36" rx="12" ry="16"/><path d="M26 21c0-5 3-8 6-8s6 3 6 8"/><path d="M32 22v30M20 30l-9-4M20 38H9M21 46l-8 5M44 30l9-4M44 38h11M43 46l8 5M28 13l-4-6M36 13l4-6"/>',
     database: '<ellipse cx="32" cy="14" rx="18" ry="6"/><path d="M14 14v34c0 3 8 6 18 6s18-3 18-6V14"/><path d="M14 31c0 3 8 6 18 6s18-3 18-6"/>',
-    gear: '<circle cx="32" cy="32" r="14"/><circle cx="32" cy="32" r="5"/><path d="M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M49 15l-6 6M21 43l-6 6"/>',
+    gear: '<path d="M28 8h8l1 6 5 2 5-4 6 6-4 5 2 5 6 1v8l-6 1-2 5 4 5-6 6-5-4-5 2-1 6h-8l-1-6-5-2-5 4-6-6 4-5-2-5-6-1v-8l6-1 2-5-4-5 6-6 5 4 5-2z"/><circle cx="32" cy="32" r="8"/>',
     book: '<path d="M32 16c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V10c-10 0-18 2-24 6z"/><path d="M32 16v38"/><path d="M14 20c4 0 8 1 12 3M38 23c4-2 8-3 12-3M14 30c4 0 8 1 12 3"/>',
     quill: '<path d="M52 8C36 10 23 24 19 44l-4 12"/><path d="M52 8c-2 15-13 28-31 34"/><path d="M26 30h10M22 38h8"/><path d="M8 57h22"/>',
     speech: '<path d="M8 10h30v19H21l-8 7v-7H8z"/><path d="M28 36h28v16h-5v7l-8-7H28z"/><path d="M14 18h18M14 23h11M34 44h16"/>',
@@ -42,6 +42,7 @@ const sketches = {
     coins: '<ellipse cx="26" cy="44" rx="15" ry="6"/><path d="M11 44v-8c0-3 7-6 15-6s15 3 15 6v8"/><ellipse cx="40" cy="20" rx="15" ry="6"/><path d="M25 20v10M55 20v10c0 3-6 6-14 6"/>',
     people: '<circle cx="22" cy="20" r="8"/><circle cx="44" cy="24" r="7"/><path d="M8 54c0-11 6-18 14-18s14 7 14 18"/><path d="M34 40c2-2 6-4 10-4 7 0 12 6 12 16"/>',
     sun: '<circle cx="32" cy="32" r="11"/><path d="M32 6v8M32 50v8M6 32h8M50 32h8M14 14l6 6M44 44l6 6M50 14l-6 6M20 44l-6 6"/>',
+    calendar: '<path d="M10 14h44v40H10z"/><path d="M10 24h44"/><path d="M22 8v10M42 8v10"/><path d="M18 33h5M30 33h5M42 33h4M18 43h5M30 43h5"/><path d="M41 41l3 3 6-6"/>',
 };
 
 // the first words that match decide the sketch, so specific topics come before broad ones
@@ -89,10 +90,11 @@ const mode_sketches = {
     languages: "speech", humanities: "columns", exam: "checklist",
 };
 
-function sketch_for(text, mode) {
+// fallback, when given, is used ahead of the subject's own drawing
+function sketch_for(text, mode, fallback = "") {
     const words = String(text || "").toLowerCase();
     const hit = sketch_words.find(([pattern]) => pattern.test(words));
-    return hit ? hit[1] : mode_sketches[mode] || "bulb";
+    return hit ? hit[1] : fallback || mode_sketches[mode] || "bulb";
 }
 
 // every shape gets a path length of 1, so one dash setting draws any of them in

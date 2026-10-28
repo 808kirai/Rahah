@@ -4,6 +4,7 @@ import json
 
 from .config import settings
 from .modes import modes
+from .reminders import days_until, kinds as reminder_kinds
 from .study import clean_text, study_error
 from .tutor import fallback_options
 
@@ -23,7 +24,7 @@ sketches = (
     "bulb", "graph", "sigma", "pi", "triangle", "calculator", "chart", "flask", "atom", "bolt", "planet",
     "dna", "cell", "leaf", "heart", "brain", "code", "laptop", "bug", "database", "gear", "book", "quill",
     "speech", "globe", "columns", "castle", "clock", "checklist", "cards", "pencil", "notes", "trophy",
-    "target", "magnifier", "rocket", "music", "coins", "people", "sun",
+    "target", "magnifier", "rocket", "music", "coins", "people", "sun", "calendar",
 )
 
 
@@ -56,21 +57,30 @@ def schema() -> dict:
     }
 
 
-def has_activity(chats: list[dict], sets: list[dict], results: dict) -> bool:
-    return bool(chats or sets or results.get("overall"))
+def has_activity(chats: list[dict], sets: list[dict], results: dict, deadlines: list[dict] = ()) -> bool:
+    return bool(chats or sets or results.get("overall") or deadlines)
 
 
-def signature(chats: list[dict], sets: list[dict], results: dict) -> str:
+def signature(chats: list[dict], sets: list[dict], results: dict, deadlines: list[dict] = ()) -> str:
     # changes whenever the student does something new, so stale picks can be spotted
     newest_chat = (chats[0]["id"], chats[0]["updated"]) if chats else None
     newest_set = (sets[0]["id"], sets[0]["updated"]) if sets else None
     attempts = (results.get("overall") or {}).get("attempts", 0)
-    return json.dumps([newest_chat, newest_set, attempts])
+    deadline_ids = sorted((d["id"], d["updated"]) for d in deadlines)
+    return json.dumps([newest_chat, newest_set, attempts, deadline_ids])
 
 
-def describe_history(chats: list[dict], sets: list[dict], results: dict) -> str:
+def describe_history(chats: list[dict], sets: list[dict], results: dict, deadlines: list[dict] = ()) -> str:
     name = lambda mode: modes.get(mode, {}).get("name", mode)
     parts = []
+    if deadlines:
+        lines = []
+        for d in deadlines:
+            subject = f" [{name(d['mode'])}]" if d["mode"] else ""
+            left = days_until(d["due_date"])
+            when = "today" if left == 0 else "tomorrow" if left == 1 else f"in {left} days"
+            lines.append(f"- {reminder_kinds[d['kind']]}{subject} {d['title']}, on {d['due_date']}, {when}")
+        parts.append("Coming up, soonest first, so suggestions should help prepare for these:\n" + "\n".join(lines))
     if chats:
         lines = [f"- [{name(c['mode'])}] {c['title']}" for c in chats]
         parts.append("Recent chats, newest first, each shown by its opening question:\n" + "\n".join(lines))
@@ -139,9 +149,12 @@ def clean(data: dict, set_ids: set[str]) -> list[dict]:
     return picked[:max_recommendations]
 
 
-async def recommend(client, cfg: settings, chats: list[dict], sets: list[dict], results: dict) -> list[dict]:
+async def recommend(
+    client, cfg: settings, chats: list[dict], sets: list[dict], results: dict, deadlines: list[dict] = (),
+) -> list[dict]:
     """asks claude for suggestions and returns the ones that check out"""
-    text = ask_text.format(count=6, sketch_names=", ".join(sketches), history=describe_history(chats, sets, results))
+    history = describe_history(chats, sets, results, deadlines)
+    text = ask_text.format(count=6, sketch_names=", ".join(sketches), history=history)
     async with client.beta.messages.stream(
         model=cfg.model,
         max_tokens=16000,

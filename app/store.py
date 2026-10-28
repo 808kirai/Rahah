@@ -73,6 +73,21 @@ create table if not exists recommendations (
     signature text not null,
     created real not null
 );
+create table if not exists reminders (
+    id text primary key,
+    kind text not null,
+    title text not null,
+    mode text not null default '',
+    due_date text not null,
+    due_time text not null default '',
+    every_days integer not null,
+    lead_days integer not null,
+    notes text not null default '',
+    done integer not null default 0,
+    seen text not null default '[]',
+    created real not null,
+    updated real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -239,6 +254,59 @@ class store:
         with self._connect() as db:
             row = db.execute("select * from outputs where id = ?", (file_id,)).fetchone()
         return dict(row) if row else None
+
+    # reminders for exams, assignments and other events
+    # seen holds the dates a reminder was already shown on, so it isn't shown twice in a day
+
+    def _reminder(self, row) -> dict:
+        return {**dict(row), "done": bool(row["done"]), "seen": json.loads(row["seen"])}
+
+    def list_reminders(self) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute("select * from reminders order by due_date, due_time, created").fetchall()
+        return [self._reminder(r) for r in rows]
+
+    def get_reminder(self, reminder_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from reminders where id = ?", (reminder_id,)).fetchone()
+        return self._reminder(row) if row else None
+
+    def save_reminder(self, fields: dict, reminder_id: str | None = None) -> str:
+        now = time.time()
+        columns = ("kind", "title", "mode", "due_date", "due_time", "every_days", "lead_days", "notes")
+        values = [fields[c] for c in columns]
+        with self._connect() as db:
+            if reminder_id:
+                db.execute(
+                    f"update reminders set {', '.join(f'{c} = ?' for c in columns)}, updated = ? where id = ?",
+                    (*values, now, reminder_id),
+                )
+                return reminder_id
+            reminder_id = uuid.uuid4().hex
+            db.execute(
+                f"insert into reminders (id, {', '.join(columns)}, created, updated) "
+                f"values (?, {', '.join('?' for _ in columns)}, ?, ?)",
+                (reminder_id, *values, now, now),
+            )
+        return reminder_id
+
+    def set_reminder_done(self, reminder_id: str, done: bool) -> None:
+        with self._connect() as db:
+            db.execute("update reminders set done = ?, updated = ? where id = ?", (int(done), time.time(), reminder_id))
+
+    def mark_reminder_seen(self, reminder_id: str, day: str) -> list[str]:
+        with self._connect() as db:
+            row = db.execute("select seen from reminders where id = ?", (reminder_id,)).fetchone()
+            seen = json.loads(row["seen"])
+            if day not in seen:
+                # only the last few dates matter, the list never grows past the reminders themselves
+                seen = (seen + [day])[-60:]
+                db.execute("update reminders set seen = ? where id = ?", (json.dumps(seen), reminder_id))
+        return seen
+
+    def delete_reminder(self, reminder_id: str) -> None:
+        with self._connect() as db:
+            db.execute("delete from reminders where id = ?", (reminder_id,))
 
     # recommendations, only the latest batch is kept
 

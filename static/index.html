@@ -55,6 +55,8 @@
             </div>
         </header>
 
+        <div class="toasts" id="toasts" aria-live="polite"></div>
+
         <section class="thread" id="thread" aria-live="polite">
             <div class="welcome" id="welcome">
                 <div class="greeting">
@@ -78,6 +80,11 @@
                 <button class="tab" type="button" data-recommendations data-tab="recommendations">
                     <svg viewBox="0 0 24 24"><path d="M2.5 3.5h8.5v17H2.5z"/><path d="M4.5 8l1.1 1.1L7.9 7M4.5 12.5l1.1 1.1 2.3-2.1M4.5 17h3.5"/><path d="M15 8.5V2.8M13 4.8l2-2 2 2"/><path d="M18 10.3a3.9 3.9 0 0 0-2.3 7V19h4.6v-1.7a3.9 3.9 0 0 0-2.3-7z"/><path d="M16.4 21.3h3.2M22.7 14.2h1M21.5 11l.8-.8"/></svg>
                     <span>Suggestions</span>
+                </button>
+                <button class="tab" type="button" data-reminders data-tab="reminders">
+                    <svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+                    <span>Reminders</span>
+                    <i class="tab-badge" id="reminder-badge" hidden></i>
                 </button>
                 <button class="tab" type="button" data-performance data-tab="performance">
                     <svg viewBox="0 0 24 24"><path d="M5 20V12M12 20V5M19 20v-8"/></svg>
@@ -141,6 +148,57 @@
                 <p class="sheet-note" id="sheet-note" hidden>This can take up to a minute.</p>
                 <button class="btn btn-ghost" type="button" id="sheet-cancel">Cancel</button>
                 <button class="btn btn-accent" type="submit" id="sheet-submit">Make flashcards</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog class="sheet" id="reminder-sheet" aria-labelledby="reminder-title">
+        <form class="sheet-form" id="reminder-form" novalidate>
+            <div class="sheet-top">
+                <h2 id="reminder-title">Add a reminder</h2>
+                <button class="icon-btn" type="button" id="reminder-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <div class="field">
+                <span class="field-label" id="reminder-kind-label">What is it?</span>
+                <div class="choices" id="reminder-kinds" role="group" aria-labelledby="reminder-kind-label"></div>
+            </div>
+            <label class="field">
+                <span class="field-label">Title</span>
+                <input class="text-input" id="reminder-name" maxlength="120" placeholder="Like Biology paper 2" autocomplete="off">
+            </label>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">Date</span>
+                    <input class="text-input" type="date" id="reminder-date">
+                </label>
+                <label class="field">
+                    <span class="field-label">Time, if it has one</span>
+                    <input class="text-input" type="time" id="reminder-time">
+                </label>
+            </div>
+            <div class="field">
+                <span class="field-label">Subject</span>
+                <select class="pill-select" id="reminder-mode" aria-label="Subject"></select>
+            </div>
+            <div class="field">
+                <span class="field-label" id="reminder-every-label">Remind me</span>
+                <div class="choices" id="reminder-every" role="group" aria-labelledby="reminder-every-label"></div>
+            </div>
+            <div class="field">
+                <span class="field-label" id="reminder-lead-label">Starting</span>
+                <div class="choices" id="reminder-lead" role="group" aria-labelledby="reminder-lead-label"></div>
+            </div>
+            <p class="reminder-preview" id="reminder-preview"></p>
+            <label class="field">
+                <span class="field-label">Notes</span>
+                <textarea id="reminder-notes" rows="2" maxlength="1000" placeholder="Room, topics to cover, what to bring"></textarea>
+            </label>
+            <p class="sheet-error" id="reminder-error" role="alert" hidden></p>
+            <div class="sheet-actions">
+                <button class="btn btn-ghost" type="button" id="reminder-cancel">Cancel</button>
+                <button class="btn btn-accent" type="submit" id="reminder-submit">Save reminder</button>
             </div>
         </form>
     </dialog>
