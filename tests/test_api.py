@@ -119,6 +119,12 @@ def test_haiku_is_not_sent_the_fallback_setting(tmp_path):
     assert "fallbacks" not in call and "betas" not in call
 
 
+def test_rahah_knows_who_created_her(setup):
+    web, claude = setup([message([text_block("hi")])])
+    ask(web, new_chat(web), "who made you?")
+    assert "created by Runie" in claude.beta.messages.calls[0]["system"]
+
+
 def test_refusals_are_not_saved(setup):
     web, _ = setup([message([], stop_reason="refusal")])
     conversation_id = new_chat(web)
