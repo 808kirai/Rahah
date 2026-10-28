@@ -15,7 +15,6 @@
     --mint: #98dea3;
     --mint-text: #98dea3;
     --record: #c20000;
-    --poster-top: #2b3041;
     --shadow: rgba(8, 10, 16, 0.4);
     --glass: rgba(39, 44, 57, 0.82);
     --code-bg: #1a1d26;
@@ -573,19 +572,10 @@ button.picker-heading:focus-visible {
     }
 }
 
-/* posters fade from slate into each subject's colour */
+/* posters are one solid red, the same on every card, with no gradient */
 .poster {
-    --tone: var(--accent);
-    background: linear-gradient(170deg, var(--poster-top) 15%, var(--tone) 135%);
+    background: var(--accent);
 }
-
-.tone-general { --tone: #c20000; }
-.tone-maths { --tone: #a783a6; }
-.tone-science { --tone: #6fbf86; }
-.tone-coding { --tone: #8c1c1c; }
-.tone-languages { --tone: #c4566e; }
-.tone-humanities { --tone: #d4553b; }
-.tone-exam { --tone: #98dea3; }
 
 .tile {
     position: relative;

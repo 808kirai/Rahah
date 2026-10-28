@@ -896,10 +896,6 @@ const shelves = [
     ] },
 ];
 
-function tone(mode) {
-    return ["general", "maths", "science", "coding", "languages", "humanities", "exam"].includes(mode) ? mode : "general";
-}
-
 function group_of(mode) {
     return state.mode_groups[mode] || "study";
 }
@@ -918,7 +914,7 @@ function time_ago(seconds) {
 }
 
 function prompt_tile(item) {
-    return `<button class="tile poster tone-${tone(item.mode)}" type="button" data-mode="${item.mode}" data-text="${escape_html(item.text)}" title="${escape_html(item.text)}">
+    return `<button class="tile poster" type="button" data-mode="${item.mode}" data-text="${escape_html(item.text)}" title="${escape_html(item.text)}">
         ${sketch_html(sketch_for(`${item.title} ${item.text}`, item.mode))}
         <strong>${escape_html(item.title)}</strong>
         <span class="tile-sub">${escape_html(mode_name(item.mode))}</span>
@@ -926,7 +922,7 @@ function prompt_tile(item) {
 }
 
 function subject_tile(mode) {
-    return `<button class="tile subject poster tone-${tone(mode.id)}" type="button" data-pick="${mode.id}" title="${escape_html(mode.hint)}">
+    return `<button class="tile subject poster" type="button" data-pick="${mode.id}" title="${escape_html(mode.hint)}">
         ${sketch_html(mode_sketches[mode.id] || "bulb", "inline")}
         <strong>${escape_html(mode.name)}</strong>
     </button>`;
@@ -934,7 +930,7 @@ function subject_tile(mode) {
 
 function chat_card(c) {
     return `<div class="chat-card">
-        <a class="chat-card-art poster tone-${tone(c.mode)}" href="#/c/${c.id}" aria-label="Open ${escape_html(c.title)}">
+        <a class="chat-card-art poster" href="#/c/${c.id}" aria-label="Open ${escape_html(c.title)}">
             ${sketch_html(sketch_for(c.title, c.mode))}
             <span class="play">${icons.play}</span>
         </a>
@@ -1154,7 +1150,7 @@ function rec_card(item, i) {
     // claude picks the sketch, older picks without one get a drawing from their words
     const sketch = item.sketch && sketches[item.sketch] ? item.sketch : sketch_for(`${item.title} ${item.prompt}`, item.mode);
     const kind = rec_kinds[item.kind] ? ` · ${rec_kinds[item.kind]}` : "";
-    return `<button class="tile rec poster tone-${tone(item.mode)}" type="button" data-rec="${i}">
+    return `<button class="tile rec poster" type="button" data-rec="${i}">
         <span class="rec-chip">${icons[action.icon]}${escape_html(action.label)}</span>
         ${sketch_html(sketch)}
         <strong>${inline_markdown(item.title)}</strong>
@@ -1361,7 +1357,7 @@ function reminder_card(r) {
     const subject = r.mode ? ` · ${escape_html(mode_name(r.mode))}` : "";
     const next = past ? "" : next_reminder(r);
     return `<div class="reminder-card${past ? " past" : ""}${!past && left <= 1 ? " soon" : ""}">
-        <div class="reminder-art poster tone-${tone(r.mode || "exam")}">
+        <div class="reminder-art poster">
             <span class="rec-chip">${escape_html(kind)}</span>
             ${sketch_html(sketch)}
             <div class="countdown"><strong>${count.big}</strong>${count.small ? `<span>${count.small}</span>` : ""}</div>
@@ -1426,7 +1422,7 @@ function render_reminder_row() {
     const box = el("reminders-exam");
     if (!box) return;
     const upcoming = state.reminders.filter(is_upcoming).slice(0, 6);
-    const add_tile = `<button class="tile poster tone-exam" type="button" data-rem-add>
+    const add_tile = `<button class="tile poster" type="button" data-rem-add>
         ${sketch_html("calendar")}
         <strong>${upcoming.length ? "Add another reminder" : "Set a reminder"}</strong>
         <span class="tile-sub">Exams, CATs, midterms and deadlines</span>
@@ -1677,9 +1673,9 @@ document.addEventListener("visibilitychange", () => {
 // study tools, summaries go through chat, flashcards and quizzes are saved sets
 
 const tools = {
-    summary: { title: "Summarise notes", sub: "Key points from a PDF or a topic", icon: "summary", tone: "general" },
-    flashcards: { title: "Make flashcards", sub: "A deck to flip through", icon: "cards", tone: "languages" },
-    quiz: { title: "Make a quiz", sub: "Multiple choice, with a score", icon: "quiz", tone: "exam" },
+    summary: { title: "Summarise notes", sub: "Key points from a PDF or a topic", icon: "summary" },
+    flashcards: { title: "Make flashcards", sub: "A deck to flip through", icon: "cards" },
+    quiz: { title: "Make a quiz", sub: "Multiple choice, with a score", icon: "quiz" },
 };
 
 const sheet_copy = {
@@ -1711,7 +1707,7 @@ const tool_sketches = { summary: "notes", flashcards: "cards", quiz: "checklist"
 
 function tool_tile(id, mode) {
     const t = tools[id];
-    return `<button class="tile tool poster tone-${t.tone}" type="button" data-tool="${id}" data-mode="${mode}">
+    return `<button class="tile tool poster" type="button" data-tool="${id}" data-mode="${mode}">
         <span class="tool-icon">${icons[t.icon]}</span>
         ${sketch_html(tool_sketches[id] || "notes")}
         <strong>${escape_html(t.title)}</strong>
@@ -1727,7 +1723,7 @@ function set_detail(s) {
 
 function set_card(s) {
     return `<div class="chat-card">
-        <a class="chat-card-art poster tone-${tone(s.mode)}" href="#/set/${s.id}" aria-label="Open ${escape_html(s.title)}">
+        <a class="chat-card-art poster" href="#/set/${s.id}" aria-label="Open ${escape_html(s.title)}">
             ${sketch_html(sketch_for(s.title, s.mode))}
             <span class="play outline">${s.kind === "quiz" ? icons.quiz : icons.cards}</span>
         </a>
@@ -2186,7 +2182,7 @@ function render_deck() {
             <p class="study-meta">Card ${s.index + 1} of ${s.order.length}</p>
             <div class="flashcard${s.flipped ? " flipped" : ""}" role="button" tabindex="0" data-deck="flip" aria-label="Flip the card">
                 <div class="flashcard-inner">
-                    <div class="face front poster tone-${tone(s.set.mode)}">
+                    <div class="face front poster">
                         <span class="face-label">Question</span>
                         <div class="face-text answer">${render_markdown(card.front)}</div>
                     </div>
