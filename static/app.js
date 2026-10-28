@@ -266,22 +266,35 @@ function add_user_message(text, files = []) {
     return message_el;
 }
 
-// what the answer says while claude works, one word picked per answer and never the same twice in a row
+// what the answer says while claude works, one slang word with ing on the end, no spaces or punctuation
+// each answer picks three and rotates through them until the words start arriving
 // taken from internet slang, keeping only what fits a study app
 const thinking_words = [
-    "Locking in", "Cooking", "Letting him cook", "Rizzing up an answer", "Skibidi-ing", "Farming aura",
-    "Going full sigma", "Mewing in silence", "Finna answer", "No cap, thinking", "Glowing up the answer",
-    "Delulu-proofing", "Asking chat", "Being so demure", "Sheeshing", "Tralalero tralala-ing",
-    "Bombardino crocodilo-ing", "Six-seven-ing", "Bruh-ing", "Hold on, pookie", "Main charactering",
-    "Sus-checking the facts", "Glazing your question", "Being so brat", "Not getting cooked",
-    "Ballerina cappuccina-ing", "Based-ing", "NPC-proofing",
+    "Skibidiing", "Rizzing", "Sigmaing", "Mewing", "Mogging", "Glazing", "Cooking", "Auraing",
+    "Ohioing", "Bratting", "Demuring", "Capping", "Deluluing", "Chatting", "Finnaing", "Locking",
+    "Bruhing", "Sheeshing", "Basing", "Sussing", "Pookieing", "Tralaleroing", "Bombardinoing",
+    "Cappuccinoing", "Sixsevening", "Brainrotting", "NPCing",
 ];
-let last_thinking = "";
+const thinking_every = 1400;
 
-function thinking_word() {
-    const pool = thinking_words.filter((w) => w !== last_thinking);
-    last_thinking = pool[Math.floor(Math.random() * pool.length)];
-    return last_thinking;
+function three_thinking_words() {
+    const pool = [...thinking_words];
+    const picked = [];
+    while (picked.length < 3 && pool.length) picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    return picked;
+}
+
+// swaps the word in place, and stops by itself once the answer has replaced the label
+function rotate_thinking(label, words) {
+    let at = 0;
+    const timer = setInterval(() => {
+        if (!label.isConnected) {
+            clearInterval(timer);
+            return;
+        }
+        at = (at + 1) % words.length;
+        label.textContent = words[at];
+    }, thinking_every);
 }
 
 function add_assistant_message(text = null, sources = [], runs = []) {
@@ -291,7 +304,9 @@ function add_assistant_message(text = null, sources = [], runs = []) {
     message_el.innerHTML = '<p class="label"><span class="logo" aria-hidden="true"></span>Rahah</p><div class="answer"></div>';
     const answer = message_el.querySelector(".answer");
     if (text === null) {
-        answer.innerHTML = `<span class="thinking"><span class="spark" aria-hidden="true">✻</span>${escape_html(thinking_word())}…</span>`;
+        const words = three_thinking_words();
+        answer.innerHTML = `<span class="thinking"><span class="spark" aria-hidden="true">✻</span><span class="thinking-word">${escape_html(words[0])}</span></span>`;
+        rotate_thinking(answer.querySelector(".thinking-word"), words);
     } else {
         answer.innerHTML = render_markdown(text);
         fill_runs(answer, runs);
