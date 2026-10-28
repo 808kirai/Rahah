@@ -1,4 +1,4 @@
-/* slate, red, mauve and mint, laid out like a streaming app and kept minimal */
+/* slate surfaces with red used sparingly for what matters, mauve and mint as small touches, laid out like a streaming app */
 :root {
     --bg: #16191d;
     --surface: #272c39;
@@ -18,6 +18,9 @@
     --shadow: rgba(8, 10, 16, 0.4);
     --glass: rgba(39, 44, 57, 0.82);
     --code-bg: #1a1d26;
+    /* a hairline that gives cards an edge, and the lift cards get in light mode */
+    --line: rgba(255, 255, 255, 0.06);
+    --card-shadow: 0 0 0 transparent;
 
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -43,6 +46,8 @@
     --shadow: rgba(39, 44, 57, 0.1);
     --glass: rgba(255, 255, 255, 0.86);
     --code-bg: #f7f7fb;
+    --line: rgba(39, 44, 57, 0.08);
+    --card-shadow: 0 1px 2px rgba(39, 44, 57, 0.05), 0 8px 24px rgba(39, 44, 57, 0.06);
 }
 
 * {
@@ -62,6 +67,7 @@ body {
     color: var(--text);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
 }
 
@@ -125,8 +131,10 @@ svg {
     background: var(--accent-hover);
 }
 
+/* disabled buttons go quiet grey instead of a washed out red */
 .btn-accent:disabled {
-    opacity: 0.6;
+    background: var(--surface-2);
+    color: var(--text-2);
     cursor: default;
 }
 
@@ -572,9 +580,11 @@ button.picker-heading:focus-visible {
     }
 }
 
-/* posters are one solid red, the same on every card, with no gradient */
+/* cards are calm solid surfaces with a hairline edge, and red marks what matters on them:
+   the sketch, the label, the play button and the edge when hovered */
 .poster {
-    background: var(--accent);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
 
 .tile {
@@ -588,15 +598,15 @@ button.picker-heading:focus-visible {
     padding: 0.9rem 1rem;
     border-radius: var(--card);
     text-align: left;
-    color: #ffffff;
+    color: var(--text);
     scroll-snap-align: start;
-    transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
+    transition: transform 0.5s var(--ease-out), box-shadow 0.3s var(--ease-out);
 }
 
 .tile:hover,
 .tile:focus-visible {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 40px var(--shadow);
+    transform: translateY(-4px);
+    box-shadow: inset 0 0 0 1.5px var(--accent), 0 16px 36px var(--shadow);
 }
 
 .tile strong {
@@ -612,7 +622,7 @@ button.picker-heading:focus-visible {
 .tile-sub {
     margin-top: 0.15rem;
     font-size: 0.76rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-2);
 }
 
 /* subject picks, a centred label like a category card */
@@ -629,32 +639,42 @@ button.picker-heading:focus-visible {
     width: clamp(200px, 19vw, 250px);
     border-radius: var(--card);
     background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
     overflow: hidden;
     scroll-snap-align: start;
-    transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
+    transition: transform 0.5s var(--ease-out), box-shadow 0.3s var(--ease-out);
 }
 
 .chat-card:hover,
 .chat-card:focus-within {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 40px var(--shadow);
+    transform: translateY(-4px);
+    box-shadow: inset 0 0 0 1.5px var(--accent), 0 16px 36px var(--shadow);
+}
+
+/* the top of a chat, deck or reminder card sits one step lighter, so the card reads as picture and caption */
+.chat-card-art.poster,
+.reminder-art.poster {
+    background: var(--surface-2);
+    box-shadow: none;
 }
 
 .chat-card-art {
     display: grid;
     place-items: center;
     aspect-ratio: 16 / 10;
-    color: #ffffff;
+    color: var(--text);
 }
 
+/* the one solid red thing on a card, the button that opens it */
 .play {
     display: grid;
     place-items: center;
     width: 48px;
     height: 48px;
     border-radius: var(--pill);
-    border: 1.5px solid rgba(255, 255, 255, 0.85);
-    background: rgba(20, 22, 30, 0.35);
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 8px 20px rgba(194, 0, 0, 0.3);
     transition: background-color 0.2s, transform var(--dur) var(--ease-out);
 }
 
@@ -671,7 +691,7 @@ button.picker-heading:focus-visible {
 }
 
 .chat-card-art:hover .play {
-    background: rgba(20, 22, 30, 0.55);
+    background: var(--accent-hover);
     transform: scale(1.06);
 }
 
@@ -798,6 +818,7 @@ button.picker-heading:focus-visible {
     flex-direction: column;
     border-radius: var(--card);
     background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
     overflow: hidden;
     scroll-snap-align: start;
 }
@@ -811,7 +832,7 @@ button.picker-heading:focus-visible {
     position: relative;
     height: 128px;
     padding: 0.85rem 0.9rem;
-    color: #ffffff;
+    color: var(--text);
 }
 
 .countdown {
@@ -833,12 +854,12 @@ button.picker-heading:focus-visible {
 .countdown span {
     font-size: 0.8rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-2);
 }
 
+/* today and tomorrow are the only countdowns in red, so red means it's close */
 .reminder-card.soon .countdown strong {
-    color: #ffffff;
-    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+    color: var(--accent-text);
 }
 
 .reminder-info {
@@ -862,8 +883,8 @@ button.picker-heading:focus-visible {
     color: var(--text-2);
 }
 
-.reminder-next {
-    color: var(--accent-text) !important;
+.reminder-info > .reminder-next {
+    color: var(--text);
 }
 
 .reminder-notes {
@@ -1172,7 +1193,7 @@ button.picker-heading:focus-visible {
     right: 0.8rem;
     width: 54px;
     height: 54px;
-    color: rgba(255, 255, 255, 0.86);
+    color: var(--accent-text);
     stroke-width: 2.3;
     pointer-events: none;
 }
@@ -1254,7 +1275,8 @@ button.picker-heading:focus-visible {
     gap: 0.35rem;
     padding: 0.25rem 0.75rem 0.25rem 0.6rem;
     border-radius: var(--pill);
-    background: rgba(20, 22, 30, 0.35);
+    background: var(--accent-soft);
+    color: var(--accent-text);
     font-size: 0.72rem;
     font-weight: 600;
 }
@@ -1278,7 +1300,7 @@ button.picker-heading:focus-visible {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-2);
 }
 
 .group-title {
@@ -1315,19 +1337,6 @@ button.picker-heading:focus-visible {
 
 .page-empty .btn {
     margin-top: 1.1rem;
-}
-
-/* tool cards open the sheet, the icon sits top left */
-.tool-icon {
-    position: absolute;
-    top: 0.9rem;
-    left: 1rem;
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: var(--pill);
-    background: rgba(255, 255, 255, 0.14);
 }
 
 /* the sheet that sets up a tool, a centred panel on wide screens and a bottom sheet on phones */
@@ -1622,11 +1631,12 @@ button.picker-heading:focus-visible {
 }
 
 .face.front {
-    color: #ffffff;
+    color: var(--text);
 }
 
+/* the back is one step lighter than the front, so turning the card over is easy to see */
 .face.back {
-    background: var(--surface);
+    background: var(--surface-2);
     transform: rotateY(180deg);
 }
 
@@ -1636,7 +1646,7 @@ button.picker-heading:focus-visible {
     left: 1.4rem;
     font-size: 0.75rem;
     font-weight: 600;
-    opacity: 0.7;
+    color: var(--text-2);
 }
 
 .face-text {
@@ -1823,6 +1833,7 @@ button.picker-heading:focus-visible {
     padding: 1rem 1.15rem;
     border-radius: var(--card);
     background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
     text-align: left;
     scroll-snap-align: start;
 }
@@ -1927,6 +1938,7 @@ button.picker-heading:focus-visible {
     padding: 1.1rem 1.25rem 1.25rem;
     border-radius: 22px;
     background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
 
 .perf-head h3 {
@@ -2232,6 +2244,7 @@ button.picker-heading:focus-visible {
     padding: 1rem 1.3rem 1.15rem;
     border-radius: 22px;
     background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
 
 .file-pill {
@@ -2687,7 +2700,7 @@ button.picker-heading:focus-visible {
 
 .thinking .spark {
     font-size: 1.05rem;
-    color: var(--mauve);
+    color: var(--accent-text);
 }
 
 .notice {
@@ -2755,8 +2768,8 @@ button.picker-heading:focus-visible {
     height: 17px;
     padding: 0 4px;
     border-radius: var(--pill);
-    background: var(--mauve);
-    color: #ffffff;
+    background: var(--accent);
+    color: var(--on-accent);
     font-size: 0.65rem;
     font-style: normal;
     font-weight: 700;
@@ -2791,9 +2804,10 @@ button.picker-heading:focus-visible {
     transition: box-shadow var(--dur) var(--ease-out);
 }
 
+/* the box is focused whenever a page opens, so its ring is a quiet grey and red stays for actions */
 .composer-box:focus-within,
 .composer-box.dragging {
-    box-shadow: 0 0 0 2px var(--accent-soft), 0 10px 30px var(--shadow);
+    box-shadow: 0 0 0 1.5px var(--border), 0 10px 30px var(--shadow);
 }
 
 .composer-box.dragging {
@@ -2854,8 +2868,10 @@ button.picker-heading:focus-visible {
     transform: translateY(-2px);
 }
 
+/* with nothing to send the button goes quiet grey rather than a faded red */
 .send-btn:disabled {
-    opacity: 0.35;
+    background: var(--surface-2);
+    color: var(--text-2);
     cursor: default;
 }
 
@@ -3083,6 +3099,48 @@ button.picker-heading:focus-visible {
 
     .message.assistant {
         padding: 0.9rem 1.05rem 1rem;
+    }
+
+    /* the message box gets the whole width, with the tabs in a full row underneath */
+    .dock {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .composer {
+        max-width: none;
+    }
+
+    .tabs {
+        justify-content: space-around;
+    }
+
+    .tab {
+        flex: 1;
+    }
+
+    .tab-badge {
+        right: calc(50% - 22px);
+    }
+
+    /* the tab bar already says which page this is, so the header keeps its room for the wordmark and picker */
+    body.is-page .nav-title {
+        visibility: hidden;
+    }
+
+    .tile .sketch {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+/* fingers need bigger targets than a mouse, 44 pixels square */
+@media (pointer: coarse) {
+    .chat-card .icon-btn,
+    .reminder-actions .icon-btn {
+        width: 44px;
+        height: 44px;
     }
 }
 

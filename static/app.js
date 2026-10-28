@@ -1708,7 +1708,6 @@ const tool_sketches = { summary: "notes", flashcards: "cards", quiz: "checklist"
 function tool_tile(id, mode) {
     const t = tools[id];
     return `<button class="tile tool poster" type="button" data-tool="${id}" data-mode="${mode}">
-        <span class="tool-icon">${icons[t.icon]}</span>
         ${sketch_html(tool_sketches[id] || "notes")}
         <strong>${escape_html(t.title)}</strong>
         <span class="tile-sub">${escape_html(t.sub)}</span>
