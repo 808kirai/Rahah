@@ -1,4 +1,4 @@
-/* slate surfaces with red used sparingly for what matters, mauve and mint as small touches, laid out like a streaming app */
+/* slate surfaces with one accent colour used sparingly for what matters, mauve and mint as small touches, laid out like a streaming app */
 :root {
     --bg: #16191d;
     --surface: #272c39;
@@ -6,15 +6,15 @@
     --border: #363c4d;
     --text: #f3f3f7;
     --text-2: #9ba1b3;
-    --accent: #c20000;
-    --accent-hover: #d81818;
-    --accent-text: #ff7a7a;
-    --accent-soft: rgba(194, 0, 0, 0.22);
+    --accent: #0000af;
+    --accent-hover: #1a1ac8;
+    --accent-text: #9494ff;
+    --accent-soft: rgba(0, 0, 175, 0.3);
     --on-accent: #ffffff;
     --mauve: #a783a6;
     --mint: #98dea3;
     --mint-text: #98dea3;
-    --record: #c20000;
+    --record: var(--accent);
     --shadow: rgba(8, 10, 16, 0.4);
     --glass: rgba(39, 44, 57, 0.82);
     --code-bg: #1a1d26;
@@ -39,10 +39,10 @@
     --border: #e0e1e9;
     --text: #272c39;
     --text-2: #656b7d;
-    --accent-text: #b00000;
-    --accent-soft: rgba(194, 0, 0, 0.12);
+    --accent-text: #0000af;
+    --accent-soft: rgba(0, 0, 175, 0.1);
     --mint-text: #2f8a4a;
-    --record: #c20000;
+    --record: var(--accent);
     --shadow: rgba(39, 44, 57, 0.1);
     --glass: rgba(255, 255, 255, 0.86);
     --code-bg: #f7f7fb;
@@ -131,7 +131,7 @@ svg {
     background: var(--accent-hover);
 }
 
-/* disabled buttons go quiet grey instead of a washed out red */
+/* disabled buttons go quiet grey instead of a washed out accent */
 .btn-accent:disabled {
     background: var(--surface-2);
     color: var(--text-2);
@@ -580,7 +580,7 @@ button.picker-heading:focus-visible {
     }
 }
 
-/* cards are calm solid surfaces with a hairline edge, and red marks what matters on them:
+/* cards are calm solid surfaces with a hairline edge, and the accent marks what matters on them:
    the sketch, the label, the play button and the edge when hovered */
 .poster {
     background: var(--surface);
@@ -665,7 +665,7 @@ button.picker-heading:focus-visible {
     color: var(--text);
 }
 
-/* the one solid red thing on a card, the button that opens it */
+/* the one solid accent thing on a card, the button that opens it */
 .play {
     display: grid;
     place-items: center;
@@ -674,7 +674,7 @@ button.picker-heading:focus-visible {
     border-radius: var(--pill);
     background: var(--accent);
     color: var(--on-accent);
-    box-shadow: 0 8px 20px rgba(194, 0, 0, 0.3);
+    box-shadow: 0 8px 20px rgba(0, 0, 175, 0.35);
     transition: background-color 0.2s, transform var(--dur) var(--ease-out);
 }
 
@@ -857,7 +857,7 @@ button.picker-heading:focus-visible {
     color: var(--text-2);
 }
 
-/* today and tomorrow are the only countdowns in red, so red means it's close */
+/* today and tomorrow are the only countdowns in the accent, so the colour means it's close */
 .reminder-card.soon .countdown strong {
     color: var(--accent-text);
 }
@@ -1009,7 +1009,7 @@ button.picker-heading:focus-visible {
     display: none;
 }
 
-/* while listening the + is a red mic, the usual sign for recording, and the message box glows red, nothing pulses */
+/* while listening the + is a mic in the accent colour and the message box glows the same, nothing pulses */
 .tools-btn.listening {
     background: var(--record);
     color: #ffffff;
@@ -2804,7 +2804,7 @@ button.picker-heading:focus-visible {
     transition: box-shadow var(--dur) var(--ease-out);
 }
 
-/* the box is focused whenever a page opens, so its ring is a quiet grey and red stays for actions */
+/* the box is focused whenever a page opens, so its ring is a quiet grey and the accent stays for actions */
 .composer-box:focus-within,
 .composer-box.dragging {
     box-shadow: 0 0 0 1.5px var(--border), 0 10px 30px var(--shadow);
@@ -2868,7 +2868,7 @@ button.picker-heading:focus-visible {
     transform: translateY(-2px);
 }
 
-/* with nothing to send the button goes quiet grey rather than a faded red */
+/* with nothing to send the button goes quiet grey rather than a faded accent */
 .send-btn:disabled {
     background: var(--surface-2);
     color: var(--text-2);

@@ -636,7 +636,7 @@ function composer_hint(text) {
     composer_hint.timer = setTimeout(sync_placeholder, 6000);
 }
 
-// while listening the + button becomes a red mic, and tapping it stops
+// while listening the + button becomes a mic in the accent colour, and tapping it stops
 function set_listening(on) {
     const label = on ? "Stop listening" : "Add files, a photo or your voice";
     tools_btn.classList.toggle("listening", on);
