@@ -14,6 +14,9 @@ const state = {
     default_mode: "general",
     pending: [], // files attached to the next message, each {key, id, name, kind, status}
     busy: false,
+    conversations: [], // recent chats for the drawer and the continue studying row
+    modes: [],
+    mode_names: {},
 };
 
 const icons = {
@@ -21,6 +24,9 @@ const icons = {
     image: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
     close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+    prev: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+    next: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></svg>',
 };
 
 function escape_html(text) {
@@ -134,7 +140,7 @@ function file_pill_html(file) {
 }
 
 function add_user_message(text, files = []) {
-    el("welcome")?.remove();
+    leave_home();
     const message_el = document.createElement("div");
     message_el.className = "message user";
     if (files.length) message_el.innerHTML = `<div class="files">${files.map(file_pill_html).join("")}</div>`;
@@ -147,13 +153,13 @@ function add_user_message(text, files = []) {
 }
 
 function add_assistant_message(text = null, sources = []) {
-    el("welcome")?.remove();
+    leave_home();
     const message_el = document.createElement("div");
     message_el.className = "message assistant";
-    message_el.innerHTML = '<p class="label">Rahah</p><div class="answer"></div>';
+    message_el.innerHTML = '<p class="label"><span class="logo" aria-hidden="true"></span>Rahah</p><div class="answer"></div>';
     const answer = message_el.querySelector(".answer");
     if (text === null) {
-        answer.innerHTML = '<span class="thinking" aria-label="Thinking"><i></i><i></i><i></i></span>';
+        answer.innerHTML = '<span class="thinking">Thinking…</span>';
     } else {
         answer.innerHTML = render_markdown(text);
         decorate_code(answer);
@@ -170,10 +176,29 @@ function add_notice(message_el, text) {
     message_el.appendChild(note);
 }
 
+// home and recents are pages, anything else in the thread is a chat
+
+function sync_view() {
+    const view = el("welcome") ? "home" : el("recents") ? "recents" : "chat";
+    document.body.classList.toggle("is-home", view === "home");
+    document.body.classList.toggle("is-recents", view === "recents");
+    document.body.classList.toggle("is-page", view !== "chat");
+    el("page-title").textContent = view === "recents" ? "Recents" : "Home";
+}
+
+function leave_home() {
+    if (!el("welcome") && !el("recents")) return;
+    el("welcome")?.remove();
+    el("recents")?.remove();
+    sync_view();
+}
+
 function show_welcome() {
     thread.innerHTML = "";
     thread.appendChild(welcome_template.cloneNode(true));
-    bind_suggestions();
+    thread.scrollTop = 0;
+    render_rows();
+    sync_view();
 }
 
 // sending and streaming
@@ -376,11 +401,227 @@ composer_box.addEventListener("drop", (event) => {
     if (event.dataTransfer.files.length) upload_files([...event.dataTransfer.files]);
 });
 
-// conversations and the sidebar
+// home rows, laid out like a streaming app
+
+const shelves = [
+    { title: "Maths, one step at a time", mode: "maths", items: [
+        { title: "Derivatives from scratch", text: "Teach me what a derivative is from scratch, then walk me through differentiating x squared from first principles." },
+        { title: "Probability with dice", text: "Explain conditional probability using a pair of dice, with two short examples." },
+        { title: "Simultaneous equations", text: "Show me how to solve simultaneous equations by substitution and by elimination, using the same example for both." },
+        { title: "Why the log rules work", text: "Explain the rules of logarithms and why each one works, then give me four quick practice questions." },
+    ] },
+    { title: "Science explained", mode: "science", items: [
+        { title: "Newton's three laws", text: "Explain Newton's three laws of motion with an everyday example for each." },
+        { title: "Balancing chemical equations", text: "Teach me how to balance chemical equations, starting with methane burning in oxygen." },
+        { title: "How DNA copies itself", text: "Explain DNA replication step by step in simple terms." },
+        { title: "Ohm's law in real circuits", text: "Explain Ohm's law and work through one series circuit and one parallel circuit example." },
+    ] },
+    { title: "Code with Rahah", mode: "coding", items: [
+        { title: "Recursion and the call stack", text: "Explain recursion with a simple Python example, and show what happens on the call stack." },
+        { title: "Big O in plain words", text: "Explain Big O notation in plain words with examples of O(1), O(n) and O(n squared)." },
+        { title: "Help me find a bug", text: "I'm going to paste some code that isn't working. Ask me what it should do, then help me find the bug." },
+        { title: "SQL joins with tiny tables", text: "Explain the difference between inner, left and full joins in SQL using small example tables." },
+    ] },
+    { title: "Languages and writing", mode: "languages", items: [
+        { title: "Write a strong thesis", text: "Teach me how to write a strong thesis statement, with a weak and a strong example on the same topic." },
+        { title: "Commas or semicolons", text: "Explain when to use a comma and when to use a semicolon, then give me five sentences to fix." },
+        { title: "Persuasive techniques", text: "List the main persuasive writing techniques with a short example of each." },
+        { title: "Spanish verb drill", text: "Help me practise Spanish present tense verbs. Quiz me one verb at a time." },
+    ] },
+    { title: "History and humanities", mode: "humanities", items: [
+        { title: "Causes of the French Revolution", text: "Explain the main causes of the French Revolution and how historians weigh them differently." },
+        { title: "The Cold War in ten minutes", text: "Give me a ten minute overview of the Cold War, with the key turning points." },
+        { title: "The free will debate", text: "Explain the main positions in the free will debate and the strongest objection to each." },
+        { title: "How to read a source", text: "Teach me how to analyse a historical source for origin, purpose and reliability." },
+    ] },
+    { title: "Exam season", mode: "exam", items: [
+        { title: "Build my revision plan", text: "Help me build a two week revision plan. Ask me which subjects and exam dates I have first." },
+        { title: "Mark my answer like an examiner", text: "I'll paste an exam question and my answer. Mark it like an examiner and tell me how to gain more marks." },
+        { title: "Active recall drill", text: "Run an active recall drill on a topic I choose. Ask me questions one at a time and keep score." },
+        { title: "Explain it back to me", text: "Pick a topic with me, then ask me to explain it back to you and point out anything I got wrong or missed." },
+    ] },
+];
+
+function tone(mode) {
+    return ["general", "maths", "science", "coding", "languages", "humanities", "exam"].includes(mode) ? mode : "general";
+}
+
+function mode_name(mode) {
+    return state.mode_names[mode] || "General study";
+}
+
+function time_ago(seconds) {
+    const gap = Math.max(0, Date.now() / 1000 - seconds);
+    if (gap < 60) return "just now";
+    const steps = [[31536000, "year"], [2592000, "month"], [604800, "week"], [86400, "day"], [3600, "hour"], [60, "minute"]];
+    const [size, unit] = steps.find(([size]) => gap >= size);
+    const n = Math.floor(gap / size);
+    return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+}
+
+function prompt_tile(item) {
+    return `<button class="tile poster tone-${tone(item.mode)}" type="button" data-mode="${item.mode}" data-text="${escape_html(item.text)}" title="${escape_html(item.text)}">
+        <strong>${escape_html(item.title)}</strong>
+        <span class="tile-sub">${escape_html(mode_name(item.mode))}</span>
+    </button>`;
+}
+
+function subject_tile(mode) {
+    return `<button class="tile subject poster tone-${tone(mode.id)}" type="button" data-pick="${mode.id}" title="${escape_html(mode.hint)}">
+        <strong>${escape_html(mode.name)}</strong>
+    </button>`;
+}
+
+function chat_card(c) {
+    return `<div class="chat-card">
+        <a class="chat-card-art poster tone-${tone(c.mode)}" href="#/c/${c.id}" aria-label="Open ${escape_html(c.title)}">
+            <span class="play">${icons.play}</span>
+        </a>
+        <div class="chat-card-info">
+            <div class="chat-card-text">
+                <strong title="${escape_html(c.title)}">${escape_html(c.title)}</strong>
+                <span>${escape_html(mode_name(c.mode))} · ${time_ago(c.updated)}</span>
+            </div>
+            <button class="icon-btn" type="button" data-remove="${c.id}" aria-label="Delete ${escape_html(c.title)}">${icons.trash}</button>
+        </div>
+    </div>`;
+}
+
+function row_html(title, cards) {
+    return `<section class="row">
+        <h3 class="row-title">${escape_html(title)}</h3>
+        <button class="row-arrow prev" type="button" aria-label="Scroll ${escape_html(title)} left">${icons.prev}</button>
+        <div class="row-track">${cards}</div>
+        <button class="row-arrow next" type="button" aria-label="Scroll ${escape_html(title)} right">${icons.next}</button>
+    </section>`;
+}
+
+function render_rows() {
+    const rows = el("rows");
+    if (!rows) return;
+    const subjects = state.modes.length ? row_html("Pick a subject", state.modes.map(subject_tile).join("")) : "";
+    rows.innerHTML = '<div id="continue-row"></div>'
+        + subjects
+        + shelves.map((shelf) => row_html(shelf.title, shelf.items.map((item) => prompt_tile({ ...item, mode: shelf.mode })).join(""))).join("");
+    render_continue();
+}
+
+function render_continue() {
+    const slot = el("continue-row");
+    if (!slot) return;
+    slot.innerHTML = state.conversations.length
+        ? row_html("Continue studying", state.conversations.slice(0, 12).map(chat_card).join(""))
+        : "";
+}
+
+// the placeholder names the chosen subject so picking one feels like it did something
+function sync_placeholder() {
+    const mode = mode_select.value;
+    input.placeholder = !mode || mode === "general" ? "Ask anything, or drop a PDF here" : `Ask about ${mode_name(mode).toLowerCase()}`;
+}
+
+mode_select.addEventListener("change", sync_placeholder);
+
+thread.addEventListener("click", (event) => {
+    const target = event.target;
+    const tile = target.closest(".tile[data-text]");
+    if (tile) {
+        mode_select.value = tile.dataset.mode;
+        send_message(tile.dataset.text);
+        return;
+    }
+    const pick = target.closest("[data-pick]");
+    if (pick) {
+        mode_select.value = pick.dataset.pick;
+        sync_placeholder();
+        input.focus();
+        return;
+    }
+    const remove = target.closest("[data-remove]");
+    if (remove) {
+        const c = state.conversations.find((item) => item.id === remove.dataset.remove);
+        if (c) delete_conversation(c);
+        return;
+    }
+    const arrow = target.closest(".row-arrow");
+    if (arrow) {
+        const track = arrow.parentElement.querySelector(".row-track");
+        const step = track.clientWidth * 0.85;
+        track.scrollBy({ left: arrow.classList.contains("prev") ? -step : step, behavior: "smooth" });
+    }
+});
+
+// recents page
+
+function day_group(seconds) {
+    const midnight = new Date().setHours(0, 0, 0, 0) / 1000;
+    if (seconds >= midnight) return "Today";
+    if (seconds >= midnight - 86400) return "Yesterday";
+    if (seconds >= midnight - 7 * 86400) return "Last 7 days";
+    return "Earlier";
+}
+
+function render_recents() {
+    const page = el("recents");
+    if (!page) return;
+    if (!state.conversations.length) {
+        page.innerHTML = `<div class="recents-empty">
+            <strong>Nothing here yet</strong>
+            Your chats show up here once you start one.
+            <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
+        </div>`;
+        return;
+    }
+    const groups = new Map();
+    state.conversations.forEach((c) => {
+        const name = day_group(c.updated);
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(c);
+    });
+    page.innerHTML = [...groups].map(([name, chats]) => `
+        <h3 class="group-title">${name}</h3>
+        <div class="card-grid">${chats.map(chat_card).join("")}</div>`).join("");
+}
+
+function show_recents() {
+    if (state.busy) return;
+    state.conversation_id = null;
+    state.pending = [];
+    render_attachments();
+    mode_select.value = state.default_mode;
+    sync_placeholder();
+    history.replaceState(null, "", "#/recents");
+    set_title("");
+    document.title = "Recents · Rahah";
+    thread.innerHTML = '<div class="recents" id="recents"></div>';
+    thread.scrollTop = 0;
+    render_recents();
+    sync_view();
+    load_history();
+    close_drawer();
+}
+
+thread.addEventListener("click", (event) => {
+    if (event.target.closest(".recents [data-home]")) start_new_chat();
+});
+
+// conversations and the my chats drawer
 
 function set_title(text) {
     el("chat-title").textContent = text || "New chat";
     document.title = text ? `${text} · Rahah` : "Rahah";
+}
+
+async function delete_conversation(c) {
+    if (!confirm(`Delete "${c.title}"?`)) return;
+    try {
+        await api(`/api/conversations/${c.id}`, { method: "DELETE" });
+    } catch (error) {
+        alert(error.message);
+        return;
+    }
+    if (c.id === state.conversation_id) start_new_chat();
+    else load_history();
 }
 
 async function load_history() {
@@ -388,31 +629,31 @@ async function load_history() {
     try {
         const response = await api("/api/conversations");
         const { conversations } = await response.json();
-        if (!conversations.length) {
-            nav.innerHTML = '<p class="history-empty">Your chats will show up here.</p>';
-            return;
-        }
-        nav.innerHTML = "";
-        conversations.forEach((c) => {
-            const item = document.createElement("div");
-            item.className = `history-item${c.id === state.conversation_id ? " active" : ""}`;
-            item.innerHTML = `<a href="#/c/${c.id}">${escape_html(c.title)}</a>`;
-            const remove = document.createElement("button");
-            remove.className = "icon-btn";
-            remove.setAttribute("aria-label", `Delete ${c.title}`);
-            remove.innerHTML = icons.trash;
-            remove.addEventListener("click", async () => {
-                if (!confirm(`Delete "${c.title}"?`)) return;
-                await api(`/api/conversations/${c.id}`, { method: "DELETE" });
-                if (c.id === state.conversation_id) start_new_chat();
-                else load_history();
-            });
-            item.appendChild(remove);
-            nav.appendChild(item);
-        });
+        state.conversations = conversations;
     } catch (error) {
         nav.innerHTML = `<p class="history-empty">${escape_html(error.message)}</p>`;
+        return;
     }
+    render_continue();
+    render_recents();
+    if (!state.conversations.length) {
+        nav.innerHTML = '<p class="history-empty">Your chats will show up here.</p>';
+        return;
+    }
+    nav.innerHTML = "";
+    state.conversations.forEach((c) => {
+        const item = document.createElement("div");
+        item.className = `history-item${c.id === state.conversation_id ? " active" : ""}`;
+        item.innerHTML = `<a href="#/c/${c.id}"><span class="t">${escape_html(c.title)}</span><span class="m">${escape_html(mode_name(c.mode))} · ${time_ago(c.updated)}</span></a>`;
+        const remove = document.createElement("button");
+        remove.className = "icon-btn";
+        remove.type = "button";
+        remove.setAttribute("aria-label", `Delete ${c.title}`);
+        remove.innerHTML = icons.trash;
+        remove.addEventListener("click", () => delete_conversation(c));
+        item.appendChild(remove);
+        nav.appendChild(item);
+    });
 }
 
 async function open_conversation(conversation_id) {
@@ -424,19 +665,21 @@ async function open_conversation(conversation_id) {
         state.pending = [];
         render_attachments();
         mode_select.value = conversation.mode;
+        sync_placeholder();
         thread.innerHTML = "";
         if (!conversation.messages.length) show_welcome();
         conversation.messages.forEach((m) => {
             if (m.role === "user") add_user_message(m.text, m.files || []);
             else add_assistant_message(m.text, m.sources || []);
         });
+        sync_view();
         set_title(conversation.title);
         scroll_to_bottom();
     } catch (error) {
         start_new_chat();
     }
     load_history();
-    close_sidebar();
+    close_drawer();
 }
 
 function start_new_chat() {
@@ -445,41 +688,59 @@ function start_new_chat() {
     state.pending = [];
     render_attachments();
     mode_select.value = state.default_mode;
+    sync_placeholder();
     history.replaceState(null, "", "/");
     set_title("");
     show_welcome();
     load_history();
-    close_sidebar();
-    input.focus();
+    close_drawer();
+    input.focus({ preventScroll: true });
 }
 
 function route() {
+    if (location.hash === "#/recents") {
+        if (!el("recents")) show_recents();
+        return;
+    }
     const match = location.hash.match(/^#\/c\/([0-9a-f]+)$/);
     if (match && match[1] !== state.conversation_id) open_conversation(match[1]);
 }
 
 window.addEventListener("hashchange", route);
 el("new-chat").addEventListener("click", start_new_chat);
+document.querySelectorAll("[data-recents]").forEach((button) => button.addEventListener("click", show_recents));
+document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
+    event.preventDefault();
+    start_new_chat();
+}));
 
-// sidebar on small screens
+function open_drawer() {
+    document.body.classList.add("drawer-open");
+    el("drawer").classList.add("open");
+    el("scrim").classList.add("open");
+    el("close-drawer").focus();
+}
 
-function close_sidebar() {
-    el("sidebar").classList.remove("open");
+function close_drawer() {
+    document.body.classList.remove("drawer-open");
+    el("drawer").classList.remove("open");
     el("scrim").classList.remove("open");
 }
 
-el("open-sidebar").addEventListener("click", () => {
-    el("sidebar").classList.add("open");
-    el("scrim").classList.add("open");
+document.querySelectorAll("[data-open-chats]").forEach((button) => button.addEventListener("click", open_drawer));
+el("close-drawer").addEventListener("click", close_drawer);
+el("scrim").addEventListener("click", close_drawer);
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && el("drawer").classList.contains("open")) close_drawer();
 });
-el("close-sidebar").addEventListener("click", close_sidebar);
-el("scrim").addEventListener("click", close_sidebar);
 
 // theme
 
 function sync_theme_label() {
     const light = document.documentElement.getAttribute("data-theme") === "light";
-    document.querySelector(".theme-label").textContent = light ? "Dark mode" : "Light mode";
+    const label = light ? "Switch to dark mode" : "Switch to light mode";
+    el("theme-toggle").setAttribute("aria-label", label);
+    el("theme-toggle").title = label;
 }
 
 el("theme-toggle").addEventListener("click", () => {
@@ -517,30 +778,23 @@ el("composer").addEventListener("submit", (event) => {
 
 const welcome_template = el("welcome").cloneNode(true);
 
-function bind_suggestions() {
-    thread.querySelectorAll(".suggestion").forEach((button) => {
-        button.addEventListener("click", () => {
-            mode_select.value = button.dataset.mode;
-            send_message(button.dataset.text);
-        });
-    });
-}
-
 async function start() {
     sync_theme_label();
-    bind_suggestions();
     try {
         const response = await api("/api/modes");
         const { modes, default: default_mode } = await response.json();
         state.default_mode = default_mode;
+        state.modes = modes;
+        modes.forEach((m) => (state.mode_names[m.id] = m.name));
         mode_select.innerHTML = modes.map((m) => `<option value="${m.id}" title="${escape_html(m.hint)}">${escape_html(m.name)}</option>`).join("");
         mode_select.value = default_mode;
     } catch (error) {
         mode_select.innerHTML = '<option value="general">General study</option>';
     }
+    render_rows();
     load_history();
     route();
-    input.focus();
+    input.focus({ preventScroll: true });
 }
 
 start();
