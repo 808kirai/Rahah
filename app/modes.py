@@ -3,12 +3,14 @@
 modes = {
     "general": {
         "group": "study",
+        "menu": "everyday",
         "name": "General study",
         "hint": "Any subject, any question",
         "instruction": "Mode: general study. Help with whatever subject the student brings.",
     },
     "maths": {
         "group": "study",
+        "menu": "sciences",
         "name": "Maths",
         "hint": "Step by step working",
         "instruction": (
@@ -18,6 +20,7 @@ modes = {
     },
     "science": {
         "group": "study",
+        "menu": "sciences",
         "name": "Science",
         "hint": "Physics, chemistry, biology",
         "instruction": (
@@ -27,6 +30,7 @@ modes = {
     },
     "coding": {
         "group": "code",
+        "menu": "practice",
         "name": "Coding",
         "hint": "Write, explain, debug and run code",
         "runs_code": True,
@@ -45,6 +49,7 @@ modes = {
     },
     "languages": {
         "group": "study",
+        "menu": "humanities",
         "name": "Languages and writing",
         "hint": "Grammar, essays, vocabulary",
         "instruction": (
@@ -54,6 +59,7 @@ modes = {
     },
     "humanities": {
         "group": "study",
+        "menu": "humanities",
         "name": "History and humanities",
         "hint": "Events, ideas, arguments",
         "instruction": (
@@ -63,6 +69,7 @@ modes = {
     },
     "exam": {
         "group": "exam",
+        "menu": "practice",
         "name": "Exam prep",
         "hint": "Practice questions and revision",
         "instruction": (
@@ -75,8 +82,11 @@ modes = {
 default_mode = "general"
 
 
-# the home page and the subject picker are split into these, in this order
+# the home page is split into these, in this order
 groups = {"study": "Study", "exam": "Exam", "code": "Code"}
+
+# the subject picker uses smaller groups, so none of them runs long
+menu_groups = {"everyday": "Everyday", "sciences": "Sciences", "humanities": "Humanities", "practice": "Exam and code"}
 
 
 def runs_code(mode: str) -> bool:
@@ -85,6 +95,9 @@ def runs_code(mode: str) -> bool:
 
 def public_modes() -> list[dict]:
     return [
-        {"id": key, "name": m["name"], "hint": m["hint"], "group": m["group"], "runs_code": runs_code(key)}
+        {
+            "id": key, "name": m["name"], "hint": m["hint"], "group": m["group"], "menu": m["menu"],
+            "runs_code": runs_code(key),
+        }
         for key, m in modes.items()
     ]

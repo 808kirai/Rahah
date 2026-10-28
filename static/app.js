@@ -19,6 +19,7 @@ const state = {
     mode_names: {},
     mode_groups: {},
     groups: { study: "Study", exam: "Exam", code: "Code" },
+    menu_groups: {}, // the smaller groups the subject picker shows
     code_modes: new Set(["coding"]), // modes where claude can run code
     sets: [], // saved flashcard decks and quizzes
     study: null, // the open deck or quiz and where the student is in it
@@ -39,6 +40,8 @@ const icons = {
     shuffle: '<svg viewBox="0 0 24 24"><path d="M4 7h3.5c4 0 5 10 9 10H20M4 17h3.5c1.6 0 2.7-1.6 3.6-3.5M13 10.5C13.9 8.6 15 7 16.5 7H20M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5"/></svg>',
     terminal: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7.5 9.5l3 2.5-3 2.5M13 15h3.5"/></svg>',
     download: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
 };
 
 function escape_html(text) {
@@ -891,6 +894,111 @@ function mode_options_html() {
     if (grouped) return grouped;
     return state.modes.length ? state.modes.map(option).join("") : '<option value="general">General study</option>';
 }
+
+// subject pickers, a rounded menu in place of the browser's own dropdown
+// the hidden select still holds the value, so the rest of the page reads and sets it as before
+
+const select_value = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+
+function picker_menu_html(select) {
+    const current = select.value;
+    const item = (m) => `
+        <button type="button" class="picker-option" role="option" aria-selected="${m.id === current}" data-value="${escape_html(m.id)}"${m.hint ? ` title="${escape_html(m.hint)}"` : ""}>
+            <span>${escape_html(m.name)}</span>${m.id === current ? icons.check : ""}
+        </button>`;
+    const grouped = Object.entries(state.menu_groups).map(([group, label]) => {
+        const items = state.modes.filter((m) => m.menu === group);
+        if (!items.length) return "";
+        return `<div class="picker-group" role="group" aria-label="${escape_html(label)}"><p class="picker-heading">${escape_html(label)}</p>${items.map(item).join("")}</div>`;
+    }).join("");
+    if (grouped) return grouped;
+    // without groups from the server, list whatever the select holds
+    const plain = [...select.options].map((o) => ({ id: o.value, name: o.textContent, hint: o.title }));
+    return `<div class="picker-group">${plain.map(item).join("")}</div>`;
+}
+
+function make_picker(select) {
+    const box = document.createElement("div");
+    box.className = "picker";
+    box.innerHTML = `
+        <button type="button" class="picker-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${escape_html(select.getAttribute("aria-label") || "Subject")}">
+            <span class="picker-label"></span>${icons.chevron}
+        </button>
+        <div class="picker-menu" role="listbox" hidden></div>`;
+    select.hidden = true;
+    select.after(box);
+    const button = box.querySelector(".picker-btn");
+    const menu = box.querySelector(".picker-menu");
+    const label = box.querySelector(".picker-label");
+
+    const sync = () => {
+        label.textContent = select.selectedOptions[0]?.textContent || "General study";
+    };
+    // setting .value in code doesn't fire any event, so the label is kept in step here
+    Object.defineProperty(select, "value", {
+        get() { return select_value.get.call(this); },
+        set(value) { select_value.set.call(this, value); sync(); },
+    });
+    new MutationObserver(sync).observe(select, { childList: true, subtree: true });
+
+    const options = () => [...menu.querySelectorAll(".picker-option")];
+    const close = (refocus = false) => {
+        if (menu.hidden) return;
+        menu.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+        if (refocus) button.focus();
+    };
+    const open = () => {
+        menu.innerHTML = picker_menu_html(select);
+        menu.classList.remove("up");
+        menu.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+        // open upwards when there's more room above, inside a sheet or near the bottom of the window
+        const sheet = box.closest("dialog");
+        const bounds = sheet ? sheet.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+        const spot = button.getBoundingClientRect();
+        const room_below = bounds.bottom - spot.bottom;
+        if (menu.offsetHeight + 16 > room_below && spot.top - bounds.top > room_below) menu.classList.add("up");
+        (options().find((o) => o.getAttribute("aria-selected") === "true") || options()[0])?.focus();
+    };
+
+    button.addEventListener("click", () => (menu.hidden ? open() : close()));
+    menu.addEventListener("click", (event) => {
+        const option = event.target.closest(".picker-option");
+        if (!option) return;
+        select.value = option.dataset.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        close(true);
+    });
+    box.addEventListener("keydown", (event) => {
+        if (menu.hidden) return;
+        const list = options();
+        const at = list.indexOf(document.activeElement);
+        if (event.key === "Escape") {
+            // keeps a sheet open when only the menu should close
+            event.preventDefault();
+            event.stopPropagation();
+            close(true);
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const step = event.key === "ArrowDown" ? 1 : -1;
+            list[(at + step + list.length) % list.length]?.focus();
+        } else if (event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            list[event.key === "Home" ? 0 : list.length - 1]?.focus();
+        } else if (event.key === "Tab") {
+            close();
+        }
+    });
+    document.addEventListener("pointerdown", (event) => {
+        if (!box.contains(event.target)) close();
+    });
+    box.closest("dialog")?.addEventListener("close", () => close());
+    sync();
+}
+
+make_picker(mode_select);
+make_picker(el("sheet-mode"));
 
 function show_sheet_error(text) {
     el("sheet-error").textContent = text;
@@ -1837,10 +1945,11 @@ async function start() {
     sync_theme_label();
     try {
         const response = await api("/api/modes");
-        const { modes, groups, default: default_mode } = await response.json();
+        const { modes, groups, menu_groups, default: default_mode } = await response.json();
         state.default_mode = default_mode;
         state.modes = modes;
         if (groups) state.groups = groups;
+        if (menu_groups) state.menu_groups = menu_groups;
         state.code_modes = new Set(modes.filter((m) => m.runs_code).map((m) => m.id));
         modes.forEach((m) => {
             state.mode_names[m.id] = m.name;

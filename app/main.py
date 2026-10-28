@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import load_settings, settings
-from .modes import default_mode, groups, modes, public_modes, runs_code
+from .modes import default_mode, groups, menu_groups, modes, public_modes, runs_code
 from .performance import summarise
 from .store import store
 from .study import kinds, make_set, max_items, study_error, upload
@@ -148,7 +148,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
     @app.get("/api/modes")
     def list_modes():
-        return {"modes": public_modes(), "groups": groups, "default": default_mode}
+        return {"modes": public_modes(), "groups": groups, "menu_groups": menu_groups, "default": default_mode}
 
     @app.get("/api/conversations")
     def list_conversations():

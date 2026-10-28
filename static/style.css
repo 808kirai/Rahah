@@ -279,35 +279,133 @@ body:not(.is-page) .chat-title {
     gap: 0.35rem;
 }
 
-.mode-picker select,
-.pill-select {
-    appearance: none;
-    padding: 0.5rem 2.2rem 0.5rem 1.1rem;
+/* subject picker, a pill button with a rounded menu that opens just below it */
+.picker {
+    position: relative;
+}
+
+.picker-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    min-width: 11rem;
+    max-width: 100%;
+    padding: 0.5rem 0.85rem 0.5rem 1.1rem;
     border-radius: var(--pill);
-    border: none;
-    background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ba1b3' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 0.85rem center / 14px;
+    background: var(--surface);
     font-size: 0.85rem;
     font-weight: 600;
+    color: var(--text);
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
-.mode-picker select:hover {
-    background-color: var(--surface-2);
+.picker-btn:hover,
+.picker-btn[aria-expanded="true"] {
+    background: var(--surface-2);
 }
 
-.mode-picker option,
-.mode-picker optgroup,
-.pill-select option,
-.pill-select optgroup {
-    background: var(--surface);
-    color: var(--text);
+.picker-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.mode-picker optgroup,
-.pill-select optgroup {
+.picker-btn svg {
+    width: 14px;
+    height: 14px;
     color: var(--text-2);
+    transition: transform 0.25s var(--ease-out);
+}
+
+.picker-btn[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+}
+
+.picker-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(10.5rem, 1fr));
+    gap: 0.35rem 0.5rem;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    max-height: min(70vh, 26rem);
+    overflow-y: auto;
+    padding: 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--surface);
+    box-shadow: 0 18px 50px var(--shadow);
+    animation: picker-in 0.22s var(--ease-out);
+}
+
+.picker-menu[hidden] {
+    display: none;
+}
+
+.picker-menu.up {
+    top: auto;
+    bottom: calc(100% + 0.5rem);
+    animation-name: picker-in-up;
+}
+
+@keyframes picker-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+}
+
+@keyframes picker-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+}
+
+.picker-heading {
+    padding: 0.4rem 0.8rem 0.3rem;
+    font-size: 0.7rem;
     font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-2);
+}
+
+.picker-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.8rem;
+    border-radius: var(--pill);
+    font-size: 0.88rem;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--text);
+    transition: background-color 0.15s;
+}
+
+.picker-option:hover,
+.picker-option:focus-visible {
+    background: var(--surface-2);
+    outline: none;
+}
+
+.picker-option[aria-selected="true"] {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-weight: 600;
+}
+
+.picker-option svg {
+    width: 16px;
+    height: 16px;
 }
 
 .icon-sun,
@@ -758,9 +856,25 @@ body:not(.is-page) .chat-title {
     box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.sheet .pill-select {
+.sheet .picker-btn {
     width: 100%;
-    background-color: var(--surface-2);
+    background: var(--surface-2);
+}
+
+.sheet .picker-btn:hover,
+.sheet .picker-btn[aria-expanded="true"] {
+    background: var(--border);
+}
+
+.sheet .picker-menu {
+    left: 0;
+    right: auto;
+    background: var(--surface-2);
+}
+
+.sheet .picker-option:hover,
+.sheet .picker-option:focus-visible {
+    background: var(--border);
 }
 
 .sheet-files {
@@ -1740,13 +1854,6 @@ body:not(.is-page) .chat-title {
 .run-status.busy {
     background: var(--accent-soft);
     color: var(--accent-text);
-    animation: run-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes run-pulse {
-    50% {
-        opacity: 0.55;
-    }
 }
 
 .answer .run pre {
@@ -2403,10 +2510,15 @@ body:not(.is-page) .chat-title {
         gap: 0.15rem;
     }
 
-    .mode-picker select {
-        max-width: 140px;
+    .mode-picker .picker-btn {
+        min-width: 0;
+        max-width: 150px;
         padding-left: 0.9rem;
         font-size: 0.8rem;
+    }
+
+    .picker-menu {
+        grid-template-columns: minmax(12rem, 1fr);
     }
 
     .thread {
