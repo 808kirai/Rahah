@@ -1,10 +1,14 @@
 """a stand in for the anthropic client, built from the sdk's own types so shapes stay real"""
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from anthropic.types.beta import (
+    BetaBashCodeExecutionToolResultBlock,
     BetaCitationPageLocation,
+    BetaContainer,
     BetaMessage,
+    BetaServerToolUseBlock,
     BetaTextBlock,
     BetaThinkingBlock,
     BetaUsage,
@@ -26,10 +30,30 @@ def thinking_block():
     return BetaThinkingBlock(type="thinking", thinking="", signature="sig123")
 
 
-def message(content, stop_reason="end_turn"):
+def run_block(command, run_id="srvtoolu_1"):
+    return BetaServerToolUseBlock.model_validate({
+        "type": "server_tool_use", "id": run_id, "name": "bash_code_execution", "input": {"command": command},
+    })
+
+
+def run_result(stdout, run_id="srvtoolu_1", exit_code=0, stderr="", files=()):
+    return BetaBashCodeExecutionToolResultBlock.model_validate({
+        "type": "bash_code_execution_tool_result",
+        "tool_use_id": run_id,
+        "content": {
+            "type": "bash_code_execution_result", "stdout": stdout, "stderr": stderr, "return_code": exit_code,
+            "content": [{"type": "bash_code_execution_output", "file_id": f} for f in files],
+        },
+    })
+
+
+def message(content, stop_reason="end_turn", container=None, expires_in=timedelta(hours=1)):
+    sandbox = None
+    if container:
+        sandbox = BetaContainer(id=container, expires_at=datetime.now(timezone.utc) + expires_in)
     return BetaMessage(
         id="msg_1", type="message", role="assistant", model="claude-opus-5-5",
-        content=content, stop_reason=stop_reason, stop_sequence=None,
+        content=content, stop_reason=stop_reason, stop_sequence=None, container=sandbox,
         usage=BetaUsage(input_tokens=10, output_tokens=20),
     )
 
@@ -74,13 +98,30 @@ class fake_messages:
         return fake_stream(reply)
 
 
+class fake_download:
+    def __init__(self, data):
+        self.data = data
+
+    async def read(self):
+        return self.data
+
+
 class fake_files:
     def __init__(self):
         self.uploads = []
+        # files that code runs made, by id, each (filename, mime type)
+        self.made = {}
 
     async def upload(self, file):
         self.uploads.append(file)
         return SimpleNamespace(id=f"file_{len(self.uploads)}")
+
+    async def retrieve_metadata(self, file_id):
+        name, mime_type = self.made[file_id]
+        return SimpleNamespace(id=file_id, filename=name, mime_type=mime_type)
+
+    async def download(self, file_id):
+        return fake_download(f"bytes of {file_id}".encode())
 
 
 class fake_client:

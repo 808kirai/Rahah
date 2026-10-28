@@ -19,6 +19,7 @@ const state = {
     mode_names: {},
     mode_groups: {},
     groups: { study: "Study", exam: "Exam", code: "Code" },
+    code_modes: new Set(["coding"]), // modes where claude can run code
     sets: [], // saved flashcard decks and quizzes
     study: null, // the open deck or quiz and where the student is in it
     performance: null, // quiz results worked out by the server
@@ -36,6 +37,8 @@ const icons = {
     quiz: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>',
     summary: '<svg viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h9M5 18h6"/></svg>',
     shuffle: '<svg viewBox="0 0 24 24"><path d="M4 7h3.5c4 0 5 10 9 10H20M4 17h3.5c1.6 0 2.7-1.6 3.6-3.5M13 10.5C13.9 8.6 15 7 16.5 7H20M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5"/></svg>',
+    terminal: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7.5 9.5l3 2.5-3 2.5M13 15h3.5"/></svg>',
+    download: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/></svg>',
 };
 
 function escape_html(text) {
@@ -81,14 +84,100 @@ function render_markdown(raw) {
         : `<p>${escape_html(guarded).replace(/\n/g, "<br>")}</p>`;
     html = html.replace(/@@math(\d+)@@/g, (match, i) => render_math(math[Number(i)]));
     html = html.replace(/⟦(\d+)⟧/g, (match, n) => `<button class="cite" data-n="${n}" aria-label="Source ${n}">${n}</button>`);
+    // code runs get a slot here and are filled in by fill_runs
+    html = html.replace(/<p>⟦run:(\d+)⟧<\/p>|⟦run:(\d+)⟧/g, (match, a, b) => `<div class="run-slot" data-run="${a ?? b}"></div>`);
     return html;
 }
 
+// code that claude ran in the sandbox, shown as a card with its output
+
+const run_errors = {
+    execution_time_exceeded: "Took too long",
+    output_file_too_large: "Output too large",
+    too_many_requests: "Sandbox busy",
+    unavailable: "Sandbox unavailable",
+    file_not_found: "File not found",
+    invalid_tool_input: "Couldn't run",
+};
+
+const file_languages = {
+    py: "python", js: "javascript", ts: "typescript", java: "java", c: "c", cpp: "cpp", h: "c", cs: "csharp",
+    go: "go", rs: "rust", rb: "ruby", php: "php", kt: "kotlin", swift: "swift", r: "r", sql: "sql",
+    sh: "bash", html: "xml", css: "css", json: "json", md: "markdown",
+};
+
+function language_of(path) {
+    const ext = (path.split(".").pop() || "").toLowerCase();
+    return file_languages[ext] || "plaintext";
+}
+
+function run_title(run) {
+    const name = escape_html(run.path.split("/").pop() || "a file");
+    if (run.kind === "create") return `Wrote <span class="run-path">${name}</span>`;
+    if (run.kind === "str_replace") return `Edited <span class="run-path">${name}</span>`;
+    if (run.kind === "view") return `Opened <span class="run-path">${name}</span>`;
+    if (run.kind === "file") return `Changed <span class="run-path">${name}</span>`;
+    return "Ran code";
+}
+
+function run_status(run) {
+    if (!run.done) return '<span class="run-status busy">Running</span>';
+    if (run.error) return `<span class="run-status fail">${escape_html(run_errors[run.error] || "Couldn't run")}</span>`;
+    if (run.exit) return `<span class="run-status fail">Error, exit code ${escape_html(run.exit)}</span>`;
+    if (run.kind === "bash" || run.kind === "python") return '<span class="run-status ok">Done</span>';
+    return "";
+}
+
+function run_file_html(file) {
+    const url = `/api/outputs/${encodeURIComponent(file.id)}`;
+    if (/^image\/(png|jpeg|gif|webp)$/.test(file.type)) {
+        return `<a class="run-image" href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${escape_html(file.name)}" loading="lazy"></a>`;
+    }
+    return `<a class="run-file" href="${url}" download>${icons.download}<span>${escape_html(file.name)}</span></a>`;
+}
+
+function run_html(run) {
+    const lang = run.kind === "bash" ? "bash" : run.kind === "python" ? "python" : language_of(run.path);
+    const code = run.code ? `<pre><code class="language-${lang}">${escape_html(run.code)}</code></pre>` : "";
+    const output = run.stdout || run.stderr
+        ? `<pre class="run-output">${escape_html(run.stdout || "")}${run.stderr ? `<span class="stderr">${escape_html(run.stderr)}</span>` : ""}</pre>`
+        : "";
+    const files = (run.files || []).map(run_file_html).join("");
+    const failed = run.done && (run.error || run.exit);
+    return `<div class="run${failed ? " failed" : ""}">
+        <div class="run-head">${icons.terminal}<span class="run-title">${run_title(run)}</span>${run_status(run)}</div>
+        ${code}${output}${files ? `<div class="run-files">${files}</div>` : ""}
+    </div>`;
+}
+
+function fill_runs(container, runs) {
+    container.querySelectorAll(".run-slot").forEach((slot) => {
+        const run = runs[Number(slot.dataset.run)];
+        if (run) slot.outerHTML = run_html(run);
+        else slot.remove();
+    });
+}
+
 function decorate_code(container) {
+    const can_run = state.code_modes.has(mode_select.value);
     container.querySelectorAll("pre code").forEach((code) => {
         if (window.hljs) hljs.highlightElement(code);
+        const actions = document.createElement("div");
+        actions.className = "code-actions";
+        // python in an answer can be sent back to be run, code already inside a run card has been run
+        if (can_run && code.classList.contains("language-python") && !code.closest(".run")) {
+            const run = document.createElement("button");
+            run.className = "code-btn run-btn";
+            run.type = "button";
+            run.innerHTML = `${icons.play}<span>Run</span>`;
+            run.addEventListener("click", () => {
+                if (state.busy) return;
+                send_message(`Run this code and show me the output.\n\n\`\`\`python\n${code.innerText.trimEnd()}\n\`\`\``);
+            });
+            actions.appendChild(run);
+        }
         const copy = document.createElement("button");
-        copy.className = "copy-btn";
+        copy.className = "code-btn";
         copy.type = "button";
         copy.textContent = "Copy";
         copy.addEventListener("click", async () => {
@@ -100,7 +189,8 @@ function decorate_code(container) {
             }
             setTimeout(() => (copy.textContent = "Copy"), 1500);
         });
-        code.parentElement.appendChild(copy);
+        actions.appendChild(copy);
+        code.parentElement.appendChild(actions);
     });
 }
 
@@ -161,7 +251,7 @@ function add_user_message(text, files = []) {
     return message_el;
 }
 
-function add_assistant_message(text = null, sources = []) {
+function add_assistant_message(text = null, sources = [], runs = []) {
     leave_home();
     const message_el = document.createElement("div");
     message_el.className = "message assistant";
@@ -171,6 +261,7 @@ function add_assistant_message(text = null, sources = []) {
         answer.innerHTML = '<span class="thinking">Thinking…</span>';
     } else {
         answer.innerHTML = render_markdown(text);
+        fill_runs(answer, runs);
         decorate_code(answer);
         render_sources(message_el, sources);
     }
@@ -281,6 +372,7 @@ async function send_message(text) {
 
     let raw = "";
     let sources = [];
+    let runs = [];
     let frame = 0;
     let finished = false;
     let saved = false;
@@ -289,6 +381,7 @@ async function send_message(text) {
         frame = 0;
         const stick = near_bottom();
         answer.innerHTML = render_markdown(raw);
+        fill_runs(answer, runs);
         decorate_code(answer);
         render_sources(reply, sources);
         if (stick) scroll_to_bottom();
@@ -319,9 +412,17 @@ async function send_message(text) {
                 raw += event.v.marks;
                 sources = sources.concat(event.v.sources);
                 schedule_paint();
+            } else if (event.t === "run") {
+                raw += event.v.marks;
+                runs[event.v.run.n] = event.v.run;
+                schedule_paint();
+            } else if (event.t === "run_done") {
+                runs[event.v.n] = event.v;
+                schedule_paint();
             } else if (event.t === "done") {
                 raw = event.v.text;
                 sources = event.v.sources;
+                runs = event.v.runs || [];
                 finished = true;
                 saved = true;
                 if (frame) cancelAnimationFrame(frame);
@@ -1568,7 +1669,7 @@ async function open_conversation(conversation_id) {
         if (!conversation.messages.length) show_welcome();
         conversation.messages.forEach((m) => {
             if (m.role === "user") add_user_message(m.text, m.files || []);
-            else add_assistant_message(m.text, m.sources || []);
+            else add_assistant_message(m.text, m.sources || [], m.runs || []);
         });
         sync_view();
         set_title(conversation.title);
@@ -1740,6 +1841,7 @@ async function start() {
         state.default_mode = default_mode;
         state.modes = modes;
         if (groups) state.groups = groups;
+        state.code_modes = new Set(modes.filter((m) => m.runs_code).map((m) => m.id));
         modes.forEach((m) => {
             state.mode_names[m.id] = m.name;
             state.mode_groups[m.id] = m.group;

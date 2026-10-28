@@ -2,16 +2,18 @@
 
 import json
 import logging
+import re
+import time
 from pathlib import Path
 
 import anthropic
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import load_settings, settings
-from .modes import default_mode, groups, modes, public_modes
+from .modes import default_mode, groups, modes, public_modes, runs_code
 from .performance import summarise
 from .store import store
 from .study import kinds, make_set, max_items, study_error, upload
@@ -31,6 +33,12 @@ upload_types = {
     ".webp": ("image/webp", "image"),
     ".gif": ("image/gif", "image"),
 }
+# code and data files are read as plain text documents
+code_types = (
+    ".py", ".js", ".ts", ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs", ".rb", ".php",
+    ".kt", ".swift", ".r", ".sql", ".sh", ".html", ".css", ".json", ".csv",
+)
+upload_types.update({suffix: ("text/plain", "document") for suffix in code_types})
 magic_bytes = {
     "application/pdf": (b"%PDF",),
     "image/png": (b"\x89PNG",),
@@ -91,7 +99,7 @@ def sniff_upload(name: str, data: bytes) -> tuple[str, str]:
     # checks the extension and the first bytes agree, so a renamed file can't slip through
     suffix = Path(name).suffix.lower()
     if suffix not in upload_types:
-        raise HTTPException(400, "Rahah can read PDF, TXT, MD, PNG, JPG, WEBP and GIF files.")
+        raise HTTPException(400, "Rahah can read PDF, TXT, MD, PNG, JPG, WEBP and GIF files, and code files like PY, JS and JAVA.")
     media_type, kind = upload_types[suffix]
     if media_type == "text/plain":
         try:
@@ -104,6 +112,16 @@ def sniff_upload(name: str, data: bytes) -> tuple[str, str]:
     elif not data.startswith(magic_bytes[media_type]):
         raise HTTPException(400, f"That file doesn't look like a {suffix[1:].upper()} file.")
     return media_type, kind
+
+
+# only plain images are shown in the page, anything else a run makes is downloaded,
+# so a page or script written by code never runs on rahah's own address
+inline_types = ("image/png", "image/jpeg", "image/gif", "image/webp")
+container_margin = 300
+
+
+def safe_filename(name: str) -> str:
+    return re.sub(r"[^\w.\- ]", "_", Path(name).name)[:120] or "file"
 
 
 def create_app(cfg: settings | None = None, client=None) -> FastAPI:
@@ -197,14 +215,34 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             rows.append(mode_note(body.mode))
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
 
+        # once code has run in a chat the tool stays on, since the history holds its runs
+        sandbox = db.get_container(conversation_id)
+        code = runs_code(body.mode) or sandbox is not None
+        container = sandbox["container_id"] if sandbox and sandbox["expires"] > time.time() + container_margin else None
+        outputs = db.get_outputs(conversation_id)
+
+        async def describe_output(file_id: str) -> dict:
+            if file_id not in outputs:
+                name, media_type = "file", "application/octet-stream"
+                try:
+                    meta = await claude().files.retrieve_metadata(file_id)
+                    name, media_type = safe_filename(meta.filename), meta.mime_type
+                except anthropic.AnthropicError as error:
+                    log.warning("couldn't read details of output %s: %s", file_id, error)
+                db.add_output(file_id, conversation_id, name, media_type)
+                outputs[file_id] = {"id": file_id, "name": name, "type": media_type}
+            return outputs[file_id]
+
         async def events():
             final = None
             try:
-                async for event in stream_reply(claude(), cfg, messages):
+                async for event in stream_reply(claude(), cfg, messages, code=code, container=container):
                     if event["t"] == "final":
                         final = event["v"]
-                    else:
-                        yield sse(event)
+                        continue
+                    if event["t"] == "run_done":
+                        event["v"]["files"] = [await describe_output(f) for f in event["v"].get("files", [])]
+                    yield sse(event)
             except Exception as error:
                 if not is_claude_error(error):
                     raise
@@ -216,18 +254,45 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             if final.stop_reason == "refusal":
                 yield sse({"t": "refusal", "v": "Rahah can't help with that request. Try rephrasing it."})
                 return
-            display = display_from_content(final.content)
+            display = display_from_content(final.content, outputs)
             if not display["text"].strip():
                 yield sse({"t": "error", "v": "Claude returned an empty answer. Try asking again."})
                 return
             rows.append({"role": "assistant", "content": history_blocks(final.content), "display": display})
             db.add_turn(conversation_id, rows, body.mode, title=text[:60])
-            yield sse({"t": "done", "v": {**display, "truncated": final.stop_reason == "max_tokens"}})
+            if final.container:
+                db.set_container(conversation_id, final.container, final.container_expires.timestamp())
+            truncated = final.stop_reason in ("max_tokens", "pause_turn")
+            yield sse({"t": "done", "v": {**display, "truncated": truncated}})
 
         return StreamingResponse(
             events(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @app.get("/api/outputs/{file_id}")
+    async def get_output(file_id: str):
+        # only files that came out of a run in one of rahah's chats can be fetched
+        output = db.get_output(file_id)
+        if not output:
+            raise HTTPException(404, "That file doesn't exist.")
+        try:
+            data = await (await claude().files.download(file_id)).read()
+        except Exception as error:
+            if not is_claude_error(error):
+                raise
+            log.warning("output download failed: %s", error)
+            raise HTTPException(502, friendly_error(error))
+        inline = output["media_type"] in inline_types
+        return Response(
+            data,
+            media_type=output["media_type"] if inline else "application/octet-stream",
+            headers={
+                "Content-Disposition": f'{"inline" if inline else "attachment"}; filename="{safe_filename(output["name"])}"',
+                "Cache-Control": "private, max-age=86400",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     def set_or_404(set_id: str) -> dict:

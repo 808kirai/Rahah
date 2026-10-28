@@ -55,6 +55,18 @@ create table if not exists quiz_attempts (
     total integer not null,
     created real not null
 );
+create table if not exists containers (
+    conversation_id text primary key references conversations(id) on delete cascade,
+    container_id text not null,
+    expires real not null
+);
+create table if not exists outputs (
+    id text primary key,
+    conversation_id text not null references conversations(id) on delete cascade,
+    name text not null,
+    media_type text not null,
+    created real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -185,6 +197,42 @@ class store:
             for f in file_ids
             if (r := by_id.get(f))
         ]
+
+    # the sandbox claude runs code in, and the files those runs make
+
+    def get_container(self, conversation_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from containers where conversation_id = ?", (conversation_id,)).fetchone()
+        return dict(row) if row else None
+
+    def set_container(self, conversation_id: str, container_id: str, expires: float) -> None:
+        with self._connect() as db:
+            db.execute(
+                "insert into containers (conversation_id, container_id, expires) values (?, ?, ?) "
+                "on conflict(conversation_id) do update set container_id = excluded.container_id, "
+                "expires = excluded.expires",
+                (conversation_id, container_id, expires),
+            )
+
+    def add_output(self, file_id: str, conversation_id: str, name: str, media_type: str) -> None:
+        with self._connect() as db:
+            db.execute(
+                "insert or ignore into outputs (id, conversation_id, name, media_type, created) "
+                "values (?, ?, ?, ?, ?)",
+                (file_id, conversation_id, name, media_type, time.time()),
+            )
+
+    def get_outputs(self, conversation_id: str) -> dict[str, dict]:
+        with self._connect() as db:
+            rows = db.execute(
+                "select id, name, media_type from outputs where conversation_id = ?", (conversation_id,),
+            ).fetchall()
+        return {r["id"]: {"id": r["id"], "name": r["name"], "type": r["media_type"]} for r in rows}
+
+    def get_output(self, file_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from outputs where id = ?", (file_id,)).fetchone()
+        return dict(row) if row else None
 
     # study sets, flashcard decks and quizzes
 

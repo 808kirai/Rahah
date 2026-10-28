@@ -1629,27 +1629,194 @@ body:not(.is-page) .chat-title {
     line-height: 1.55;
 }
 
-.copy-btn {
+.code-actions {
     position: absolute;
     top: 0.55rem;
     right: 0.55rem;
+    display: flex;
+    gap: 0.35rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.answer pre:hover .code-actions,
+.code-actions:focus-within {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .code-actions {
+        opacity: 1;
+    }
+}
+
+.code-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     padding: 0.25rem 0.8rem;
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-2);
-    opacity: 0;
-    transition: opacity 0.2s, color 0.2s;
+    transition: background-color 0.2s, color 0.2s;
 }
 
-.answer pre:hover .copy-btn,
-.copy-btn:focus-visible {
-    opacity: 1;
-}
-
-.copy-btn:hover {
+.code-btn:hover {
     color: var(--text);
+}
+
+.code-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.run-btn {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+}
+
+.run-btn:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+/* code runs, a card with the code claude ran and what came out */
+.run {
+    margin: 1rem 0;
+    border: 1px solid var(--border);
+    border-radius: var(--card);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.run-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.run-head svg {
+    width: 18px;
+    height: 18px;
+    color: var(--accent-text);
+}
+
+.run-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.run-path {
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.run-status {
+    flex-shrink: 0;
+    padding: 0.15rem 0.7rem;
+    border-radius: var(--pill);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.run-status.ok {
+    background: color-mix(in srgb, var(--mint) 18%, transparent);
+    color: var(--mint-text);
+}
+
+.run-status.fail {
+    background: color-mix(in srgb, var(--mauve) 22%, transparent);
+    color: var(--mauve);
+}
+
+.run-status.busy {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    animation: run-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes run-pulse {
+    50% {
+        opacity: 0.55;
+    }
+}
+
+.answer .run pre {
+    margin: 0;
+    border-radius: 0;
+    border-top: 1px solid var(--border);
+}
+
+.answer .run pre code {
+    max-height: 22rem;
+    overflow: auto;
+}
+
+.answer .run-output {
+    max-height: 18rem;
+    overflow: auto;
+    padding: 0.85rem 1.15rem;
+    background: var(--surface-2);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.run-output .stderr {
+    color: var(--mauve);
+}
+
+.run-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.75rem 0.9rem;
+    border-top: 1px solid var(--border);
+}
+
+.run-image {
+    display: block;
+    max-width: 100%;
+}
+
+.run-image img {
+    display: block;
+    max-width: 100%;
+    max-height: 26rem;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.run-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.9rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.run-file:hover {
+    background: var(--accent-soft);
+}
+
+.run-file svg {
+    width: 15px;
+    height: 15px;
 }
 
 .katex-display {

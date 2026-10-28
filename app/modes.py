@@ -28,10 +28,19 @@ modes = {
     "coding": {
         "group": "code",
         "name": "Coding",
-        "hint": "Write, explain and debug code",
+        "hint": "Write, explain, debug and run code",
+        "runs_code": True,
         "instruction": (
             "Mode: coding. When fixing code, explain what was wrong before showing the fix. "
-            "Keep examples small and runnable, and name the language on every code block."
+            "Keep examples small and runnable, and name the language on every code block.\n\n"
+            "You can run code in a sandbox, and the student sees each run with its output. Run code "
+            "when it helps: to check a fix works, to show real output, or to test an example before "
+            "you present it. Don't run code just to answer a question you already know. For anything "
+            "longer than one line, write it to a file and run the file, so the student reads clean code "
+            "instead of a long shell command. Write the file first and run it in a later step, never both "
+            "at once. The student already sees the code and output of every run, so don't paste them "
+            "again in your answer, refer to them instead. Save charts and files the student should see "
+            "into $OUTPUT_DIR. The sandbox has Python with common libraries and no internet."
         ),
     },
     "languages": {
@@ -70,5 +79,12 @@ default_mode = "general"
 groups = {"study": "Study", "exam": "Exam", "code": "Code"}
 
 
+def runs_code(mode: str) -> bool:
+    return modes[mode].get("runs_code", False)
+
+
 def public_modes() -> list[dict]:
-    return [{"id": key, "name": m["name"], "hint": m["hint"], "group": m["group"]} for key, m in modes.items()]
+    return [
+        {"id": key, "name": m["name"], "hint": m["hint"], "group": m["group"], "runs_code": runs_code(key)}
+        for key, m in modes.items()
+    ]

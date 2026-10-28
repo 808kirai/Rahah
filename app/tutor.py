@@ -1,5 +1,7 @@
 """everything that talks to claude, the prompt, request building and streaming"""
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import AsyncIterator
 
 from .config import settings
@@ -22,6 +24,13 @@ If someone asks what you are, you are Rahah, built on Claude by Anthropic."""
 
 fallback_beta = "server-side-fallback-2026-07-01"
 marker_open, marker_close = "⟦", "⟧"
+
+# claude runs code on anthropic's servers, in a sandbox with no internet
+code_tool = {"type": "code_execution_20260521", "name": "code_execution"}
+run_tools = ("bash_code_execution", "text_editor_code_execution", "code_execution")
+run_results = ("bash_code_execution_tool_result", "text_editor_code_execution_tool_result", "code_execution_tool_result")
+max_resumes = 5
+max_output_chars = 20000
 
 
 def fallback_options(cfg: settings) -> dict:
@@ -117,39 +126,153 @@ def describe_citation(citation) -> dict:
     }
 
 
-def display_from_content(content) -> dict:
-    # rebuilds the text and sources the page showed while streaming
-    cites = citation_list()
+def clip(text: str | None) -> str:
+    text = text or ""
+    if len(text) <= max_output_chars:
+        return text
+    return text[:max_output_chars] + "\n… output cut short"
+
+
+def describe_run(block) -> dict:
+    # what claude asked the sandbox to do, a shell command, a python snippet or a file action
+    data = block.input or {}
+    if block.name == "bash_code_execution":
+        return {"kind": "bash", "code": data.get("command", ""), "path": ""}
+    if block.name == "code_execution":
+        return {"kind": "python", "code": data.get("code", ""), "path": ""}
+    action = data.get("command", "")
+    return {
+        "kind": action if action in ("create", "str_replace", "view") else "file",
+        "code": data.get("file_text") or data.get("new_str") or "",
+        "path": data.get("path", ""),
+    }
+
+
+def describe_result(block) -> dict:
+    result = block.content
+    error = getattr(result, "error_code", None)
+    if error:
+        return {"done": True, "error": error}
+    return {
+        "done": True,
+        "stdout": clip(getattr(result, "stdout", None)),
+        "stderr": clip(getattr(result, "stderr", None)),
+        "exit": getattr(result, "return_code", None),
+        "files": [f.file_id for f in getattr(result, "content", None) or [] if getattr(f, "file_id", None)],
+    }
+
+
+class run_list:
+    """numbers each code run in the order it happens and puts a marker for it in the answer text"""
+
+    def __init__(self):
+        self.runs: list[dict] = []
+        self._numbers: dict[str, int] = {}
+
+    def start(self, block) -> tuple[str, dict]:
+        run = {**describe_run(block), "n": len(self.runs), "done": False}
+        self._numbers[block.id] = run["n"]
+        self.runs.append(run)
+        return f"\n\n{marker_open}run:{run['n']}{marker_close}\n\n", run
+
+    def finish(self, block) -> dict | None:
+        n = self._numbers.get(block.tool_use_id)
+        if n is None:
+            return None
+        self.runs[n].update(describe_result(block))
+        return self.runs[n]
+
+
+def is_run(block) -> bool:
+    return block.type == "server_tool_use" and block.name in run_tools
+
+
+def display_from_content(content, outputs: dict | None = None) -> dict:
+    """rebuilds the text, sources and code runs the page showed while streaming
+
+    outputs maps a file id from a run to its name and type, files without details are shown by id
+    """
+    cites, runs = citation_list(), run_list()
     parts = []
     for block in content:
         if block.type == "text":
             marks, _ = cites.marks_for(getattr(block, "citations", None))
             parts.append(block.text + marks)
-    return {"text": "".join(parts), "sources": cites.sources}
+        elif is_run(block):
+            marks, _ = runs.start(block)
+            parts.append(marks)
+        elif block.type in run_results:
+            runs.finish(block)
+    for run in runs.runs:
+        run["files"] = [output_details(f, outputs) for f in run.get("files", [])]
+    return {"text": "".join(parts), "sources": cites.sources, "runs": runs.runs}
 
 
-async def stream_reply(client, cfg: settings, messages: list[dict]) -> AsyncIterator[dict]:
-    """streams one answer as small events for the page, then a final event with the full message
+def output_details(file_id: str, outputs: dict | None) -> dict:
+    return (outputs or {}).get(file_id) or {"id": file_id, "name": "file", "type": ""}
 
-    events are text, cite, and final
+
+@dataclass
+class reply:
+    """one finished answer, joined up from every request it took"""
+
+    content: list
+    stop_reason: str | None
+    container: str | None = None
+    container_expires: datetime | None = None
+
+
+async def stream_reply(
+    client, cfg: settings, messages: list[dict], code: bool = False, container: str | None = None,
+) -> AsyncIterator[dict]:
+    """streams one answer as small events for the page, then a final event with the whole reply
+
+    events are text, cite, run, run_done and final
+    with code on, claude can run code in a sandbox, container picks up an earlier sandbox
+    a long run of code can pause the turn, which is resumed by sending the answer so far back
     """
-    cites = citation_list()
+    cites, runs = citation_list(), run_list()
     options = fallback_options(cfg)
-    async with client.beta.messages.stream(
-        model=cfg.model,
-        max_tokens=cfg.max_tokens,
-        system=base_prompt,
-        messages=messages,
-        output_config={"effort": cfg.effort},
-        cache_control={"type": "ephemeral"},
-        **options,
-    ) as stream:
-        async for event in stream:
-            if event.type == "text":
-                yield {"t": "text", "v": event.text}
-            elif event.type == "content_block_stop" and event.content_block.type == "text":
-                marks, new = cites.marks_for(getattr(event.content_block, "citations", None))
-                if marks:
-                    yield {"t": "cite", "v": {"marks": marks, "sources": new}}
-        final = await stream.get_final_message()
-    yield {"t": "final", "v": final}
+    if code:
+        options["tools"] = [code_tool]
+    content, sent = [], messages
+    reported, expires = None, None
+    for _ in range(max_resumes + 1):
+        extra = {"container": container} if container else {}
+        async with client.beta.messages.stream(
+            model=cfg.model,
+            max_tokens=cfg.max_tokens,
+            system=base_prompt,
+            messages=sent,
+            output_config={"effort": cfg.effort},
+            cache_control={"type": "ephemeral"},
+            **options,
+            **extra,
+        ) as stream:
+            async for event in stream:
+                if event.type == "text":
+                    yield {"t": "text", "v": event.text}
+                elif event.type == "content_block_stop":
+                    block = event.content_block
+                    if block.type == "text":
+                        marks, new = cites.marks_for(getattr(block, "citations", None))
+                        if marks:
+                            yield {"t": "cite", "v": {"marks": marks, "sources": new}}
+                    elif is_run(block):
+                        marks, run = runs.start(block)
+                        yield {"t": "run", "v": {"marks": marks, "run": dict(run)}}
+                    elif block.type in run_results:
+                        run = runs.finish(block)
+                        if run:
+                            yield {"t": "run_done", "v": dict(run)}
+            final = await stream.get_final_message()
+        content.extend(final.content)
+        if final.container:
+            container = reported = final.container.id
+            expires = final.container.expires_at
+        if final.stop_reason != "pause_turn":
+            break
+        # no new user message, claude carries on from the end of its own answer
+        sent = messages + [{"role": "assistant", "content": history_blocks(content)}]
+    # only a sandbox the api reported is passed on, with the time it now expires
+    yield {"t": "final", "v": reply(content, final.stop_reason, reported, expires)}

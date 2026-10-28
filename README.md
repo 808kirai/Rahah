@@ -8,7 +8,8 @@ What it does today
 
 - Chat with answers that stream in as they are written
 - Subject modes for maths, science, coding, languages and writing, history and humanities, and exam prep, grouped as Study, Exam and Code
-- Upload PDF, TXT, MD and image files and ask questions about them
+- Upload PDF, TXT, MD, image and code files and ask questions about them
+- In coding mode Rahah runs code in a sandbox to check fixes and show real output, each run is shown as a card with the code, the output and any charts it made, and Python examples get a Run button
 - Answers about documents show numbered sources with the page and the quoted passage
 - Maths is rendered from LaTeX and code blocks are highlighted with a copy button
 - Summaries of uploaded notes or a topic, with the same page sources
@@ -71,15 +72,15 @@ Uploaded files go to the Claude Files API once and are referenced by id after th
 
 Each reply is saved as Claude returned it, minus the citation details, and sent back unchanged on every later turn. The citations are kept separately for the page, because Claude rejects page citations into uploaded files when they are sent back. Changing the subject mode adds a short system note to the conversation instead of changing the main prompt, which keeps the earlier part of the chat cached and cheaper.
 
+Code runs on Anthropic's servers with Claude's code execution tool, in a sandbox with no internet. Each chat keeps its sandbox for about an hour after its last run, so files and installed packages carry over between questions, and a new one starts after that. Charts and files a run makes are fetched through Rahah, and only plain images are shown in the page, anything else is downloaded.
+
 If Claude's safety checks decline a request, the request is retried on a fallback model automatically. A turn that still fails is not saved, and the question goes back into the message box.
 
 Costs
 
-Every question is billed to the API key. Opus 5.5 costs 4 dollars per million input tokens and 20 dollars per million output tokens, which is roughly 1 to 5 cents per question, and more when large PDFs are attached. Per student limits come with student accounts.
+Every question is billed to the API key. Opus 5.5 costs 4 dollars per million input tokens and 20 dollars per million output tokens, which is roughly 1 to 5 cents per question, and more when large PDFs are attached. Questions that run code cost more, since the code and its output are read by Claude too. Sandbox time is free for the first 1,550 hours a month per organization, then 5 cents an hour. Per student limits come with student accounts.
 
 Roadmap
 
-- Study tools: summaries, flashcards and quizzes from uploaded documents
-- Coding helper that can run code to check answers
 - Student accounts with saved chats and daily usage limits
 - Deployment to a public web address
