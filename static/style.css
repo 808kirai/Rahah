@@ -343,7 +343,8 @@ body:not(.is-page) .chat-title {
     animation: picker-in 0.22s var(--ease-out);
 }
 
-.picker-menu[hidden] {
+.picker-menu[hidden],
+.field[hidden] {
     display: none;
 }
 
@@ -374,6 +375,22 @@ body:not(.is-page) .chat-title {
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-2);
+}
+
+button.picker-heading {
+    display: block;
+    width: 100%;
+    border-radius: var(--pill);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+button.picker-heading:hover,
+button.picker-heading:focus-visible {
+    background: var(--surface-2);
+    color: var(--text);
+    outline: none;
 }
 
 .picker-option {
@@ -877,6 +894,65 @@ body:not(.is-page) .chat-title {
     background: var(--border);
 }
 
+/* setup sheet, what to do with the subject picked at the top */
+.setup-hint {
+    margin-top: 0.2rem;
+    font-size: 0.88rem;
+    color: var(--text-2);
+}
+
+.setup-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.setup-action {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.8rem 1.15rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    text-align: left;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.setup-action svg {
+    width: 18px;
+    height: 18px;
+    color: var(--accent-text);
+}
+
+.setup-action:hover,
+.setup-action:focus-visible {
+    background: var(--accent-soft);
+    outline: none;
+}
+
+.setup-action.primary {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.setup-action.primary svg {
+    color: var(--on-accent);
+}
+
+.setup-action.primary:hover,
+.setup-action.primary:focus-visible {
+    background: var(--accent-hover);
+}
+
+@media (max-width: 480px) {
+    .setup-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
 .sheet-files {
     display: flex;
     flex-wrap: wrap;
@@ -891,6 +967,10 @@ body:not(.is-page) .chat-title {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
+}
+
+.field-row:has(> .field[hidden]) {
+    grid-template-columns: 1fr;
 }
 
 .choices {

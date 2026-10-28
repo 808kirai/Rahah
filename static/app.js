@@ -42,6 +42,7 @@ const icons = {
     download: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/></svg>',
     chevron: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
 };
 
 function escape_html(text) {
@@ -791,6 +792,10 @@ const tools = {
 };
 
 const sheet_copy = {
+    ask: {
+        title: "Ask a question", submit: "Ask", field: "Question", choices: [], pick: null, limit: 20000,
+        topic: "What would you like to know? Add notes if your question is about them",
+    },
     summary: {
         title: "Summarise notes", submit: "Summarise", label: "Length",
         choices: [["short", "Short"], ["detailed", "Detailed"]], pick: "short",
@@ -900,16 +905,20 @@ function mode_options_html() {
 
 const select_value = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
 
-function picker_menu_html(select) {
+function picker_menu_html(select, headings_open) {
     const current = select.value;
     const item = (m) => `
         <button type="button" class="picker-option" role="option" aria-selected="${m.id === current}" data-value="${escape_html(m.id)}"${m.hint ? ` title="${escape_html(m.hint)}"` : ""}>
             <span>${escape_html(m.name)}</span>${m.id === current ? icons.check : ""}
         </button>`;
+    // in the top picker a group heading can be clicked too, and opens its first subject
+    const heading = (group, label) => headings_open
+        ? `<button type="button" class="picker-heading" data-group="${escape_html(group)}">${escape_html(label)}</button>`
+        : `<p class="picker-heading">${escape_html(label)}</p>`;
     const grouped = Object.entries(state.menu_groups).map(([group, label]) => {
         const items = state.modes.filter((m) => m.menu === group);
         if (!items.length) return "";
-        return `<div class="picker-group" role="group" aria-label="${escape_html(label)}"><p class="picker-heading">${escape_html(label)}</p>${items.map(item).join("")}</div>`;
+        return `<div class="picker-group" role="group" aria-label="${escape_html(label)}">${heading(group, label)}${items.map(item).join("")}</div>`;
     }).join("");
     if (grouped) return grouped;
     // without groups from the server, list whatever the select holds
@@ -917,7 +926,8 @@ function picker_menu_html(select) {
     return `<div class="picker-group">${plain.map(item).join("")}</div>`;
 }
 
-function make_picker(select) {
+// with on_pick, choosing a subject hands it over instead of selecting it straight away
+function make_picker(select, on_pick = null) {
     const box = document.createElement("div");
     box.className = "picker";
     box.innerHTML = `
@@ -941,7 +951,7 @@ function make_picker(select) {
     });
     new MutationObserver(sync).observe(select, { childList: true, subtree: true });
 
-    const options = () => [...menu.querySelectorAll(".picker-option")];
+    const options = () => [...menu.querySelectorAll(".picker-option, button.picker-heading")];
     const close = (refocus = false) => {
         if (menu.hidden) return;
         menu.hidden = true;
@@ -949,7 +959,7 @@ function make_picker(select) {
         if (refocus) button.focus();
     };
     const open = () => {
-        menu.innerHTML = picker_menu_html(select);
+        menu.innerHTML = picker_menu_html(select, Boolean(on_pick));
         menu.classList.remove("up");
         menu.hidden = false;
         button.setAttribute("aria-expanded", "true");
@@ -964,8 +974,20 @@ function make_picker(select) {
 
     button.addEventListener("click", () => (menu.hidden ? open() : close()));
     menu.addEventListener("click", (event) => {
+        const heading = event.target.closest("button.picker-heading");
+        if (heading && on_pick) {
+            const first = state.modes.find((m) => m.menu === heading.dataset.group);
+            close();
+            if (first) on_pick(first.id);
+            return;
+        }
         const option = event.target.closest(".picker-option");
         if (!option) return;
+        if (on_pick) {
+            close();
+            on_pick(option.dataset.value);
+            return;
+        }
         select.value = option.dataset.value;
         select.dispatchEvent(new Event("change", { bubbles: true }));
         close(true);
@@ -997,8 +1019,51 @@ function make_picker(select) {
     sync();
 }
 
-make_picker(mode_select);
+// the setup sheet, opened from the top picker with a subject already chosen
+
+const setup = el("setup");
+const setup_mode = el("setup-mode");
+
+const setup_actions = [
+    { id: "chat", title: "Ask a question", icon: "chat" },
+    { id: "summary", title: tools.summary.title, icon: tools.summary.icon },
+    { id: "flashcards", title: tools.flashcards.title, icon: tools.flashcards.icon },
+    { id: "quiz", title: tools.quiz.title, icon: tools.quiz.icon },
+];
+
+function sync_setup() {
+    const mode = state.modes.find((m) => m.id === setup_mode.value);
+    el("setup-title").textContent = mode ? mode.name : mode_name(setup_mode.value);
+    el("setup-hint").textContent = mode ? mode.hint : "";
+}
+
+function open_setup(mode) {
+    if (state.busy) return;
+    setup_mode.innerHTML = mode_options_html();
+    setup_mode.value = mode;
+    sync_setup();
+    el("setup-actions").innerHTML = setup_actions.map((a, i) => `
+        <button class="setup-action${i === 0 ? " primary" : ""}" type="button" data-setup="${a.id}">
+            ${icons[a.icon]}<span>${escape_html(a.title)}</span>
+        </button>`).join("");
+    setup.showModal();
+    el("setup-actions").querySelector("button").focus();
+}
+
+setup_mode.addEventListener("change", sync_setup);
+el("setup-close").addEventListener("click", () => setup.close());
+el("setup-actions").addEventListener("click", (event) => {
+    const action = event.target.closest("[data-setup]");
+    if (!action) return;
+    const mode = setup_mode.value;
+    setup.close();
+    // every action opens its own sheet, and the subject only changes once that sheet is sent
+    open_sheet(action.dataset.setup === "chat" ? "ask" : action.dataset.setup, mode);
+});
+
+make_picker(mode_select, open_setup);
 make_picker(el("sheet-mode"));
+make_picker(setup_mode);
 
 function show_sheet_error(text) {
     el("sheet-error").textContent = text;
@@ -1027,8 +1092,11 @@ function open_sheet(tool, mode) {
     sheet_state.pick = copy.pick;
     sheet_state.opened += 1;
     el("sheet-title").textContent = copy.title;
+    el("sheet-topic-label").textContent = copy.field || "Topic";
     el("sheet-topic").value = "";
     el("sheet-topic").placeholder = copy.topic;
+    el("sheet-topic").maxLength = copy.limit || 2000;
+    el("sheet-choice-field").hidden = !copy.choices.length;
     el("sheet-mode").innerHTML = mode_options_html();
     el("sheet-mode").value = mode || mode_select.value || state.default_mode;
     el("sheet-choice-label").textContent = copy.label;
@@ -1064,6 +1132,31 @@ el("sheet-files").addEventListener("click", (event) => {
 el("sheet-close").addEventListener("click", () => sheet.close());
 el("sheet-cancel").addEventListener("click", () => sheet.close());
 
+// a question from the sheet goes into the open chat, or starts one from the home page
+async function run_ask(question, mode) {
+    const files = [...sheet_state.files];
+    sheet.close();
+    mode_select.value = mode;
+    sync_placeholder();
+    if (files.length) {
+        await upload_files(files);
+        if (state.pending.some((f) => f.status !== "ready")) {
+            input.value = question;
+            resize_input();
+            update_send_button();
+            return;
+        }
+    }
+    send_message(question);
+}
+
+// enter sends a question, shift and enter starts a new line, as in the message box
+el("sheet-topic").addEventListener("keydown", (event) => {
+    if (sheet_state.tool !== "ask" || event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    el("sheet-form").requestSubmit();
+});
+
 async function run_summary(topic, mode) {
     const files = [...sheet_state.files];
     const what = files.length
@@ -1094,6 +1187,18 @@ el("sheet-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const topic = el("sheet-topic").value.trim();
     const mode = el("sheet-mode").value;
+    if (sheet_state.tool === "ask") {
+        if (!topic) {
+            show_sheet_error("Write your question first.");
+            return;
+        }
+        if (state.busy) {
+            show_sheet_error("Wait for Rahah to finish the answer it's writing first.");
+            return;
+        }
+        run_ask(topic, mode);
+        return;
+    }
     if (!topic && !sheet_state.files.length) {
         show_sheet_error("Write a topic or add some notes first.");
         return;
