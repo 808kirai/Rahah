@@ -412,48 +412,52 @@ composer_box.addEventListener("drop", (event) => {
 });
 
 // home rows, laid out like a streaming app
+// each section has its own suggestion rows of three cards, and a card with a tool opens that tool instead of a chat
 
 const shelves = [
-    { title: "Maths, one step at a time", mode: "maths", items: [
-        { title: "Derivatives from scratch", text: "Teach me what a derivative is from scratch, then walk me through differentiating x squared from first principles." },
-        { title: "Probability with dice", text: "Explain conditional probability using a pair of dice, with two short examples." },
-        { title: "Simultaneous equations", text: "Show me how to solve simultaneous equations by substitution and by elimination, using the same example for both." },
-        { title: "Why the log rules work", text: "Explain the rules of logarithms and why each one works, then give me four quick practice questions." },
+    { title: "Try these", group: "study", items: [
+        { mode: "maths", title: "Derivatives from scratch", text: "Teach me what a derivative is from scratch, then walk me through differentiating x squared from first principles." },
+        { mode: "science", title: "How DNA copies itself", text: "Explain DNA replication step by step in simple terms." },
+        { mode: "humanities", title: "Causes of the French Revolution", text: "Explain the main causes of the French Revolution and how historians weigh them differently." },
     ] },
-    { title: "Science explained", mode: "science", items: [
-        { title: "Newton's three laws", text: "Explain Newton's three laws of motion with an everyday example for each." },
-        { title: "Balancing chemical equations", text: "Teach me how to balance chemical equations, starting with methane burning in oxygen." },
-        { title: "How DNA copies itself", text: "Explain DNA replication step by step in simple terms." },
-        { title: "Ohm's law in real circuits", text: "Explain Ohm's law and work through one series circuit and one parallel circuit example." },
+    { title: "Practice", group: "exam", items: [
+        { tool: "quiz", mode: "exam" },
+        { mode: "exam", title: "Exam style questions", text: "Give me exam style questions on a topic I choose, one at a time, with the marks each is worth, then mark my answers. Ask me the topic first." },
+        { mode: "exam", title: "Mark my answer like an examiner", text: "I'll paste an exam question and my answer. Mark it like an examiner and tell me how to gain more marks." },
     ] },
-    { title: "Code with Rahah", mode: "coding", items: [
-        { title: "Recursion and the call stack", text: "Explain recursion with a simple Python example, and show what happens on the call stack." },
-        { title: "Big O in plain words", text: "Explain Big O notation in plain words with examples of O(1), O(n) and O(n squared)." },
-        { title: "Help me find a bug", text: "I'm going to paste some code that isn't working. Ask me what it should do, then help me find the bug." },
-        { title: "SQL joins with tiny tables", text: "Explain the difference between inner, left and full joins in SQL using small example tables." },
+    { title: "Revision", group: "exam", items: [
+        { mode: "exam", title: "Build my revision plan", text: "Help me build a two week revision plan. Ask me which subjects and exam dates I have first." },
+        { mode: "exam", title: "Last minute cram sheet", text: "Make me a one page cram sheet for a topic I choose, with the key facts, formulas and common mistakes. Ask me the topic first." },
+        { mode: "exam", title: "Active recall drill", text: "Run an active recall drill on a topic I choose. Ask me questions one at a time and keep score." },
     ] },
-    { title: "Languages and writing", mode: "languages", items: [
-        { title: "Write a strong thesis", text: "Teach me how to write a strong thesis statement, with a weak and a strong example on the same topic." },
-        { title: "Commas or semicolons", text: "Explain when to use a comma and when to use a semicolon, then give me five sentences to fix." },
-        { title: "Persuasive techniques", text: "List the main persuasive writing techniques with a short example of each." },
-        { title: "Spanish verb drill", text: "Help me practise Spanish present tense verbs. Quiz me one verb at a time." },
+    { title: "Exam technique", group: "exam", items: [
+        { mode: "exam", title: "Read the question right", text: "Teach me how to break down exam questions, the command words, the marks and what the examiner is looking for." },
+        { mode: "exam", title: "Plan an essay in five minutes", text: "Show me how to plan an exam essay in five minutes, using a practice question on a subject I choose." },
+        { mode: "exam", title: "Stay calm and use the time well", text: "Give me practical ways to stay calm and manage my time in an exam, from the night before to the last ten minutes." },
     ] },
-    { title: "History and humanities", mode: "humanities", items: [
-        { title: "Causes of the French Revolution", text: "Explain the main causes of the French Revolution and how historians weigh them differently." },
-        { title: "The Cold War in ten minutes", text: "Give me a ten minute overview of the Cold War, with the key turning points." },
-        { title: "The free will debate", text: "Explain the main positions in the free will debate and the strongest objection to each." },
-        { title: "How to read a source", text: "Teach me how to analyse a historical source for origin, purpose and reliability." },
+    { title: "Learn", group: "code", items: [
+        { mode: "coding", title: "Recursion and the call stack", text: "Explain recursion with a simple Python example, and show what happens on the call stack." },
+        { mode: "coding", title: "Big O in plain words", text: "Explain Big O notation in plain words with examples of O(1), O(n) and O(n squared)." },
+        { mode: "coding", title: "SQL joins with tiny tables", text: "Explain the difference between inner, left and full joins in SQL using small example tables." },
     ] },
-    { title: "Exam season", mode: "exam", items: [
-        { title: "Build my revision plan", text: "Help me build a two week revision plan. Ask me which subjects and exam dates I have first." },
-        { title: "Mark my answer like an examiner", text: "I'll paste an exam question and my answer. Mark it like an examiner and tell me how to gain more marks." },
-        { title: "Active recall drill", text: "Run an active recall drill on a topic I choose. Ask me questions one at a time and keep score." },
-        { title: "Explain it back to me", text: "Pick a topic with me, then ask me to explain it back to you and point out anything I got wrong or missed." },
+    { title: "Fix and improve", group: "code", items: [
+        { mode: "coding", title: "Help me find a bug", text: "I'm going to paste some code that isn't working. Ask me what it should do, then help me find the bug." },
+        { mode: "coding", title: "Review my code", text: "I'll paste some code I wrote. Review it like a friendly senior developer, starting with the most important improvement." },
+        { mode: "coding", title: "Explain an error message", text: "I'll paste an error message. Explain what it means in plain words, what usually causes it and how to fix it." },
+    ] },
+    { title: "Practise", group: "code", items: [
+        { mode: "coding", title: "A small coding challenge", text: "Give me a small coding challenge in Python at my level. Wait for my solution, then review it and suggest one improvement." },
+        { mode: "coding", title: "Predict the output", text: "Show me a short Python snippet and ask me to predict its output, then explain the answer. Do five of these, one at a time." },
+        { mode: "coding", title: "Build a mini project", text: "Help me plan and build a small beginner project in Python step by step. Start by asking what I'm interested in." },
     ] },
 ];
 
 function tone(mode) {
     return ["general", "maths", "science", "coding", "languages", "humanities", "exam"].includes(mode) ? mode : "general";
+}
+
+function group_of(mode) {
+    return state.mode_groups[mode] || "study";
 }
 
 function mode_name(mode) {
@@ -507,26 +511,31 @@ function row_html(title, cards) {
 }
 
 // home is split into study, exam and code, each with its own rows underneath
+const continue_titles = { study: "Continue studying", exam: "Continue revising", code: "Continue coding" };
+const max_suggestions = 3;
+
+// each section holds its own chats, tools, saved sets and suggestions, in that order
 function render_rows() {
     const rows = el("rows");
     if (!rows) return;
-    const group_of = (mode) => state.mode_groups[mode] || "study";
+    const card = (item) => (item.tool ? tool_tile(item.tool, item.mode) : prompt_tile(item));
     const shelf_rows = (group) => shelves
-        .filter((shelf) => group_of(shelf.mode) === group)
-        .map((shelf) => row_html(shelf.title, shelf.items.map((item) => prompt_tile({ ...item, mode: shelf.mode })).join("")))
+        .filter((shelf) => shelf.group === group)
+        .map((shelf) => row_html(shelf.title, shelf.items.slice(0, max_suggestions).map(card).join("")))
         .join("");
+    const saved = (group) => `<div id="continue-${group}"></div>`;
+    const sets = (group) => `<div id="decks-${group}"></div><div id="quizzes-${group}"></div>`;
     const study_subjects = state.modes.filter((m) => m.group === "study");
     const sections = {
-        study: row_html("Study tools", tool_tile("summary", "general") + tool_tile("flashcards", "general"))
-            + '<div id="flashcards-row"></div>'
+        study: saved("study")
+            + row_html("Study tools", tool_tile("summary", "general") + tool_tile("flashcards", "general"))
+            + sets("study")
             + (study_subjects.length ? row_html("Pick a subject", study_subjects.map(subject_tile).join("")) : "")
             + shelf_rows("study"),
-        exam: row_html("Exam tools", tool_tile("quiz", "exam") + tool_tile("flashcards", "exam"))
-            + '<div id="quiz-row"></div>'
-            + shelf_rows("exam"),
-        code: shelf_rows("code"),
+        exam: saved("exam") + sets("exam") + shelf_rows("exam"),
+        code: saved("code") + sets("code") + shelf_rows("code"),
     };
-    rows.innerHTML = '<div id="continue-row"></div>' + Object.entries(sections).map(([group, html]) => `
+    rows.innerHTML = Object.entries(sections).map(([group, html]) => `
         <section class="category">
             <h2 class="category-title">${escape_html(state.groups[group] || group)}</h2>
             ${html}
@@ -536,12 +545,34 @@ function render_rows() {
 }
 
 function render_continue() {
-    const slot = el("continue-row");
-    if (!slot) return;
-    slot.innerHTML = state.conversations.length
-        ? row_html("Continue studying", state.conversations.slice(0, 12).map(chat_card).join(""))
-        : "";
+    Object.entries(continue_titles).forEach(([group, title]) => {
+        const slot = el(`continue-${group}`);
+        if (!slot) return;
+        const chats = state.conversations.filter((c) => group_of(c.mode) === group).slice(0, 12);
+        slot.innerHTML = chats.length ? row_html(title, chats.map(chat_card).join("")) : "";
+    });
 }
+
+// scroll arrows only show when a row has more to see in that direction
+function sync_arrows(row) {
+    const track = row.querySelector(".row-track");
+    if (!track) return;
+    row.classList.toggle("can-prev", track.scrollLeft > 4);
+    row.classList.toggle("can-next", track.scrollLeft + track.clientWidth < track.scrollWidth - 4);
+}
+
+thread.addEventListener("pointerover", (event) => {
+    const row = event.target.closest(".row");
+    if (row) sync_arrows(row);
+});
+thread.addEventListener("focusin", (event) => {
+    const row = event.target.closest(".row");
+    if (row) sync_arrows(row);
+});
+// scroll doesn't bubble, so the rows' scrolling is caught on the way down
+thread.addEventListener("scroll", (event) => {
+    if (event.target.classList?.contains("row-track")) sync_arrows(event.target.parentElement);
+}, { capture: true, passive: true });
 
 // the placeholder names the chosen subject so picking one feels like it did something
 function sync_placeholder() {
@@ -694,13 +725,22 @@ function set_card(s) {
     </div>`;
 }
 
+// sets follow their subject, except quizzes for study subjects, which are exam practice
+function set_group(s) {
+    const group = group_of(s.mode);
+    return s.kind === "quiz" && group === "study" ? "exam" : group;
+}
+
 function render_set_rows() {
-    const decks = state.sets.filter((s) => s.kind === "flashcards");
-    const quizzes = state.sets.filter((s) => s.kind === "quiz");
-    const deck_slot = el("flashcards-row");
-    const quiz_slot = el("quiz-row");
-    if (deck_slot) deck_slot.innerHTML = decks.length ? row_html("Your flashcards", decks.map(set_card).join("")) : "";
-    if (quiz_slot) quiz_slot.innerHTML = quizzes.length ? row_html("Your quizzes", quizzes.map(set_card).join("")) : "";
+    Object.keys(continue_titles).forEach((group) => {
+        const mine = state.sets.filter((s) => set_group(s) === group);
+        const decks = mine.filter((s) => s.kind === "flashcards");
+        const quizzes = mine.filter((s) => s.kind === "quiz");
+        const deck_slot = el(`decks-${group}`);
+        const quiz_slot = el(`quizzes-${group}`);
+        if (deck_slot) deck_slot.innerHTML = decks.length ? row_html("Your flashcards", decks.map(set_card).join("")) : "";
+        if (quiz_slot) quiz_slot.innerHTML = quizzes.length ? row_html("Your quizzes", quizzes.map(set_card).join("")) : "";
+    });
 }
 
 async function load_sets() {

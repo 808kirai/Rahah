@@ -387,7 +387,7 @@ body:not(.is-page) .chat-title {
 
 .category .row-title {
     font-size: 1rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-2);
 }
 
@@ -440,10 +440,17 @@ body:not(.is-page) .chat-title {
     right: 0.75rem;
 }
 
+.row-arrow {
+    pointer-events: none;
+}
+
 @media (hover: hover) {
-    .row:hover .row-arrow,
-    .row-arrow:focus-visible {
+    .row.can-prev:hover .row-arrow.prev,
+    .row.can-next:hover .row-arrow.next,
+    .row.can-prev .row-arrow.prev:focus-visible,
+    .row.can-next .row-arrow.next:focus-visible {
         opacity: 1;
+        pointer-events: auto;
     }
 }
 
