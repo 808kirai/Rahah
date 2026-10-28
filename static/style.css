@@ -123,6 +123,39 @@ svg {
     background: var(--accent-hover);
 }
 
+.btn-accent:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.btn-soft {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.btn-soft:hover {
+    background: var(--border);
+}
+
+.btn-ghost {
+    color: var(--text-2);
+}
+
+.btn-ghost:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.btn-small {
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+}
+
+.btn-small svg {
+    width: 17px;
+    height: 17px;
+}
+
 .icon-btn {
     display: inline-grid;
     place-items: center;
@@ -245,7 +278,8 @@ body:not(.is-page) .chat-title {
     gap: 0.35rem;
 }
 
-.mode-picker select {
+.mode-picker select,
+.pill-select {
     appearance: none;
     padding: 0.5rem 2.2rem 0.5rem 1.1rem;
     border-radius: var(--pill);
@@ -261,9 +295,18 @@ body:not(.is-page) .chat-title {
     background-color: var(--surface-2);
 }
 
-.mode-picker option {
+.mode-picker option,
+.mode-picker optgroup,
+.pill-select option,
+.pill-select optgroup {
     background: var(--surface);
     color: var(--text);
+}
+
+.mode-picker optgroup,
+.pill-select optgroup {
+    color: var(--text-2);
+    font-weight: 700;
 }
 
 .icon-sun,
@@ -283,8 +326,18 @@ body:not(.is-page) .chat-title {
     scroll-behavior: smooth;
 }
 
-.is-page .thread {
+.is-page .thread,
+.is-study .thread {
     padding: 0 0 1rem;
+}
+
+/* a deck or quiz has nothing to type into, and the subject picker doesn't apply */
+.is-study .composer {
+    display: none;
+}
+
+.is-study .mode-picker {
+    display: none;
 }
 
 .thread > .message {
@@ -317,6 +370,25 @@ body:not(.is-page) .chat-title {
 .row {
     position: relative;
     margin-bottom: 1rem;
+}
+
+/* study, exam and code are the big headings, the rows under them read as subtitles */
+.category {
+    margin-top: 1.5rem;
+}
+
+.category-title {
+    padding: 0 var(--gutter);
+    margin-bottom: 0.35rem;
+    font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.category .row-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-2);
 }
 
 .row-title {
@@ -470,6 +542,11 @@ body:not(.is-page) .chat-title {
     transition: background-color 0.2s, transform var(--dur) var(--ease-out);
 }
 
+.play.outline svg {
+    fill: none;
+    margin-left: 0;
+}
+
 .play svg {
     width: 18px;
     height: 18px;
@@ -559,6 +636,389 @@ body:not(.is-page) .chat-title {
 
 .recents-empty .btn {
     margin-top: 1.1rem;
+}
+
+/* tool cards open the sheet, the icon sits top left */
+.tool-icon {
+    position: absolute;
+    top: 0.9rem;
+    left: 1rem;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--pill);
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* the sheet that sets up a tool, a centred panel on wide screens and a bottom sheet on phones */
+.sheet {
+    margin: auto;
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(100dvh - 24px);
+    padding: 0;
+    border: none;
+    border-radius: 28px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 30px 80px var(--shadow);
+}
+
+.sheet[open] {
+    animation: rise 0.35s var(--ease-out);
+}
+
+.sheet::backdrop {
+    background: rgba(10, 12, 18, 0.55);
+}
+
+.sheet-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.3rem 1.4rem 1.25rem;
+}
+
+.sheet-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-right: -0.4rem;
+}
+
+.sheet-top h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.field textarea {
+    min-height: 88px;
+    padding: 0.8rem 1rem;
+    border: none;
+    border-radius: 18px;
+    outline: none;
+    resize: vertical;
+    background: var(--surface-2);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.field textarea::placeholder {
+    color: var(--text-2);
+}
+
+.field textarea:focus {
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.sheet .pill-select {
+    width: 100%;
+    background-color: var(--surface-2);
+}
+
+.sheet-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.sheet-files:empty {
+    display: none;
+}
+
+.field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.choice {
+    min-width: 44px;
+    padding: 0.45rem 0.95rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-2);
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.choice[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.sheet-error {
+    padding: 0.65rem 1rem;
+    border-radius: 16px;
+    background: rgba(167, 131, 166, 0.18);
+    font-size: 0.88rem;
+}
+
+.sheet-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.sheet-note {
+    margin-right: auto;
+    font-size: 0.8rem;
+    color: var(--text-2);
+}
+
+/* decks and quizzes */
+.study {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0.75rem var(--gutter) 2rem;
+    animation: fade 0.4s var(--ease-out);
+}
+
+.study-meta {
+    margin-bottom: 0.75rem;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.flashcard {
+    display: block;
+    height: clamp(260px, 50vh, 440px);
+    border-radius: 26px;
+    perspective: 1400px;
+    cursor: pointer;
+}
+
+.flashcard-inner {
+    position: relative;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.6s var(--ease-out);
+}
+
+.flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+
+.face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 2.5rem 2rem 2rem;
+    border-radius: 26px;
+    text-align: center;
+    overflow-y: auto;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    box-shadow: 0 16px 40px var(--shadow);
+}
+
+.face.front {
+    color: #ffffff;
+}
+
+.face.back {
+    background: var(--surface);
+    transform: rotateY(180deg);
+}
+
+.face-label {
+    position: absolute;
+    top: 1.1rem;
+    left: 1.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.face-text {
+    max-width: 34rem;
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.face.back .face-text {
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.study-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.icon-btn.round {
+    width: 48px;
+    height: 48px;
+    background: var(--surface);
+    color: var(--text);
+}
+
+.icon-btn.round:hover {
+    background: var(--surface-2);
+}
+
+.icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.study-extra {
+    display: flex;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+
+.quiz-progress {
+    height: 6px;
+    margin-bottom: 1rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.quiz-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition: width var(--dur) var(--ease-out);
+}
+
+.quiz-question {
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.quiz-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1.25rem;
+}
+
+.option {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+    padding: 0.6rem 1.4rem 0.6rem 0.6rem;
+    border: 1.5px solid transparent;
+    border-radius: var(--pill);
+    background: var(--surface);
+    text-align: left;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.option:hover:not(:disabled) {
+    background: var(--surface-2);
+}
+
+.option:disabled {
+    cursor: default;
+}
+
+.option-key {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.option.correct {
+    border-color: var(--mint);
+    background: rgba(152, 222, 163, 0.12);
+}
+
+.option.correct .option-key {
+    background: var(--mint);
+    color: #1e222c;
+}
+
+.option.wrong {
+    border-color: var(--mauve);
+    background: rgba(167, 131, 166, 0.14);
+}
+
+.option.wrong .option-key {
+    background: var(--mauve);
+    color: #ffffff;
+}
+
+.feedback {
+    margin-top: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: 20px;
+    background: var(--surface);
+}
+
+.feedback strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--mint-text);
+}
+
+.feedback.wrong strong {
+    color: var(--mauve);
+}
+
+.quiz-results {
+    padding-top: 8vh;
+    text-align: center;
+}
+
+.score {
+    font-size: 3.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--text-2);
+}
+
+.score strong {
+    color: var(--text);
+}
+
+.score-note {
+    margin-top: 0.4rem;
+    color: var(--text-2);
 }
 
 /* chat messages */
@@ -1176,6 +1636,26 @@ body:not(.is-page) .chat-title {
 @media (max-width: 720px) {
     :root {
         --gutter: 16px;
+    }
+
+    .sheet {
+        margin: auto auto 0;
+        width: 100%;
+        max-width: 100%;
+        border-radius: 28px 28px 0 0;
+    }
+
+    .field-row {
+        grid-template-columns: 1fr;
+    }
+
+    .face {
+        padding: 2.5rem 1.4rem 1.5rem;
+    }
+
+    .face-text,
+    .quiz-question {
+        font-size: 1.15rem;
     }
 
     .nav {

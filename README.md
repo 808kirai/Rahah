@@ -7,11 +7,15 @@ Rahah runs on Claude Opus 5.5 through the Claude API.
 What it does today
 
 - Chat with answers that stream in as they are written
-- Subject modes for maths, science, coding, languages and writing, history and humanities, and exam prep
+- Subject modes for maths, science, coding, languages and writing, history and humanities, and exam prep, grouped as Study, Exam and Code
 - Upload PDF, TXT, MD and image files and ask questions about them
 - Answers about documents show numbered sources with the page and the quoted passage
 - Maths is rendered from LaTeX and code blocks are highlighted with a copy button
-- Chats are saved and listed in the sidebar
+- Summaries of uploaded notes or a topic, with the same page sources
+- Flashcard decks made from a topic or notes, to flip through and shuffle
+- Multiple choice quizzes with explanations, and the best score is kept
+- A home page laid out like a streaming app, with rows for each subject and your saved decks and quizzes
+- Chats are saved and listed under Recents and Chats
 - Dark and light themes
 
 Setup
@@ -44,8 +48,9 @@ Project layout
 
 - `app/main.py` - The web server and its routes
 - `app/tutor.py` - The prompt, request building and streaming from Claude
+- `app/study.py` - Flashcards and quizzes, asked for as structured JSON and checked before saving
 - `app/modes.py` - Subject modes and the instruction each one adds
-- `app/store.py` - Local SQLite storage for chats and uploaded files
+- `app/store.py` - Local SQLite storage for chats, uploaded files and study sets
 - `app/config.py` - Settings read from the environment
 - `static/` - The chat page, its styles and its script
 - `tests/` - Tests with a fake Claude client

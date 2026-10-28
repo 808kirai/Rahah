@@ -1,4 +1,4 @@
-"""local sqlite storage for conversations, messages and uploaded files
+"""local sqlite storage for conversations, messages, uploaded files and study sets
 
 messages keep the content blocks exactly as they are sent to claude, so every
 later turn replays the same history byte for byte
@@ -36,6 +36,17 @@ create table if not exists files (
     size integer not null,
     used integer not null default 0,
     created real not null
+);
+create table if not exists study_sets (
+    id text primary key,
+    kind text not null,
+    title text not null,
+    mode text not null,
+    items text not null,
+    size integer not null,
+    best_score integer,
+    created real not null,
+    updated real not null
 );
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 """
@@ -166,3 +177,46 @@ class store:
             for f in file_ids
             if (r := by_id.get(f))
         ]
+
+    # study sets, flashcard decks and quizzes
+
+    def add_set(self, kind: str, title: str, mode: str, items: list[dict]) -> str:
+        set_id = uuid.uuid4().hex
+        now = time.time()
+        with self._connect() as db:
+            db.execute(
+                "insert into study_sets (id, kind, title, mode, items, size, created, updated) "
+                "values (?, ?, ?, ?, ?, ?, ?, ?)",
+                (set_id, kind, title, mode, json.dumps(items), len(items), now, now),
+            )
+        return set_id
+
+    def list_sets(self, limit: int = 50) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute(
+                "select id, kind, title, mode, size, best_score, updated from study_sets "
+                "order by updated desc limit ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_set(self, set_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from study_sets where id = ?", (set_id,)).fetchone()
+        if not row:
+            return None
+        return {**dict(row), "items": json.loads(row["items"])}
+
+    def record_score(self, set_id: str, score: int) -> int:
+        # keeps the best score and moves the set to the front of its row
+        with self._connect() as db:
+            db.execute(
+                "update study_sets set best_score = max(coalesce(best_score, 0), ?), updated = ? where id = ?",
+                (score, time.time(), set_id),
+            )
+            row = db.execute("select best_score from study_sets where id = ?", (set_id,)).fetchone()
+        return row["best_score"]
+
+    def delete_set(self, set_id: str) -> None:
+        with self._connect() as db:
+            db.execute("delete from study_sets where id = ?", (set_id,))

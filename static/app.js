@@ -17,6 +17,10 @@ const state = {
     conversations: [], // recent chats for the drawer and the continue studying row
     modes: [],
     mode_names: {},
+    mode_groups: {},
+    groups: { study: "Study", exam: "Exam", code: "Code" },
+    sets: [], // saved flashcard decks and quizzes
+    study: null, // the open deck or quiz and where the student is in it
 };
 
 const icons = {
@@ -27,6 +31,10 @@ const icons = {
     prev: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
     next: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></svg>',
+    cards: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="13" rx="2.5"/><path d="M7 4h11.5A2.5 2.5 0 0 1 21 6.5V16"/></svg>',
+    quiz: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>',
+    summary: '<svg viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h9M5 18h6"/></svg>',
+    shuffle: '<svg viewBox="0 0 24 24"><path d="M4 7h3.5c4 0 5 10 9 10H20M4 17h3.5c1.6 0 2.7-1.6 3.6-3.5M13 10.5C13.9 8.6 15 7 16.5 7H20M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5"/></svg>',
 };
 
 function escape_html(text) {
@@ -176,20 +184,22 @@ function add_notice(message_el, text) {
     message_el.appendChild(note);
 }
 
-// home and recents are pages, anything else in the thread is a chat
+// home and recents are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
 function sync_view() {
-    const view = el("welcome") ? "home" : el("recents") ? "recents" : "chat";
+    const view = el("welcome") ? "home" : el("recents") ? "recents" : el("study") ? "study" : "chat";
     document.body.classList.toggle("is-home", view === "home");
     document.body.classList.toggle("is-recents", view === "recents");
-    document.body.classList.toggle("is-page", view !== "chat");
+    document.body.classList.toggle("is-study", view === "study");
+    document.body.classList.toggle("is-page", view === "home" || view === "recents");
     el("page-title").textContent = view === "recents" ? "Recents" : "Home";
 }
 
 function leave_home() {
-    if (!el("welcome") && !el("recents")) return;
+    if (!el("welcome") && !el("recents") && !el("study")) return;
     el("welcome")?.remove();
     el("recents")?.remove();
+    el("study")?.remove();
     sync_view();
 }
 
@@ -496,14 +506,33 @@ function row_html(title, cards) {
     </section>`;
 }
 
+// home is split into study, exam and code, each with its own rows underneath
 function render_rows() {
     const rows = el("rows");
     if (!rows) return;
-    const subjects = state.modes.length ? row_html("Pick a subject", state.modes.map(subject_tile).join("")) : "";
-    rows.innerHTML = '<div id="continue-row"></div>'
-        + subjects
-        + shelves.map((shelf) => row_html(shelf.title, shelf.items.map((item) => prompt_tile({ ...item, mode: shelf.mode })).join(""))).join("");
+    const group_of = (mode) => state.mode_groups[mode] || "study";
+    const shelf_rows = (group) => shelves
+        .filter((shelf) => group_of(shelf.mode) === group)
+        .map((shelf) => row_html(shelf.title, shelf.items.map((item) => prompt_tile({ ...item, mode: shelf.mode })).join("")))
+        .join("");
+    const study_subjects = state.modes.filter((m) => m.group === "study");
+    const sections = {
+        study: row_html("Study tools", tool_tile("summary", "general") + tool_tile("flashcards", "general"))
+            + '<div id="flashcards-row"></div>'
+            + (study_subjects.length ? row_html("Pick a subject", study_subjects.map(subject_tile).join("")) : "")
+            + shelf_rows("study"),
+        exam: row_html("Exam tools", tool_tile("quiz", "exam") + tool_tile("flashcards", "exam"))
+            + '<div id="quiz-row"></div>'
+            + shelf_rows("exam"),
+        code: shelf_rows("code"),
+    };
+    rows.innerHTML = '<div id="continue-row"></div>' + Object.entries(sections).map(([group, html]) => `
+        <section class="category">
+            <h2 class="category-title">${escape_html(state.groups[group] || group)}</h2>
+            ${html}
+        </section>`).join("");
     render_continue();
+    render_set_rows();
 }
 
 function render_continue() {
@@ -602,7 +631,494 @@ function show_recents() {
 }
 
 thread.addEventListener("click", (event) => {
-    if (event.target.closest(".recents [data-home]")) start_new_chat();
+    // home links drawn inside the thread, like the empty recents page and quiz results
+    if (event.target.closest("[data-home]")) start_new_chat();
+});
+
+// study tools, summaries go through chat, flashcards and quizzes are saved sets
+
+const tools = {
+    summary: { title: "Summarise notes", sub: "Key points from a PDF or a topic", icon: "summary", tone: "general" },
+    flashcards: { title: "Make flashcards", sub: "A deck to flip through", icon: "cards", tone: "languages" },
+    quiz: { title: "Make a quiz", sub: "Multiple choice, with a score", icon: "quiz", tone: "exam" },
+};
+
+const sheet_copy = {
+    summary: {
+        title: "Summarise notes", submit: "Summarise", label: "Length",
+        choices: [["short", "Short"], ["detailed", "Detailed"]], pick: "short",
+        topic: "What should it cover? Leave blank to summarise all of your notes",
+    },
+    flashcards: {
+        title: "Make flashcards", submit: "Make flashcards", working: "Making your flashcards", label: "Cards",
+        choices: [[5, "5"], [10, "10"], [15, "15"], [20, "20"]], pick: 10,
+        topic: "A topic, like the causes of World War I, or leave blank to use your notes",
+    },
+    quiz: {
+        title: "Make a quiz", submit: "Make the quiz", working: "Writing your quiz", label: "Questions",
+        choices: [[5, "5"], [10, "10"], [15, "15"]], pick: 10,
+        topic: "A topic, like photosynthesis, or leave blank to use your notes",
+    },
+};
+
+const sheet = el("sheet");
+const sheet_state = { tool: "flashcards", files: [], pick: 10, opened: 0 };
+
+function tool_tile(id, mode) {
+    const t = tools[id];
+    return `<button class="tile tool poster tone-${t.tone}" type="button" data-tool="${id}" data-mode="${mode}">
+        <span class="tool-icon">${icons[t.icon]}</span>
+        <strong>${escape_html(t.title)}</strong>
+        <span class="tile-sub">${escape_html(t.sub)}</span>
+    </button>`;
+}
+
+function set_detail(s) {
+    if (s.kind === "flashcards") return `${s.size} card${s.size === 1 ? "" : "s"}`;
+    const best = s.best_score === null || s.best_score === undefined ? "" : ` · best ${s.best_score}/${s.size}`;
+    return `${s.size} question${s.size === 1 ? "" : "s"}${best}`;
+}
+
+function set_card(s) {
+    return `<div class="chat-card">
+        <a class="chat-card-art poster tone-${tone(s.mode)}" href="#/set/${s.id}" aria-label="Open ${escape_html(s.title)}">
+            <span class="play outline">${s.kind === "quiz" ? icons.quiz : icons.cards}</span>
+        </a>
+        <div class="chat-card-info">
+            <div class="chat-card-text">
+                <strong title="${escape_html(s.title)}">${escape_html(s.title)}</strong>
+                <span>${set_detail(s)} · ${time_ago(s.updated)}</span>
+            </div>
+            <button class="icon-btn" type="button" data-remove-set="${s.id}" aria-label="Delete ${escape_html(s.title)}">${icons.trash}</button>
+        </div>
+    </div>`;
+}
+
+function render_set_rows() {
+    const decks = state.sets.filter((s) => s.kind === "flashcards");
+    const quizzes = state.sets.filter((s) => s.kind === "quiz");
+    const deck_slot = el("flashcards-row");
+    const quiz_slot = el("quiz-row");
+    if (deck_slot) deck_slot.innerHTML = decks.length ? row_html("Your flashcards", decks.map(set_card).join("")) : "";
+    if (quiz_slot) quiz_slot.innerHTML = quizzes.length ? row_html("Your quizzes", quizzes.map(set_card).join("")) : "";
+}
+
+async function load_sets() {
+    try {
+        const response = await api("/api/sets");
+        state.sets = (await response.json()).sets;
+    } catch (error) {
+        return;
+    }
+    render_set_rows();
+}
+
+async function delete_set(s) {
+    if (!confirm(`Delete "${s.title}"?`)) return;
+    try {
+        await api(`/api/sets/${s.id}`, { method: "DELETE" });
+    } catch (error) {
+        alert(error.message);
+        return;
+    }
+    if (el("study") && state.study && state.study.set.id === s.id) start_new_chat();
+    else load_sets();
+}
+
+// the sheet that sets up a tool
+
+function mode_options_html() {
+    return Object.entries(state.groups).map(([group, label]) => {
+        const items = state.modes.filter((m) => m.group === group);
+        if (!items.length) return "";
+        const options = items.map((m) => `<option value="${m.id}" title="${escape_html(m.hint)}">${escape_html(m.name)}</option>`).join("");
+        return `<optgroup label="${escape_html(label)}">${options}</optgroup>`;
+    }).join("") || '<option value="general">General study</option>';
+}
+
+function show_sheet_error(text) {
+    el("sheet-error").textContent = text;
+    el("sheet-error").hidden = !text;
+}
+
+function render_sheet_files() {
+    el("sheet-files").innerHTML = sheet_state.files.map((file, i) => `
+        <span class="file-pill">${/\.(png|jpe?g|webp|gif)$/i.test(file.name) ? icons.image : icons.doc}<span>${escape_html(file.name)}</span>
+            <button type="button" data-sheet-remove="${i}" aria-label="Remove ${escape_html(file.name)}">${icons.close}</button>
+        </span>`).join("");
+}
+
+function set_sheet_busy(busy) {
+    const copy = sheet_copy[sheet_state.tool];
+    const submit = el("sheet-submit");
+    submit.disabled = busy;
+    submit.textContent = busy ? `${copy.working}…` : copy.submit;
+    el("sheet-note").hidden = !busy;
+}
+
+function open_sheet(tool, mode) {
+    const copy = sheet_copy[tool];
+    sheet_state.tool = tool;
+    sheet_state.files = [];
+    sheet_state.pick = copy.pick;
+    sheet_state.opened += 1;
+    el("sheet-title").textContent = copy.title;
+    el("sheet-topic").value = "";
+    el("sheet-topic").placeholder = copy.topic;
+    el("sheet-mode").innerHTML = mode_options_html();
+    el("sheet-mode").value = mode || mode_select.value || state.default_mode;
+    el("sheet-choice-label").textContent = copy.label;
+    el("sheet-choices").innerHTML = copy.choices.map(([value, label]) =>
+        `<button class="choice" type="button" data-choice="${value}" aria-pressed="${value === copy.pick}">${label}</button>`).join("");
+    show_sheet_error("");
+    set_sheet_busy(false);
+    render_sheet_files();
+    sheet.showModal();
+    el("sheet-topic").focus();
+}
+
+el("sheet-choices").addEventListener("click", (event) => {
+    const choice = event.target.closest("[data-choice]");
+    if (!choice) return;
+    const value = sheet_copy[sheet_state.tool].choices.find(([v]) => String(v) === choice.dataset.choice)[0];
+    sheet_state.pick = value;
+    el("sheet-choices").querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === choice)));
+});
+
+el("sheet-attach").addEventListener("click", () => el("sheet-file-input").click());
+el("sheet-file-input").addEventListener("change", () => {
+    sheet_state.files = [...sheet_state.files, ...el("sheet-file-input").files].slice(0, 5);
+    el("sheet-file-input").value = "";
+    render_sheet_files();
+});
+el("sheet-files").addEventListener("click", (event) => {
+    const remove = event.target.closest("[data-sheet-remove]");
+    if (!remove) return;
+    sheet_state.files.splice(Number(remove.dataset.sheetRemove), 1);
+    render_sheet_files();
+});
+el("sheet-close").addEventListener("click", () => sheet.close());
+el("sheet-cancel").addEventListener("click", () => sheet.close());
+
+async function run_summary(topic, mode) {
+    const files = [...sheet_state.files];
+    const what = files.length
+        ? (topic ? `Summarise the attached notes, focusing on ${topic}.` : "Summarise the attached notes.")
+        : `Summarise ${topic}.`;
+    const how = sheet_state.pick === "detailed"
+        ? "Go section by section with short headings, define the key terms, and end with three questions to check my understanding."
+        : "Keep it short, the key points as a few bullets and one line on the big idea.";
+    const text = `${what} ${how}`;
+    sheet.close();
+    start_new_chat();
+    mode_select.value = mode;
+    sync_placeholder();
+    if (files.length) {
+        await upload_files(files);
+        // a failed upload stays in the composer with its reason, and the request waits there
+        if (state.pending.some((f) => f.status !== "ready")) {
+            input.value = text;
+            resize_input();
+            update_send_button();
+            return;
+        }
+    }
+    send_message(text);
+}
+
+el("sheet-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const topic = el("sheet-topic").value.trim();
+    const mode = el("sheet-mode").value;
+    if (!topic && !sheet_state.files.length) {
+        show_sheet_error("Write a topic or add some notes first.");
+        return;
+    }
+    if (state.busy) {
+        show_sheet_error("Wait for Rahah to finish the answer it's writing first.");
+        return;
+    }
+    if (sheet_state.tool === "summary") {
+        run_summary(topic, mode);
+        return;
+    }
+
+    const opened = sheet_state.opened;
+    const form = new FormData();
+    form.append("kind", sheet_state.tool);
+    form.append("topic", topic);
+    form.append("count", String(sheet_state.pick));
+    form.append("mode", mode);
+    sheet_state.files.forEach((file) => form.append("files", file));
+    show_sheet_error("");
+    set_sheet_busy(true);
+    try {
+        const response = await api("/api/sets", { method: "POST", body: form });
+        const made = await response.json();
+        await load_sets();
+        // only jump to the new set if the sheet is still the one that asked for it
+        if (sheet.open && sheet_state.opened === opened) {
+            sheet.close();
+            show_set(made);
+        }
+    } catch (error) {
+        if (sheet_state.opened === opened) {
+            show_sheet_error(error.message);
+            set_sheet_busy(false);
+        }
+    }
+});
+
+// flashcards and quizzes
+
+function inline_markdown(raw) {
+    return render_markdown(raw).replace(/^\s*<p>/, "").replace(/<\/p>\s*$/, "");
+}
+
+function show_set(study_set) {
+    if (state.busy) return;
+    state.conversation_id = null;
+    state.pending = [];
+    render_attachments();
+    history.replaceState(null, "", `#/set/${study_set.id}`);
+    set_title(study_set.title);
+    state.study = {
+        set: study_set,
+        index: 0,
+        flipped: false,
+        order: study_set.items.map((_, i) => i),
+        score: 0,
+        answered: false,
+        done: false,
+    };
+    thread.innerHTML = '<div class="study" id="study"></div>';
+    thread.scrollTop = 0;
+    render_study();
+    sync_view();
+    close_drawer();
+}
+
+async function open_set(set_id) {
+    if (state.busy) return;
+    try {
+        const response = await api(`/api/sets/${set_id}`);
+        show_set(await response.json());
+    } catch (error) {
+        start_new_chat();
+    }
+}
+
+function render_study() {
+    if (state.study.set.kind === "flashcards") render_deck();
+    else render_quiz();
+}
+
+function render_deck() {
+    const s = state.study;
+    const card = s.set.items[s.order[s.index]];
+    const last = s.index === s.order.length - 1;
+    el("study").innerHTML = `
+        <div class="deck">
+            <p class="study-meta">Card ${s.index + 1} of ${s.order.length}</p>
+            <div class="flashcard${s.flipped ? " flipped" : ""}" role="button" tabindex="0" data-deck="flip" aria-label="Flip the card">
+                <div class="flashcard-inner">
+                    <div class="face front poster tone-${tone(s.set.mode)}">
+                        <span class="face-label">Question</span>
+                        <div class="face-text answer">${render_markdown(card.front)}</div>
+                    </div>
+                    <div class="face back">
+                        <span class="face-label">Answer</span>
+                        <div class="face-text answer">${render_markdown(card.back)}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="study-controls">
+                <button class="icon-btn round" type="button" data-deck="prev" aria-label="Previous card"${s.index === 0 ? " disabled" : ""}>${icons.prev}</button>
+                <button class="btn btn-soft" type="button" data-deck="flip">${s.flipped ? "Show question" : "Show answer"}</button>
+                <button class="icon-btn round" type="button" data-deck="next" aria-label="Next card"${last ? " disabled" : ""}>${icons.next}</button>
+            </div>
+            <div class="study-extra">
+                <button class="btn btn-ghost btn-small" type="button" data-deck="shuffle">${icons.shuffle}Shuffle</button>
+                <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete deck</button>
+            </div>
+        </div>`;
+}
+
+function flip_card() {
+    const s = state.study;
+    s.flipped = !s.flipped;
+    document.querySelector(".flashcard")?.classList.toggle("flipped", s.flipped);
+    const button = document.querySelector('.study-controls [data-deck="flip"]');
+    if (button) button.textContent = s.flipped ? "Show question" : "Show answer";
+}
+
+function step_deck(by) {
+    const s = state.study;
+    const next = s.index + by;
+    if (next < 0 || next >= s.order.length) return;
+    s.index = next;
+    s.flipped = false;
+    render_deck();
+}
+
+function shuffle_deck() {
+    const s = state.study;
+    for (let i = s.order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [s.order[i], s.order[j]] = [s.order[j], s.order[i]];
+    }
+    s.index = 0;
+    s.flipped = false;
+    render_deck();
+}
+
+function render_quiz() {
+    const s = state.study;
+    const total = s.set.items.length;
+    if (s.done) {
+        render_results();
+        return;
+    }
+    const q = s.set.items[s.index];
+    el("study").innerHTML = `
+        <div class="quiz">
+            <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
+            <p class="study-meta">Question ${s.index + 1} of ${total}</p>
+            <div class="quiz-question answer">${render_markdown(q.question)}</div>
+            <div class="quiz-options">${q.options.map((option, i) => `
+                <button class="option" type="button" data-option="${i}">
+                    <span class="option-key">${"ABCDEF"[i]}</span>
+                    <span class="option-text">${inline_markdown(option)}</span>
+                </button>`).join("")}
+            </div>
+            <div id="quiz-feedback"></div>
+        </div>`;
+}
+
+function answer_option(i) {
+    const s = state.study;
+    if (s.answered || s.done) return;
+    const q = s.set.items[s.index];
+    if (i < 0 || i >= q.options.length) return;
+    s.answered = true;
+    const right = i === q.answer;
+    if (right) s.score += 1;
+    document.querySelectorAll(".option").forEach((button, j) => {
+        button.disabled = true;
+        if (j === q.answer) button.classList.add("correct");
+        else if (j === i) button.classList.add("wrong");
+    });
+    const last = s.index === s.set.items.length - 1;
+    el("quiz-feedback").innerHTML = `
+        <div class="feedback ${right ? "right" : "wrong"}">
+            <strong>${right ? "Correct" : "Not quite"}</strong>
+            ${q.explanation ? `<div class="answer">${render_markdown(q.explanation)}</div>` : ""}
+        </div>
+        <div class="study-controls">
+            <button class="btn btn-accent" type="button" data-quiz="next">${last ? "See your score" : "Next question"}</button>
+        </div>`;
+    el("quiz-feedback").querySelector("button").focus({ preventScroll: true });
+}
+
+async function next_question() {
+    const s = state.study;
+    s.index += 1;
+    s.answered = false;
+    if (s.index < s.set.items.length) {
+        render_quiz();
+        return;
+    }
+    s.done = true;
+    render_results();
+    try {
+        const response = await api(`/api/sets/${s.set.id}/score`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ score: s.score }),
+        });
+        s.set.best_score = (await response.json()).best_score;
+        if (el("study") && state.study === s) render_results();
+        load_sets();
+    } catch (error) {}
+}
+
+function render_results() {
+    const s = state.study;
+    const total = s.set.items.length;
+    const best = s.set.best_score;
+    const note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
+    el("study").innerHTML = `
+        <div class="quiz-results">
+            <p class="study-meta">Quiz complete</p>
+            <p class="score"><strong>${s.score}</strong> / ${total}</p>
+            <p class="score-note">${note}</p>
+            <div class="study-controls">
+                <button class="btn btn-accent" type="button" data-quiz="again">Try again</button>
+                <button class="btn btn-soft" type="button" data-home>Back to home</button>
+            </div>
+            <div class="study-extra">
+                <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete quiz</button>
+            </div>
+        </div>`;
+}
+
+function restart_quiz() {
+    const s = state.study;
+    Object.assign(s, { index: 0, score: 0, answered: false, done: false });
+    render_quiz();
+}
+
+thread.addEventListener("click", (event) => {
+    const target = event.target;
+    const tool = target.closest("[data-tool]");
+    if (tool) {
+        open_sheet(tool.dataset.tool, tool.dataset.mode);
+        return;
+    }
+    const remove_set = target.closest("[data-remove-set]");
+    if (remove_set) {
+        const s = state.sets.find((item) => item.id === remove_set.dataset.removeSet);
+        if (s) delete_set(s);
+        return;
+    }
+    if (!state.study || !el("study")) return;
+    const deck = target.closest("[data-deck]");
+    if (deck) {
+        const action = deck.dataset.deck;
+        if (action === "flip") flip_card();
+        if (action === "prev") step_deck(-1);
+        if (action === "next") step_deck(1);
+        if (action === "shuffle") shuffle_deck();
+        return;
+    }
+    const option = target.closest("[data-option]");
+    if (option) {
+        answer_option(Number(option.dataset.option));
+        return;
+    }
+    const quiz = target.closest("[data-quiz]");
+    if (quiz) {
+        if (quiz.dataset.quiz === "next") next_question();
+        if (quiz.dataset.quiz === "again") restart_quiz();
+        return;
+    }
+    if (target.closest("[data-study-delete]")) delete_set(state.study.set);
+});
+
+// arrow keys move through a deck, space flips it, number keys answer a quiz
+document.addEventListener("keydown", (event) => {
+    if (!el("study") || !state.study || sheet.open || event.target.closest("input, textarea, select")) return;
+    const s = state.study;
+    if (s.set.kind === "flashcards") {
+        if (event.key === "ArrowRight") step_deck(1);
+        else if (event.key === "ArrowLeft") step_deck(-1);
+        else if ((event.key === " " || event.key === "Enter") && !event.target.closest("button")) {
+            event.preventDefault();
+            flip_card();
+        }
+    } else if (/^[1-6]$/.test(event.key)) {
+        answer_option(Number(event.key) - 1);
+    }
 });
 
 // conversations and the my chats drawer
@@ -693,6 +1209,7 @@ function start_new_chat() {
     set_title("");
     show_welcome();
     load_history();
+    load_sets();
     close_drawer();
     input.focus({ preventScroll: true });
 }
@@ -700,6 +1217,11 @@ function start_new_chat() {
 function route() {
     if (location.hash === "#/recents") {
         if (!el("recents")) show_recents();
+        return;
+    }
+    const set_match = location.hash.match(/^#\/set\/([0-9a-f]+)$/);
+    if (set_match) {
+        if (!el("study") || state.study?.set.id !== set_match[1]) open_set(set_match[1]);
         return;
     }
     const match = location.hash.match(/^#\/c\/([0-9a-f]+)$/);
@@ -782,17 +1304,22 @@ async function start() {
     sync_theme_label();
     try {
         const response = await api("/api/modes");
-        const { modes, default: default_mode } = await response.json();
+        const { modes, groups, default: default_mode } = await response.json();
         state.default_mode = default_mode;
         state.modes = modes;
-        modes.forEach((m) => (state.mode_names[m.id] = m.name));
-        mode_select.innerHTML = modes.map((m) => `<option value="${m.id}" title="${escape_html(m.hint)}">${escape_html(m.name)}</option>`).join("");
+        if (groups) state.groups = groups;
+        modes.forEach((m) => {
+            state.mode_names[m.id] = m.name;
+            state.mode_groups[m.id] = m.group;
+        });
+        mode_select.innerHTML = mode_options_html();
         mode_select.value = default_mode;
     } catch (error) {
         mode_select.innerHTML = '<option value="general">General study</option>';
     }
     render_rows();
     load_history();
+    load_sets();
     route();
     input.focus({ preventScroll: true });
 }

@@ -24,6 +24,13 @@ fallback_beta = "server-side-fallback-2026-07-01"
 marker_open, marker_close = "⟦", "⟧"
 
 
+def fallback_options(cfg: settings) -> dict:
+    # haiku has no fallback model, so the retry setting is only sent to the bigger models
+    if cfg.model.startswith("claude-haiku"):
+        return {}
+    return {"fallbacks": "default", "betas": [fallback_beta]}
+
+
 def mode_note(mode: str) -> dict:
     # sent as a mid conversation system message, so changing mode keeps the cached history
     return {"role": "system", "content": modes[mode]["instruction"]}
@@ -127,10 +134,7 @@ async def stream_reply(client, cfg: settings, messages: list[dict]) -> AsyncIter
     events are text, cite, and final
     """
     cites = citation_list()
-    options = {}
-    # haiku has no fallback model, so the retry setting is only sent to the bigger models
-    if not cfg.model.startswith("claude-haiku"):
-        options = {"fallbacks": "default", "betas": [fallback_beta]}
+    options = fallback_options(cfg)
     async with client.beta.messages.stream(
         model=cfg.model,
         max_tokens=cfg.max_tokens,

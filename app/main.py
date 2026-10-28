@@ -11,8 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import load_settings, settings
-from .modes import default_mode, modes, public_modes
+from .modes import default_mode, groups, modes, public_modes
 from .store import store
+from .study import kinds, make_set, max_items, study_error, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
 
 log = logging.getLogger("rahah")
@@ -36,9 +37,17 @@ magic_bytes = {
     "image/gif": (b"GIF87a", b"GIF89a"),
 }
 
+# notes for a study set are sent inline, which counts against claude's request size
+max_set_files = 5
+max_set_mb = 20
+
 
 class new_conversation_in(BaseModel):
     mode: str = default_mode
+
+
+class score_in(BaseModel):
+    score: int = Field(ge=0)
 
 
 class message_in(BaseModel):
@@ -120,7 +129,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
     @app.get("/api/modes")
     def list_modes():
-        return {"modes": public_modes(), "default": default_mode}
+        return {"modes": public_modes(), "groups": groups, "default": default_mode}
 
     @app.get("/api/conversations")
     def list_conversations():
@@ -219,6 +228,79 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    def set_or_404(set_id: str) -> dict:
+        study_set = db.get_set(set_id)
+        if not study_set:
+            raise HTTPException(404, "That set doesn't exist.")
+        return study_set
+
+    @app.get("/api/sets")
+    def list_sets():
+        return {"sets": db.list_sets()}
+
+    @app.post("/api/sets")
+    async def new_set(
+        kind: str = Form(...),
+        topic: str = Form(""),
+        count: int = Form(10),
+        mode: str = Form(default_mode),
+        files: list[UploadFile] | None = File(None),
+    ):
+        if kind not in kinds:
+            raise HTTPException(400, "Unknown kind of study set.")
+        if mode not in modes:
+            raise HTTPException(400, "Unknown subject mode.")
+        topic = topic.strip()
+        if len(topic) > 2000:
+            raise HTTPException(400, "Keep the topic under 2000 characters.")
+        files = files or []
+        if len(files) > max_set_files:
+            raise HTTPException(400, f"Add up to {max_set_files} files.")
+        if not topic and not files:
+            raise HTTPException(400, "Write a topic or add some notes first.")
+
+        uploads, total = [], 0
+        for f in files:
+            data = await f.read(max_set_mb * 1024 * 1024 + 1)
+            total += len(data)
+            if total > max_set_mb * 1024 * 1024:
+                raise HTTPException(413, f"Notes for one set can be up to {max_set_mb} MB in total.")
+            if not data:
+                raise HTTPException(400, "One of the files is empty.")
+            name = Path(f.filename or "file").name[:120]
+            media_type, file_kind = sniff_upload(name, data)
+            uploads.append(upload(name, media_type, file_kind, data))
+
+        count = max(1, min(count, max_items))
+        try:
+            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads)
+        except study_error as error:
+            raise HTTPException(422, str(error))
+        except Exception as error:
+            if not is_claude_error(error):
+                raise
+            log.warning("study set failed: %s", error)
+            raise HTTPException(502, friendly_error(error))
+        set_id = db.add_set(kind, made["title"], mode, made["items"])
+        return db.get_set(set_id)
+
+    @app.get("/api/sets/{set_id}")
+    def get_set(set_id: str):
+        return set_or_404(set_id)
+
+    @app.post("/api/sets/{set_id}/score")
+    def record_score(set_id: str, body: score_in):
+        study_set = set_or_404(set_id)
+        if study_set["kind"] != "quiz" or body.score > study_set["size"]:
+            raise HTTPException(400, "That score doesn't fit this set.")
+        return {"best_score": db.record_score(set_id, body.score)}
+
+    @app.delete("/api/sets/{set_id}")
+    def delete_set(set_id: str):
+        set_or_404(set_id)
+        db.delete_set(set_id)
+        return {"ok": True}
 
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     return app

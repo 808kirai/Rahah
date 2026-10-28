@@ -2,11 +2,13 @@
 
 modes = {
     "general": {
+        "group": "study",
         "name": "General study",
         "hint": "Any subject, any question",
         "instruction": "Mode: general study. Help with whatever subject the student brings.",
     },
     "maths": {
+        "group": "study",
         "name": "Maths",
         "hint": "Step by step working",
         "instruction": (
@@ -15,6 +17,7 @@ modes = {
         ),
     },
     "science": {
+        "group": "study",
         "name": "Science",
         "hint": "Physics, chemistry, biology",
         "instruction": (
@@ -23,6 +26,7 @@ modes = {
         ),
     },
     "coding": {
+        "group": "code",
         "name": "Coding",
         "hint": "Write, explain and debug code",
         "instruction": (
@@ -31,6 +35,7 @@ modes = {
         ),
     },
     "languages": {
+        "group": "study",
         "name": "Languages and writing",
         "hint": "Grammar, essays, vocabulary",
         "instruction": (
@@ -39,6 +44,7 @@ modes = {
         ),
     },
     "humanities": {
+        "group": "study",
         "name": "History and humanities",
         "hint": "Events, ideas, arguments",
         "instruction": (
@@ -47,6 +53,7 @@ modes = {
         ),
     },
     "exam": {
+        "group": "exam",
         "name": "Exam prep",
         "hint": "Practice questions and revision",
         "instruction": (
@@ -59,5 +66,9 @@ modes = {
 default_mode = "general"
 
 
+# the home page and the subject picker are split into these, in this order
+groups = {"study": "Study", "exam": "Exam", "code": "Code"}
+
+
 def public_modes() -> list[dict]:
-    return [{"id": key, "name": m["name"], "hint": m["hint"]} for key, m in modes.items()]
+    return [{"id": key, "name": m["name"], "hint": m["hint"], "group": m["group"]} for key, m in modes.items()]

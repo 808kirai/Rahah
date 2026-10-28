@@ -104,6 +104,48 @@
     </aside>
     <div class="scrim" id="scrim"></div>
 
+    <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
+        <form class="sheet-form" id="sheet-form">
+            <div class="sheet-top">
+                <h2 id="sheet-title">Make flashcards</h2>
+                <button class="icon-btn" type="button" id="sheet-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <label class="field">
+                <span class="field-label">Topic</span>
+                <textarea id="sheet-topic" rows="3" maxlength="2000"></textarea>
+            </label>
+            <div class="field">
+                <span class="field-label">Notes</span>
+                <div class="sheet-files" id="sheet-files"></div>
+                <div>
+                    <button class="btn btn-soft btn-small" type="button" id="sheet-attach">
+                        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                        Add notes
+                    </button>
+                </div>
+                <input type="file" id="sheet-file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif">
+            </div>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">Subject</span>
+                    <select class="pill-select" id="sheet-mode"></select>
+                </label>
+                <div class="field">
+                    <span class="field-label" id="sheet-choice-label">Cards</span>
+                    <div class="choices" id="sheet-choices" role="group" aria-labelledby="sheet-choice-label"></div>
+                </div>
+            </div>
+            <p class="sheet-error" id="sheet-error" role="alert" hidden></p>
+            <div class="sheet-actions">
+                <p class="sheet-note" id="sheet-note" hidden>This can take up to a minute.</p>
+                <button class="btn btn-ghost" type="button" id="sheet-cancel">Cancel</button>
+                <button class="btn btn-accent" type="submit" id="sheet-submit">Make flashcards</button>
+            </div>
+        </form>
+    </dialog>
+
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
