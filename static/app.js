@@ -393,6 +393,8 @@ async function send_message(text) {
     text = text.trim();
     const ready = state.pending.filter((f) => f.status === "ready");
     if (!text || state.busy) return;
+    // a question that was spoken is sent as it is, and listening stops so nothing lands in the cleared box
+    stop_voice(true);
     state.busy = true;
     update_send_button();
 
@@ -611,6 +613,100 @@ input.addEventListener("paste", (event) => {
     // pasted screenshots have no real name, so they get a dated one
     add_photos(images.map((f) => new File([f], f.name && f.name !== "image.png" ? f.name : photo_name().replace(".jpg", ".png"), { type: f.type })));
 });
+
+// voice typing, the browser turns speech into words in the message box and rahah reads the words
+// claude can't hear audio, so only the text is ever sent
+
+const mic = el("mic");
+const speech_engine = () => window.SpeechRecognition || window.webkitSpeechRecognition;
+const voice = { rec: null, base: "", heard: "", error: "" };
+mic.hidden = !speech_engine();
+
+const voice_errors = {
+    "not-allowed": "Rahah isn't allowed to use the microphone. Allow it in the browser's site settings.",
+    "service-not-allowed": "Voice typing is turned off in this browser.",
+    "audio-capture": "Rahah couldn't find a microphone.",
+    "network": "Voice typing needs an internet connection.",
+};
+
+// a short message in the message box itself, gone after a few seconds
+function composer_hint(text) {
+    input.placeholder = text;
+    clearTimeout(composer_hint.timer);
+    composer_hint.timer = setTimeout(sync_placeholder, 6000);
+}
+
+function set_listening(on) {
+    const label = on ? "Stop listening" : "Speak your question";
+    mic.setAttribute("aria-pressed", String(on));
+    mic.setAttribute("aria-label", label);
+    mic.title = label;
+    composer_box.classList.toggle("listening", on);
+    if (on) input.placeholder = "Listening, say your question…";
+    else sync_placeholder();
+}
+
+// discard throws away anything still being heard, used when the message is sent
+function stop_voice(discard = false) {
+    const rec = voice.rec;
+    if (!rec) return;
+    if (discard) {
+        voice.rec = null;
+        rec.abort();
+        set_listening(false);
+    } else {
+        rec.stop();
+    }
+}
+
+function start_voice() {
+    const Engine = speech_engine();
+    if (!Engine) {
+        composer_hint("Voice typing works in Chrome, Edge and Safari.");
+        return;
+    }
+    const rec = new Engine();
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    // what was already typed stays, and the spoken words follow it
+    voice.base = input.value.trim() ? `${input.value.trimEnd()} ` : "";
+    voice.heard = "";
+    voice.error = "";
+    rec.onresult = (event) => {
+        if (voice.rec !== rec) return;
+        let guess = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const words = event.results[i][0].transcript.trim();
+            if (!words) continue;
+            if (event.results[i].isFinal) voice.heard += (voice.heard ? " " : "") + words;
+            else guess += (guess ? " " : "") + words;
+        }
+        input.value = voice.base + voice.heard + (guess ? `${voice.heard ? " " : ""}${guess}` : "");
+        resize_input();
+        update_send_button();
+    };
+    rec.onerror = (event) => {
+        voice.error = voice_errors[event.error] || "";
+    };
+    rec.onend = () => {
+        if (voice.rec !== rec) return;
+        voice.rec = null;
+        set_listening(false);
+        if (voice.error) composer_hint(voice.error);
+        input.focus();
+    };
+    voice.rec = rec;
+    try {
+        rec.start();
+        set_listening(true);
+    } catch (e) {
+        voice.rec = null;
+        composer_hint("Voice typing couldn't start. Try again.");
+    }
+}
+
+mic.addEventListener("click", () => (voice.rec ? stop_voice() : start_voice()));
 
 // the camera sheet, a live preview, then the shot to keep or retake
 

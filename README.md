@@ -10,6 +10,7 @@ What it does today
 - Subject modes for maths, science, coding, languages and writing, history and humanities, and exam prep, grouped as Study, Exam and Code
 - Upload PDF, TXT, MD, image and code files and ask questions about them
 - Take a photo with the camera, choose one from the gallery or paste a screenshot, for example of a homework question, and large photos are shrunk before they upload
+- Speak a question with the mic button, the browser turns it into text in the message box as you talk, in Chrome, Edge and Safari. Claude can't hear audio, so only the words are sent
 - In coding mode Rahah runs code in a sandbox to check fixes and show real output, each run is shown as a card with the code, the output and any charts it made, and Python examples get a Run button
 - Answers about documents show numbered sources with the page and the quoted passage
 - Maths is rendered from LaTeX and code blocks are highlighted with a copy button

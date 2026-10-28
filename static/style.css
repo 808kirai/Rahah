@@ -972,6 +972,20 @@ button.picker-heading:focus-visible {
     flex-shrink: 0;
 }
 
+/* voice typing, the mic turns purple and the message box glows while it listens, nothing pulses */
+.mic-btn[hidden] {
+    display: none;
+}
+
+.mic-btn[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.composer-box.listening {
+    box-shadow: 0 0 0 2px var(--accent), 0 10px 30px var(--shadow);
+}
+
 /* camera sheet, a live preview with the buttons underneath */
 .camera-stage {
     position: relative;
