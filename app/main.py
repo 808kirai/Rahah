@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .config import load_settings, settings
 from .modes import default_mode, groups, menu_groups, modes, public_modes, runs_code
 from .performance import summarise
+from .recommend import has_activity, recommend, signature
 from .store import store
 from .study import kinds, make_set, max_items, study_error, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
@@ -365,6 +366,41 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     @app.get("/api/performance")
     def performance():
         return summarise(db.quiz_attempts())
+
+    def study_history() -> tuple[list[dict], list[dict], dict]:
+        return db.list_conversations(limit=20), db.list_sets(limit=20), summarise(db.quiz_attempts())
+
+    def recommendations_body(saved: dict | None, history: tuple) -> dict:
+        # fresh means nothing new has been studied since these were picked
+        # a deck or quiz deleted since then is left out
+        items = [i for i in (saved["items"] if saved else []) if i["action"] != "open" or db.get_set(i["set_id"])]
+        return {
+            "items": items,
+            "created": saved["created"] if saved else None,
+            "fresh": bool(saved) and saved["signature"] == signature(*history),
+            "has_activity": has_activity(*history),
+        }
+
+    @app.get("/api/recommendations")
+    def get_recommendations():
+        return recommendations_body(db.get_recommendations(), study_history())
+
+    @app.post("/api/recommendations")
+    async def new_recommendations():
+        history = study_history()
+        if not has_activity(*history):
+            raise HTTPException(400, "Study something first, then Rahah can suggest what comes next.")
+        try:
+            items = await recommend(claude(), cfg, *history)
+        except study_error as error:
+            raise HTTPException(422, str(error))
+        except Exception as error:
+            if not is_claude_error(error):
+                raise
+            log.warning("recommendations failed: %s", error)
+            raise HTTPException(502, friendly_error(error))
+        db.save_recommendations(items, signature(*history))
+        return recommendations_body(db.get_recommendations(), history)
 
     @app.delete("/api/sets/{set_id}")
     def delete_set(set_id: str):

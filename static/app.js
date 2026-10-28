@@ -14,7 +14,10 @@ const state = {
     default_mode: "general",
     pending: [], // files attached to the next message, each {key, id, name, kind, status}
     busy: false,
-    conversations: [], // recent chats for the drawer and the continue studying row
+    conversations: [], // recent chats for the chats page and the continue studying row
+    recs: null, // suggestions for the for you page
+    recs_loading: false,
+    recs_error: "",
     modes: [],
     mode_names: {},
     mode_groups: {},
@@ -43,6 +46,7 @@ const icons = {
     chevron: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
 };
 
 function escape_html(text) {
@@ -280,13 +284,14 @@ function add_notice(message_el, text) {
     message_el.appendChild(note);
 }
 
-// home, recents and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
+// home, chats, for you and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", recents: "Recents", performance: "Performance" };
+const page_titles = { home: "Home", chats: "Chats", foryou: "For you", performance: "Performance" };
 
 function current_view() {
     if (el("welcome")) return "home";
-    if (el("recents")) return "recents";
+    if (el("chats")) return "chats";
+    if (el("foryou")) return "foryou";
     if (el("performance")) return "performance";
     if (el("study")) return "study";
     return "chat";
@@ -295,7 +300,8 @@ function current_view() {
 function sync_view() {
     const view = current_view();
     document.body.classList.toggle("is-home", view === "home");
-    document.body.classList.toggle("is-recents", view === "recents");
+    document.body.classList.toggle("is-chats", view === "chats");
+    document.body.classList.toggle("is-foryou", view === "foryou");
     document.body.classList.toggle("is-performance", view === "performance");
     document.body.classList.toggle("is-study", view === "study");
     document.body.classList.toggle("is-page", view in page_titles);
@@ -305,7 +311,7 @@ function sync_view() {
 
 function leave_home() {
     if (current_view() === "chat") return;
-    ["welcome", "recents", "performance", "study"].forEach((id) => el(id)?.remove());
+    ["welcome", "chats", "foryou", "performance", "study"].forEach((id) => el(id)?.remove());
     sync_view();
 }
 
@@ -728,7 +734,21 @@ thread.addEventListener("click", (event) => {
     }
 });
 
-// recents page
+// leaving a chat for one of the pages starts the next question fresh
+function enter_page(hash, name, html) {
+    state.conversation_id = null;
+    state.pending = [];
+    render_attachments();
+    mode_select.value = state.default_mode;
+    sync_placeholder();
+    history.replaceState(null, "", hash);
+    set_title("");
+    document.title = `${name} · Rahah`;
+    thread.innerHTML = html;
+    thread.scrollTop = 0;
+}
+
+// chats page, every chat as a card grouped by day, with search and a new chat button
 
 function day_group(seconds) {
     const midnight = new Date().setHours(0, 0, 0, 0) / 1000;
@@ -738,49 +758,165 @@ function day_group(seconds) {
     return "Earlier";
 }
 
-function render_recents() {
-    const page = el("recents");
-    if (!page) return;
+function render_chats() {
+    const list = el("chat-groups");
+    if (!list) return;
+    el("chat-search").hidden = !state.conversations.length;
     if (!state.conversations.length) {
-        page.innerHTML = `<div class="recents-empty">
+        list.innerHTML = `<div class="page-empty">
             <strong>Nothing here yet</strong>
             Your chats show up here once you start one.
             <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
         </div>`;
         return;
     }
+    const words = el("chat-search").value.trim().toLowerCase();
+    const shown = state.conversations.filter((c) => !words || c.title.toLowerCase().includes(words));
+    if (!shown.length) {
+        list.innerHTML = '<p class="page-note">No chats match that search.</p>';
+        return;
+    }
     const groups = new Map();
-    state.conversations.forEach((c) => {
+    shown.forEach((c) => {
         const name = day_group(c.updated);
         if (!groups.has(name)) groups.set(name, []);
         groups.get(name).push(c);
     });
-    page.innerHTML = [...groups].map(([name, chats]) => `
+    list.innerHTML = [...groups].map(([name, chats]) => `
         <h3 class="group-title">${name}</h3>
         <div class="card-grid">${chats.map(chat_card).join("")}</div>`).join("");
 }
 
-function show_recents() {
+function show_chats() {
     if (state.busy) return;
-    state.conversation_id = null;
-    state.pending = [];
-    render_attachments();
-    mode_select.value = state.default_mode;
-    sync_placeholder();
-    history.replaceState(null, "", "#/recents");
-    set_title("");
-    document.title = "Recents · Rahah";
-    thread.innerHTML = '<div class="recents" id="recents"></div>';
-    thread.scrollTop = 0;
-    render_recents();
+    enter_page("#/chats", "Chats", `<div class="list-page" id="chats">
+        <div class="page-tools">
+            <input class="search" id="chat-search" type="search" placeholder="Search your chats" aria-label="Search your chats" hidden>
+            <button class="btn btn-accent btn-small" type="button" data-home>${icons.plus}New chat</button>
+        </div>
+        <div id="chat-groups"></div>
+    </div>`);
+    el("chat-search").addEventListener("input", render_chats);
+    render_chats();
     sync_view();
     load_history();
-    close_drawer();
 }
 
 thread.addEventListener("click", (event) => {
-    // home links drawn inside the thread, like the empty recents page and quiz results
+    // home links drawn inside the thread, like the new chat button and quiz results
     if (event.target.closest("[data-home]")) start_new_chat();
+});
+
+// for you page, suggestions from claude based on what the student has studied
+
+const rec_kinds = { review: "Review", next: "Next steps", related: "Related topics" };
+const rec_actions = {
+    ask: { label: "Ask", icon: "chat" },
+    flashcards: { label: "Flashcards", icon: "cards" },
+    quiz: { label: "Quiz", icon: "quiz" },
+    summary: { label: "Summary", icon: "summary" },
+};
+
+function rec_action(item) {
+    if (item.action !== "open") return rec_actions[item.action];
+    const saved = state.sets.find((s) => s.id === item.set_id);
+    return saved?.kind === "flashcards" ? { label: "Your deck", icon: "cards" } : { label: "Retake quiz", icon: "quiz" };
+}
+
+function rec_card(item, i) {
+    const action = rec_action(item);
+    return `<button class="tile rec poster tone-${tone(item.mode)}" type="button" data-rec="${i}">
+        <span class="rec-chip">${icons[action.icon]}${escape_html(action.label)}</span>
+        <strong>${inline_markdown(item.title)}</strong>
+        <span class="tile-sub">${inline_markdown(item.reason)}</span>
+        <span class="rec-subject">${escape_html(mode_name(item.mode))}</span>
+    </button>`;
+}
+
+function render_foryou() {
+    const page = el("foryou");
+    if (!page) return;
+    const recs = state.recs;
+    if (!recs) {
+        page.innerHTML = '<p class="page-note">Loading…</p>';
+        return;
+    }
+    if (!recs.has_activity) {
+        page.innerHTML = `<div class="page-empty">
+            <strong>Nothing to go on yet</strong>
+            Chat, make flashcards or take a quiz, and Rahah suggests what to study next based on it.
+            <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
+        </div>`;
+        return;
+    }
+    const when = recs.created ? ` · updated ${time_ago(recs.created)}` : "";
+    const top = `<div class="page-tools">
+        <p class="page-note">Picked from your chats, decks and quiz scores${state.recs_loading ? "" : when}</p>
+        <button class="btn btn-soft btn-small" type="button" data-refresh-recs ${state.recs_loading ? "disabled" : ""}>
+            ${state.recs_loading ? "Finding new picks…" : "Refresh"}
+        </button>
+    </div>`;
+    const error = state.recs_error ? `<p class="notice">${escape_html(state.recs_error)}</p>` : "";
+    if (!recs.items.length) {
+        const note = state.recs_loading ? "Looking through what you've studied…" : "";
+        page.innerHTML = top + error + (note ? `<p class="page-note wait">${note}</p>` : "");
+        return;
+    }
+    page.innerHTML = top + error + Object.entries(rec_kinds).map(([kind, title]) => {
+        const cards = recs.items.map((item, i) => (item.kind === kind ? rec_card(item, i) : "")).join("");
+        return cards ? `<h3 class="group-title">${title}</h3><div class="card-grid">${cards}</div>` : "";
+    }).join("");
+}
+
+async function make_recommendations() {
+    if (state.recs_loading) return;
+    state.recs_loading = true;
+    state.recs_error = "";
+    render_foryou();
+    try {
+        const response = await api("/api/recommendations", { method: "POST" });
+        state.recs = await response.json();
+    } catch (error) {
+        state.recs_error = error.message;
+    }
+    state.recs_loading = false;
+    render_foryou();
+}
+
+async function load_recommendations() {
+    try {
+        const response = await api("/api/recommendations");
+        state.recs = await response.json();
+    } catch (error) {
+        state.recs = { items: [], has_activity: true, created: null, fresh: false };
+        state.recs_error = error.message;
+    }
+    render_foryou();
+    // new picks are only asked for when something new has been studied since the last ones
+    if (state.recs.has_activity && !state.recs.fresh && !state.recs_error) make_recommendations();
+}
+
+function show_foryou() {
+    if (state.busy) return;
+    enter_page("#/for-you", "For you", '<div class="list-page" id="foryou"></div>');
+    state.recs_error = "";
+    render_foryou();
+    sync_view();
+    load_sets();
+    load_recommendations();
+}
+
+thread.addEventListener("click", (event) => {
+    if (event.target.closest("[data-refresh-recs]")) {
+        make_recommendations();
+        return;
+    }
+    const card = event.target.closest("[data-rec]");
+    if (!card || !state.recs) return;
+    const item = state.recs.items[Number(card.dataset.rec)];
+    if (!item) return;
+    if (item.action === "open") open_set(item.set_id);
+    else open_sheet(item.action, item.mode, item.prompt);
 });
 
 // study tools, summaries go through chat, flashcards and quizzes are saved sets
@@ -1085,7 +1221,7 @@ function set_sheet_busy(busy) {
     el("sheet-note").hidden = !busy;
 }
 
-function open_sheet(tool, mode) {
+function open_sheet(tool, mode, topic = "") {
     const copy = sheet_copy[tool];
     sheet_state.tool = tool;
     sheet_state.files = [];
@@ -1093,7 +1229,7 @@ function open_sheet(tool, mode) {
     sheet_state.opened += 1;
     el("sheet-title").textContent = copy.title;
     el("sheet-topic-label").textContent = copy.field || "Topic";
-    el("sheet-topic").value = "";
+    el("sheet-topic").value = topic;
     el("sheet-topic").placeholder = copy.topic;
     el("sheet-topic").maxLength = copy.limit || 2000;
     el("sheet-choice-field").hidden = !copy.choices.length;
@@ -1264,7 +1400,6 @@ function show_set(study_set) {
     thread.scrollTop = 0;
     render_study();
     sync_view();
-    close_drawer();
 }
 
 async function open_set(set_id) {
@@ -1565,20 +1700,10 @@ function render_performance_row() {
 
 function show_performance() {
     if (state.busy) return;
-    state.conversation_id = null;
-    state.pending = [];
-    render_attachments();
-    mode_select.value = state.default_mode;
-    sync_placeholder();
-    history.replaceState(null, "", "#/performance");
-    set_title("");
-    document.title = "Performance · Rahah";
-    thread.innerHTML = '<div class="performance" id="performance"></div>';
-    thread.scrollTop = 0;
+    enter_page("#/performance", "Performance", '<div class="performance" id="performance"></div>');
     render_performance();
     sync_view();
     load_performance();
-    close_drawer();
 }
 
 function render_performance() {
@@ -1587,7 +1712,7 @@ function render_performance() {
     const p = state.performance;
     const o = p.overall;
     if (!o) {
-        page.innerHTML = `<div class="recents-empty">
+        page.innerHTML = `<div class="page-empty">
             <strong>No scores yet</strong>
             Take a quiz and your percentages and grades show up here.
             <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a quiz</button></div>
@@ -1817,7 +1942,7 @@ thread.addEventListener("click", (event) => {
     if (event.target.closest("[data-performance]")) show_performance();
 });
 
-// conversations and the my chats drawer
+// conversations
 
 function set_title(text) {
     el("chat-title").textContent = text || "New chat";
@@ -1837,35 +1962,15 @@ async function delete_conversation(c) {
 }
 
 async function load_history() {
-    const nav = el("history");
     try {
         const response = await api("/api/conversations");
         const { conversations } = await response.json();
         state.conversations = conversations;
     } catch (error) {
-        nav.innerHTML = `<p class="history-empty">${escape_html(error.message)}</p>`;
         return;
     }
     render_continue();
-    render_recents();
-    if (!state.conversations.length) {
-        nav.innerHTML = '<p class="history-empty">Your chats will show up here.</p>';
-        return;
-    }
-    nav.innerHTML = "";
-    state.conversations.forEach((c) => {
-        const item = document.createElement("div");
-        item.className = `history-item${c.id === state.conversation_id ? " active" : ""}`;
-        item.innerHTML = `<a href="#/c/${c.id}"><span class="t">${escape_html(c.title)}</span><span class="m">${escape_html(mode_name(c.mode))} · ${time_ago(c.updated)}</span></a>`;
-        const remove = document.createElement("button");
-        remove.className = "icon-btn";
-        remove.type = "button";
-        remove.setAttribute("aria-label", `Delete ${c.title}`);
-        remove.innerHTML = icons.trash;
-        remove.addEventListener("click", () => delete_conversation(c));
-        item.appendChild(remove);
-        nav.appendChild(item);
-    });
+    render_chats();
 }
 
 async function open_conversation(conversation_id) {
@@ -1891,7 +1996,6 @@ async function open_conversation(conversation_id) {
         start_new_chat();
     }
     load_history();
-    close_drawer();
 }
 
 function start_new_chat() {
@@ -1907,13 +2011,17 @@ function start_new_chat() {
     load_history();
     load_sets();
     load_performance();
-    close_drawer();
     input.focus({ preventScroll: true });
 }
 
 function route() {
-    if (location.hash === "#/recents") {
-        if (!el("recents")) show_recents();
+    // recents was merged into chats, so old links still land there
+    if (location.hash === "#/chats" || location.hash === "#/recents") {
+        if (!el("chats")) show_chats();
+        return;
+    }
+    if (location.hash === "#/for-you") {
+        if (!el("foryou")) show_foryou();
         return;
     }
     if (location.hash === "#/performance") {
@@ -1930,33 +2038,13 @@ function route() {
 }
 
 window.addEventListener("hashchange", route);
-el("new-chat").addEventListener("click", start_new_chat);
-document.querySelectorAll("[data-recents]").forEach((button) => button.addEventListener("click", show_recents));
+document.querySelectorAll(".tabs [data-chats]").forEach((button) => button.addEventListener("click", show_chats));
+document.querySelectorAll(".tabs [data-foryou]").forEach((button) => button.addEventListener("click", show_foryou));
 document.querySelectorAll(".tabs [data-performance]").forEach((button) => button.addEventListener("click", show_performance));
 document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
     event.preventDefault();
     start_new_chat();
 }));
-
-function open_drawer() {
-    document.body.classList.add("drawer-open");
-    el("drawer").classList.add("open");
-    el("scrim").classList.add("open");
-    el("close-drawer").focus();
-}
-
-function close_drawer() {
-    document.body.classList.remove("drawer-open");
-    el("drawer").classList.remove("open");
-    el("scrim").classList.remove("open");
-}
-
-document.querySelectorAll("[data-open-chats]").forEach((button) => button.addEventListener("click", open_drawer));
-el("close-drawer").addEventListener("click", close_drawer);
-el("scrim").addEventListener("click", close_drawer);
-document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && el("drawer").classList.contains("open")) close_drawer();
-});
 
 // motion, rows fade up once as they scroll into view, all of it skipped when someone prefers less motion
 

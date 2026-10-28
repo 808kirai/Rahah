@@ -67,6 +67,12 @@ create table if not exists outputs (
     media_type text not null,
     created real not null
 );
+create table if not exists recommendations (
+    id integer primary key check (id = 1),
+    items text not null,
+    signature text not null,
+    created real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -233,6 +239,26 @@ class store:
         with self._connect() as db:
             row = db.execute("select * from outputs where id = ?", (file_id,)).fetchone()
         return dict(row) if row else None
+
+    # recommendations, only the latest batch is kept
+
+    def get_recommendations(self) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select items, signature, created from recommendations where id = 1").fetchone()
+        if not row:
+            return None
+        return {"items": json.loads(row["items"]), "signature": row["signature"], "created": row["created"]}
+
+    def save_recommendations(self, items: list[dict], signature: str) -> float:
+        now = time.time()
+        with self._connect() as db:
+            db.execute(
+                "insert into recommendations (id, items, signature, created) values (1, ?, ?, ?) "
+                "on conflict(id) do update set items = excluded.items, signature = excluded.signature, "
+                "created = excluded.created",
+                (json.dumps(items), signature, now),
+            )
+        return now
 
     # study sets, flashcard decks and quizzes
 

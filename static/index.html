@@ -60,17 +60,17 @@
                     <svg viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg>
                     <span>Home</span>
                 </button>
-                <button class="tab" type="button" data-recents data-tab="recents">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
-                    <span>Recents</span>
+                <button class="tab" type="button" data-chats data-tab="chats">
+                    <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
+                    <span>Chats</span>
+                </button>
+                <button class="tab" type="button" data-foryou data-tab="foryou">
+                    <svg viewBox="0 0 24 24"><path d="M11 4.5l1.8 4.7 4.7 1.8-4.7 1.8L11 17.5l-1.8-4.7L4.5 11l4.7-1.8z"/><path d="M18.5 3.5v4M16.5 5.5h4"/></svg>
+                    <span>For you</span>
                 </button>
                 <button class="tab" type="button" data-performance data-tab="performance">
                     <svg viewBox="0 0 24 24"><path d="M5 20V12M12 20V5M19 20v-8"/></svg>
                     <span>Performance</span>
-                </button>
-                <button class="tab" type="button" data-open-chats data-tab="chats">
-                    <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
-                    <span>Chats</span>
                 </button>
             </nav>
             <form class="composer" id="composer">
@@ -91,21 +91,6 @@
         </div>
         <p class="disclaimer">Rahah can make mistakes. Check important facts against your course material.</p>
     </main>
-
-    <aside class="drawer" id="drawer" aria-label="My chats">
-        <div class="drawer-top">
-            <p class="drawer-title">My chats</p>
-            <button class="icon-btn" id="close-drawer" type="button" aria-label="Close my chats">
-                <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
-        </div>
-        <button class="btn btn-accent new-chat" id="new-chat" type="button">
-            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            New chat
-        </button>
-        <nav class="history" id="history" aria-label="Recent chats"></nav>
-    </aside>
-    <div class="scrim" id="scrim"></div>
 
     <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
         <form class="sheet-form" id="sheet-form">
