@@ -266,6 +266,24 @@ function add_user_message(text, files = []) {
     return message_el;
 }
 
+// what the answer says while claude works, one word picked per answer and never the same twice in a row
+// taken from internet slang, keeping only what fits a study app
+const thinking_words = [
+    "Locking in", "Cooking", "Letting him cook", "Rizzing up an answer", "Skibidi-ing", "Farming aura",
+    "Going full sigma", "Mewing in silence", "Finna answer", "No cap, thinking", "Glowing up the answer",
+    "Delulu-proofing", "Asking chat", "Being so demure", "Sheeshing", "Tralalero tralala-ing",
+    "Bombardino crocodilo-ing", "Six-seven-ing", "Bruh-ing", "Hold on, pookie", "Main charactering",
+    "Sus-checking the facts", "Glazing your question", "Being so brat", "Not getting cooked",
+    "Ballerina cappuccina-ing", "Based-ing", "NPC-proofing",
+];
+let last_thinking = "";
+
+function thinking_word() {
+    const pool = thinking_words.filter((w) => w !== last_thinking);
+    last_thinking = pool[Math.floor(Math.random() * pool.length)];
+    return last_thinking;
+}
+
 function add_assistant_message(text = null, sources = [], runs = []) {
     leave_home();
     const message_el = document.createElement("div");
@@ -273,7 +291,7 @@ function add_assistant_message(text = null, sources = [], runs = []) {
     message_el.innerHTML = '<p class="label"><span class="logo" aria-hidden="true"></span>Rahah</p><div class="answer"></div>';
     const answer = message_el.querySelector(".answer");
     if (text === null) {
-        answer.innerHTML = '<span class="thinking">Thinking…</span>';
+        answer.innerHTML = `<span class="thinking"><span class="spark" aria-hidden="true">✻</span>${escape_html(thinking_word())}…</span>`;
     } else {
         answer.innerHTML = render_markdown(text);
         fill_runs(answer, runs);
