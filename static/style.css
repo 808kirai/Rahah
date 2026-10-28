@@ -1,4 +1,4 @@
-/* slate, purple, mauve and mint, laid out like a streaming app and kept minimal */
+/* slate, red, mauve and mint, laid out like a streaming app and kept minimal */
 :root {
     --bg: #16191d;
     --surface: #272c39;
@@ -6,14 +6,15 @@
     --border: #363c4d;
     --text: #f3f3f7;
     --text-2: #9ba1b3;
-    --accent: #7269e3;
-    --accent-hover: #8179ea;
-    --accent-text: #a8a2f5;
-    --accent-soft: rgba(114, 105, 227, 0.2);
+    --accent: #c20000;
+    --accent-hover: #d81818;
+    --accent-text: #ff7a7a;
+    --accent-soft: rgba(194, 0, 0, 0.22);
     --on-accent: #ffffff;
     --mauve: #a783a6;
     --mint: #98dea3;
     --mint-text: #98dea3;
+    --record: #c20000;
     --poster-top: #2b3041;
     --shadow: rgba(8, 10, 16, 0.4);
     --glass: rgba(39, 44, 57, 0.82);
@@ -36,9 +37,10 @@
     --border: #e0e1e9;
     --text: #272c39;
     --text-2: #656b7d;
-    --accent-text: #5a51d4;
-    --accent-soft: rgba(114, 105, 227, 0.14);
+    --accent-text: #b00000;
+    --accent-soft: rgba(194, 0, 0, 0.12);
     --mint-text: #2f8a4a;
+    --record: #c20000;
     --shadow: rgba(39, 44, 57, 0.1);
     --glass: rgba(255, 255, 255, 0.86);
     --code-bg: #f7f7fb;
@@ -577,12 +579,12 @@ button.picker-heading:focus-visible {
     background: linear-gradient(170deg, var(--poster-top) 15%, var(--tone) 135%);
 }
 
-.tone-general { --tone: #7269e3; }
+.tone-general { --tone: #c20000; }
 .tone-maths { --tone: #a783a6; }
 .tone-science { --tone: #6fbf86; }
-.tone-coding { --tone: #5a50d6; }
-.tone-languages { --tone: #b58fc4; }
-.tone-humanities { --tone: #8a7fd9; }
+.tone-coding { --tone: #8c1c1c; }
+.tone-languages { --tone: #c4566e; }
+.tone-humanities { --tone: #d4553b; }
 .tone-exam { --tone: #98dea3; }
 
 .tile {
@@ -996,10 +998,10 @@ button.picker-heading:focus-visible {
     display: none;
 }
 
-/* while listening the + is a purple mic, and the message box glows, nothing pulses */
+/* while listening the + is a red mic, the usual sign for recording, and the message box glows red, nothing pulses */
 .tools-btn.listening {
-    background: var(--accent);
-    color: var(--on-accent);
+    background: var(--record);
+    color: #ffffff;
 }
 
 .tools-btn.listening .icon-mic {
@@ -1076,7 +1078,7 @@ button.picker-heading:focus-visible {
 }
 
 .composer-box.listening {
-    box-shadow: 0 0 0 2px var(--accent), 0 10px 30px var(--shadow);
+    box-shadow: 0 0 0 2px var(--record), 0 10px 30px var(--shadow);
 }
 
 /* camera sheet, a live preview with the buttons underneath */
