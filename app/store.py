@@ -359,6 +359,26 @@ class store:
         with self._connect() as db:
             db.execute("delete from reminders where id = ?", (reminder_id,))
 
+    # a safe copy of the whole database, one a day, the oldest dropped after keep days
+
+    def backup(self, folder: Path, keep: int = 7) -> Path | None:
+        """copies the database to folder as rahah-yyyy-mm-dd.db unless today's copy is there already"""
+        folder = Path(folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"rahah-{time.strftime('%Y-%m-%d')}.db"
+        if target.exists():
+            return None
+        # sqlite's own backup copies a consistent snapshot even while the app is writing
+        with self._connect() as source:
+            copy = sqlite3.connect(target)
+            try:
+                source.backup(copy)
+            finally:
+                copy.close()
+        for old in sorted(folder.glob("rahah-*.db"))[:-keep]:
+            old.unlink()
+        return target
+
     # what each request to claude used and cost
 
     def add_usage(self, kind: str, use: dict, cost: float | None) -> None:

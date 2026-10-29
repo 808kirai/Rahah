@@ -126,6 +126,8 @@ GPA counts each test once, at its best attempt, so practising a test again never
 
 Installing works through a web app manifest and a small service worker served from the root of the site. The service worker caches nothing but the offline page and its logo, so every page and answer still comes fresh from the server. Phones only offer to install a site over HTTPS, so on a phone this works once Rahah is online; on the computer running it, http://127.0.0.1 counts as safe.
 
+The database is backed up when the server starts and then once a day, into data/backups, using SQLite's own backup so each copy is consistent. The latest 7 days are kept. To restore one, stop the server and copy it over data/rahah.db.
+
 Suggestions on the Suggestions tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
 
 If Claude's safety checks decline a request, the request is retried on a fallback model automatically. A turn that still fails is not saved, and the question goes back into the message box.

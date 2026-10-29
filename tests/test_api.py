@@ -352,3 +352,28 @@ def test_rahah_can_be_installed_as_an_app(setup):
     worker = web.get("/sw.js")
     assert worker.status_code == 200 and "javascript" in worker.headers["content-type"]
     assert web.get("/static/offline.html").status_code == 200
+
+
+def test_the_database_is_backed_up_once_a_day_and_old_copies_go(tmp_path):
+    from app.store import store
+    db = store(tmp_path / "live.db")
+    db.add_subject("Law of torts")
+    folder = tmp_path / "backups"
+    # a week of older copies already there
+    folder.mkdir()
+    for day in range(1, 9):
+        (folder / f"rahah-2026-01-0{day}.db").write_bytes(b"old")
+    made = db.backup(folder)
+    assert made is not None and made.exists()
+    # today's copy is a working database with the same data
+    assert store(made).list_subjects()[0]["name"] == "Law of torts"
+    # a second call the same day does nothing
+    assert db.backup(folder) is None
+    copies = sorted(p.name for p in folder.glob("rahah-*.db"))
+    assert len(copies) == 7 and made.name in copies and "rahah-2026-01-01.db" not in copies
+
+
+def test_the_server_backs_up_when_it_starts(tmp_path):
+    with TestClient(create_app(settings(db_path=tmp_path / "start.db"), client=fake_client())) as web:
+        assert web.get("/api/modes").status_code == 200
+    assert len(list((tmp_path / "backups").glob("rahah-*.db"))) == 1

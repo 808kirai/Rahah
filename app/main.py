@@ -1,7 +1,9 @@
 """the rahah web server, run it with uvicorn app.main:create_app --factory"""
 
+import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 import re
 import time
 from pathlib import Path
@@ -159,7 +161,29 @@ def safe_filename(name: str) -> str:
 def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     cfg = cfg or load_settings()
     db = store(cfg.db_path)
-    app = FastAPI(title="Rahah")
+
+    @asynccontextmanager
+    async def lifespan(_):
+        # a backup when the server starts, then a check every hour for a new day, kept for a week
+        async def back_up():
+            try:
+                made = await asyncio.to_thread(db.backup, cfg.db_path.parent / "backups")
+                if made:
+                    log.info("backed up the database to %s", made)
+            except Exception as error:
+                log.warning("database backup failed: %s", error)
+
+        async def keep_backed_up():
+            while True:
+                await asyncio.sleep(3600)
+                await back_up()
+
+        await back_up()
+        task = asyncio.create_task(keep_backed_up())
+        yield
+        task.cancel()
+
+    app = FastAPI(title="Rahah", lifespan=lifespan)
     state = {"client": client}
 
     def claude():
