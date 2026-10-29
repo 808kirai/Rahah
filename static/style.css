@@ -1,26 +1,41 @@
-/* slate surfaces with one accent colour used sparingly for what matters, mauve and mint as small touches, laid out like a streaming app */
+/* near black navy with teal glows behind it, blue gradients for what matters, mauve and mint only for right and wrong, laid out like a streaming app */
 :root {
-    --bg: #16191d;
-    --surface: #272c39;
-    --surface-2: #323849;
-    --border: #363c4d;
-    --text: #f3f3f7;
-    --text-2: #9ba1b3;
-    --accent: #0000af;
-    --accent-hover: #1a1ac8;
-    --accent-text: #9494ff;
-    --accent-soft: rgba(0, 0, 175, 0.3);
+    --bg: #04070c;
+    --surface: #0a121b;
+    --surface-2: #101b27;
+    --border: #1a2a3a;
+    --text: #edf5fa;
+    --text-2: #8d9db0;
+    --accent: #08699a;
+    --accent-hover: #0977ad;
+    --accent-text: #4fb0e0;
+    --accent-soft: rgba(20, 140, 200, 0.14);
     --on-accent: #ffffff;
+    /* filled buttons and bubbles, deep enough at every stop for white text */
+    --accent-fill: linear-gradient(135deg, #08699a 0%, #075a85 55%, #05476a 100%);
+    --accent-fill-hover: linear-gradient(135deg, #0977ad 0%, #08679a 55%, #06527a 100%);
+    --glow: rgba(16, 140, 200, 0.22);
+    /* headings fade from white into this */
+    --sky: #7cc2ec;
     --mauve: #a783a6;
     --mint: #98dea3;
     --mint-text: #98dea3;
     --record: var(--accent);
-    --shadow: rgba(8, 10, 16, 0.4);
-    --glass: rgba(39, 44, 57, 0.82);
-    --code-bg: #1a1d26;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --glass: rgba(10, 18, 27, 0.78);
+    --code-bg: #070d14;
     /* a hairline that gives cards an edge, and the lift cards get in light mode */
-    --line: rgba(255, 255, 255, 0.06);
+    --line: rgba(140, 200, 255, 0.09);
+    --line-strong: rgba(160, 215, 255, 0.22);
     --card-shadow: 0 0 0 transparent;
+    --card-bg: linear-gradient(160deg, #0d1823 0%, #08111a 100%);
+    /* the top of a card, lit from below like the cards in the reference */
+    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.17), transparent 70%), #0f1a26;
+    /* the light behind the whole page, a teal wash from the top and a fainter one bottom right */
+    --bg-glow:
+        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.23), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.12), transparent 70%),
+        radial-gradient(ellipse 40% 35% at -5% 55%, rgba(10, 90, 140, 0.07), transparent 70%);
 
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -33,21 +48,29 @@
 }
 
 [data-theme="light"] {
-    --bg: #f5f5f9;
+    --bg: #f3f7fa;
     --surface: #ffffff;
-    --surface-2: #ececf3;
-    --border: #e0e1e9;
-    --text: #272c39;
-    --text-2: #656b7d;
-    --accent-text: #0000af;
-    --accent-soft: rgba(0, 0, 175, 0.1);
+    --surface-2: #e8f0f5;
+    --border: #d6e2ea;
+    --text: #0c1a26;
+    --text-2: #5a6b7b;
+    --accent-text: #085c85;
+    --accent-soft: rgba(8, 105, 154, 0.08);
+    --glow: rgba(8, 105, 154, 0.15);
+    --sky: #08699a;
     --mint-text: #2f8a4a;
     --record: var(--accent);
-    --shadow: rgba(39, 44, 57, 0.1);
+    --shadow: rgba(12, 26, 38, 0.1);
     --glass: rgba(255, 255, 255, 0.86);
-    --code-bg: #f7f7fb;
-    --line: rgba(39, 44, 57, 0.08);
-    --card-shadow: 0 1px 2px rgba(39, 44, 57, 0.05), 0 8px 24px rgba(39, 44, 57, 0.06);
+    --code-bg: #f6f9fb;
+    --line: rgba(12, 26, 38, 0.08);
+    --line-strong: rgba(12, 26, 38, 0.16);
+    --card-shadow: 0 1px 2px rgba(12, 26, 38, 0.05), 0 8px 24px rgba(12, 26, 38, 0.06);
+    --card-bg: linear-gradient(160deg, #ffffff 0%, #f7fafc 100%);
+    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.09), transparent 70%), #eaf2f7;
+    --bg-glow:
+        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.09), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.05), transparent 70%);
 }
 
 * {
@@ -64,6 +87,8 @@ body {
 body {
     font-family: var(--font-family);
     background-color: var(--bg);
+    background-image: var(--bg-glow);
+    background-attachment: fixed;
     color: var(--text);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
@@ -119,32 +144,39 @@ svg {
     border-radius: var(--pill);
     font-size: 0.92rem;
     font-weight: 600;
-    transition: background-color 0.2s, transform var(--dur) var(--ease-out);
+    transition: background-color 0.2s, box-shadow 0.3s var(--ease-out), transform var(--dur) var(--ease-out);
 }
 
+/* a blue gradient with a light top edge and a soft glow under it */
 .btn-accent {
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--on-accent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 4px 14px var(--glow);
 }
 
 .btn-accent:hover {
-    background: var(--accent-hover);
+    background: var(--accent-fill-hover);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 20px var(--glow);
 }
 
 /* disabled buttons go quiet grey instead of a washed out accent */
 .btn-accent:disabled {
     background: var(--surface-2);
     color: var(--text-2);
+    box-shadow: none;
     cursor: default;
 }
 
+/* glass with a thin bright edge, like the outlined buttons in the reference */
 .btn-soft {
-    background: var(--surface-2);
+    background: var(--glass);
     color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 
 .btn-soft:hover {
-    background: var(--border);
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--accent-text);
 }
 
 .btn-ghost {
@@ -303,17 +335,19 @@ body:not(.is-page) .chat-title {
     max-width: 100%;
     padding: 0.5rem 0.85rem 0.5rem 1.1rem;
     border-radius: var(--pill);
-    background: var(--surface);
+    background: var(--glass);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s;
 }
 
 .picker-btn:hover,
 .picker-btn[aria-expanded="true"] {
     background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--accent-text);
 }
 
 .picker-label {
@@ -496,6 +530,16 @@ button.picker-heading:focus-visible {
     letter-spacing: -0.02em;
 }
 
+/* big headings fade from the text colour into light blue, text fill only so icons inside keep their colour */
+.greeting h2,
+.category-title {
+    width: fit-content;
+    background: linear-gradient(90deg, var(--text) 35%, var(--sky));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 .row {
     position: relative;
     margin-bottom: 1rem;
@@ -584,10 +628,10 @@ button.picker-heading:focus-visible {
     }
 }
 
-/* cards are calm solid surfaces with a hairline edge, and the accent marks what matters on them:
-   the sketch, the label, the play button and the edge when hovered */
+/* cards are dark gradients with a hairline edge, and the accent marks what matters on them:
+   the sketch, the label, the play button and a lit edge with a glow when hovered */
 .poster {
-    background: var(--surface);
+    background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
 
@@ -610,7 +654,8 @@ button.picker-heading:focus-visible {
 .tile:hover,
 .tile:focus-visible {
     transform: translateY(-4px);
-    box-shadow: inset 0 0 0 1.5px var(--accent), 0 16px 36px var(--shadow);
+    background: radial-gradient(120% 90% at 20% 0%, var(--accent-soft), transparent 65%), var(--card-bg);
+    box-shadow: inset 0 0 0 1px var(--accent-text), 0 16px 36px var(--shadow), 0 0 20px var(--accent-soft);
 }
 
 .tile strong {
@@ -642,7 +687,7 @@ button.picker-heading:focus-visible {
     flex: 0 0 auto;
     width: clamp(200px, 19vw, 250px);
     border-radius: var(--card);
-    background: var(--surface);
+    background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
     overflow: hidden;
     scroll-snap-align: start;
@@ -652,13 +697,14 @@ button.picker-heading:focus-visible {
 .chat-card:hover,
 .chat-card:focus-within {
     transform: translateY(-4px);
-    box-shadow: inset 0 0 0 1.5px var(--accent), 0 16px 36px var(--shadow);
+    box-shadow: inset 0 0 0 1px var(--accent-text), 0 16px 36px var(--shadow), 0 0 20px var(--accent-soft);
 }
 
-/* the top of a chat, deck or reminder card sits one step lighter, so the card reads as picture and caption */
+/* the top of a chat, deck or reminder card sits one step lighter with a blue glow at its base,
+   so the card reads as picture and caption */
 .chat-card-art.poster,
 .reminder-art.poster {
-    background: var(--surface-2);
+    background: var(--art-bg);
     box-shadow: none;
 }
 
@@ -676,9 +722,9 @@ button.picker-heading:focus-visible {
     width: 48px;
     height: 48px;
     border-radius: var(--pill);
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--on-accent);
-    box-shadow: 0 8px 20px rgba(0, 0, 175, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 16px var(--glow);
     transition: background-color 0.2s, transform var(--dur) var(--ease-out);
 }
 
@@ -695,7 +741,7 @@ button.picker-heading:focus-visible {
 }
 
 .chat-card-art:hover .play {
-    background: var(--accent-hover);
+    background: var(--accent-fill-hover);
     transform: scale(1.06);
 }
 
@@ -821,7 +867,7 @@ button.picker-heading:focus-visible {
     display: flex;
     flex-direction: column;
     border-radius: var(--card);
-    background: var(--surface);
+    background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
     overflow: hidden;
     scroll-snap-align: start;
@@ -1375,17 +1421,17 @@ button.picker-heading:focus-visible {
 }
 
 .sheet::backdrop {
-    background: rgba(10, 12, 18, 0);
+    background: rgba(2, 6, 12, 0);
     transition: background-color 0.3s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
 }
 
 .sheet[open]::backdrop {
-    background: rgba(10, 12, 18, 0.55);
+    background: rgba(2, 6, 12, 0.55);
 }
 
 @starting-style {
     .sheet[open]::backdrop {
-        background: rgba(10, 12, 18, 0);
+        background: rgba(2, 6, 12, 0);
     }
 }
 
@@ -1502,7 +1548,7 @@ button.picker-heading:focus-visible {
 }
 
 .setup-action.primary {
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--on-accent);
 }
 
@@ -1512,7 +1558,7 @@ button.picker-heading:focus-visible {
 
 .setup-action.primary:hover,
 .setup-action.primary:focus-visible {
-    background: var(--accent-hover);
+    background: var(--accent-fill-hover);
 }
 
 @media (max-width: 480px) {
@@ -1559,7 +1605,7 @@ button.picker-heading:focus-visible {
 }
 
 .choice[aria-pressed="true"] {
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--on-accent);
 }
 
@@ -1766,7 +1812,7 @@ button.picker-heading:focus-visible {
 
 .option.correct .option-key {
     background: var(--mint);
-    color: #16191d;
+    color: #04070c;
 }
 
 .option.wrong {
@@ -1836,7 +1882,7 @@ button.picker-heading:focus-visible {
     min-height: 132px;
     padding: 1rem 1.15rem;
     border-radius: var(--card);
-    background: var(--surface);
+    background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
     text-align: left;
     scroll-snap-align: start;
@@ -1941,7 +1987,7 @@ button.picker-heading:focus-visible {
     position: relative;
     padding: 1.1rem 1.25rem 1.25rem;
     border-radius: 22px;
-    background: var(--surface);
+    background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
 
@@ -2230,8 +2276,9 @@ button.picker-heading:focus-visible {
     max-width: 80%;
     padding: 0.7rem 1.2rem;
     border-radius: 22px;
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--on-accent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -2804,14 +2851,14 @@ button.picker-heading:focus-visible {
     background: var(--glass);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    box-shadow: 0 10px 30px var(--shadow);
+    box-shadow: inset 0 0 0 1px var(--line), 0 10px 30px var(--shadow);
     transition: box-shadow var(--dur) var(--ease-out);
 }
 
-/* the box is focused whenever a page opens, so its ring is a quiet grey and the accent stays for actions */
+/* the box is focused whenever a page opens, so its ring only brightens a little and the accent stays for actions */
 .composer-box:focus-within,
 .composer-box.dragging {
-    box-shadow: 0 0 0 1.5px var(--border), 0 10px 30px var(--shadow);
+    box-shadow: inset 0 0 0 1px var(--line-strong), 0 10px 30px var(--shadow);
 }
 
 .composer-box.dragging {
@@ -2862,13 +2909,14 @@ button.picker-heading:focus-visible {
     width: 40px;
     height: 40px;
     border-radius: var(--pill);
-    background: var(--accent);
+    background: var(--accent-fill);
     color: var(--on-accent);
+    box-shadow: 0 3px 10px var(--glow);
     transition: opacity 0.2s, background-color 0.2s, transform var(--dur) var(--ease-out);
 }
 
 .send-btn:hover:not(:disabled) {
-    background: var(--accent-hover);
+    background: var(--accent-fill-hover);
     transform: translateY(-2px);
 }
 
