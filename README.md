@@ -64,6 +64,7 @@ Look and feel
   - Answer language, from 18 including Kiswahili, Arabic, French, Amharic, Somali, Hindi and Chinese. Rahah answers and makes tests and decks in it, gives the English term in brackets for key subject words, and Listen reads in that language
   - Low-data mode for slow or costly connections: shorter answers, no web searches unless asked, smaller photos, no downloaded font, and diagrams shown as text with a Draw button
   - Chips above the message box show what's on, and each one turns off with a tap
+- Offline studying: flashcard decks, tests, opened chats, reminders and the timetable still open without internet, a notice says so, and progress made offline is saved once back online
 - Rahah can be installed as an app. On Android, Chrome offers Install app or Add to Home screen, on iPhone it's Share then Add to Home Screen, and on a computer Chrome and Edge show an install button in the address bar. It then opens full screen with its own icon, keeps clear of the notch and home bar, and shows a friendly page when there's no internet
 - On phones the whole app is a size smaller, so it reads like a small copy of the website, with two chats per row and a full width message box above the tabs
 
@@ -140,7 +141,7 @@ Tests are scored in marks. A multiple choice question is worth one mark and is c
 
 GPA counts each test once, at its best attempt, so practising a test again never lowers it. Grade points are A 4, B 3, C 2, D 1, and E and F 0. A subject's GPA is the average over its tests, and the overall GPA is the average over every test.
 
-Installing works through a web app manifest and a small service worker served from the root of the site. The service worker caches nothing but the offline page and its logo, so every page and answer still comes fresh from the server. Phones only offer to install a site over HTTPS, so on a phone this works once Rahah is online; on the computer running it, http://127.0.0.1 counts as safe.
+Installing works through a web app manifest and a small service worker served from the root of the site. The service worker always asks the server first and only uses its saved copy when the network is down, so nothing goes stale online. It saves the app itself, the libraries it loads, every flashcard deck and test (each fetched once after it changes, or only the opened ones in low-data mode), opened chats and the lists the home page shows. Card ratings and test scores made offline wait in the browser and are sent when the internet is back. Once accounts arrive, signing out will need to clear these saved copies. Phones only offer to install a site over HTTPS, so on a phone this works once Rahah is online; on the computer running it, http://127.0.0.1 counts as safe.
 
 The database is backed up when the server starts and then once a day, into data/backups, using SQLite's own backup so each copy is consistent. The latest 7 days are kept. To restore one, stop the server and copy it over data/rahah.db.
 

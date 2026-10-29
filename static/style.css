@@ -1536,6 +1536,30 @@ button.plan-task:focus-visible {
     display: block;
 }
 
+/* a quiet line under the top bar while there's no internet */
+.net-status {
+    position: fixed;
+    top: calc(var(--nav-h, 60px) + 8px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    width: max-content;
+    max-width: calc(100% - 32px);
+    margin: 0;
+    padding: 0.45rem 1rem;
+    border-radius: var(--pill);
+    border: 1px solid var(--panel-line);
+    background: var(--dock-bg);
+    color: var(--text-2);
+    font-size: 0.8rem;
+    text-align: center;
+    backdrop-filter: blur(12px);
+}
+
+.net-status[hidden] {
+    display: none;
+}
+
 /* voice chat, a soft pulse while it's on */
 .talk-dot {
     width: 8px;

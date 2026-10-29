@@ -2982,7 +2982,87 @@ async function load_sets() {
     }
     render_set_rows();
     render_chats();
+    save_sets_for_offline();
 }
+
+// offline studying, the service worker keeps each deck and test it sees, so every one is fetched once
+// after it changes, which saves it for when there's no internet. low-data mode only keeps what's opened
+
+async function save_sets_for_offline() {
+    if (!navigator.onLine || state.settings.low_data || !navigator.serviceWorker?.controller) return;
+    let saved = {};
+    try {
+        saved = JSON.parse(localStorage.getItem("rahah-offline-sets") || "{}");
+    } catch (e) {}
+    const kept = {};
+    for (const s of state.sets) {
+        if (saved[s.id] === s.updated) {
+            kept[s.id] = s.updated;
+            continue;
+        }
+        try {
+            await fetch(`/api/sets/${s.id}`);
+            kept[s.id] = s.updated;
+        } catch (error) {
+            break;
+        }
+    }
+    try {
+        localStorage.setItem("rahah-offline-sets", JSON.stringify(kept));
+    } catch (e) {}
+}
+
+// card ratings and scores made offline wait here and are sent once the internet is back
+function queue_post(path, body) {
+    try {
+        const queue = JSON.parse(localStorage.getItem("rahah-queue") || "[]");
+        queue.push({ path, body });
+        localStorage.setItem("rahah-queue", JSON.stringify(queue.slice(-500)));
+    } catch (e) {}
+}
+
+let sending_queue = false;
+async function send_queue() {
+    if (sending_queue || !navigator.onLine) return;
+    let queue = [];
+    try {
+        queue = JSON.parse(localStorage.getItem("rahah-queue") || "[]");
+    } catch (e) {}
+    if (!queue.length) return;
+    sending_queue = true;
+    while (queue.length) {
+        const item = queue[0];
+        try {
+            await fetch(item.path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item.body) });
+        } catch (error) {
+            break; // still offline, the rest waits
+        }
+        // anything the server turned down, like a deleted deck, is dropped too
+        queue.shift();
+        try {
+            localStorage.setItem("rahah-queue", JSON.stringify(queue));
+        } catch (e) {}
+    }
+    sending_queue = false;
+    if (!queue.length) {
+        load_sets();
+        load_performance();
+    }
+}
+
+const offline_error = (error) => !navigator.onLine || error instanceof TypeError;
+
+function show_net_status() {
+    const status = el("net-status");
+    status.hidden = navigator.onLine;
+    status.textContent = "You're offline. Decks and tests you've opened still work, and your progress saves when you're back.";
+}
+
+window.addEventListener("offline", show_net_status);
+window.addEventListener("online", () => {
+    show_net_status();
+    send_queue();
+});
 
 async function delete_set(s) {
     if (!confirm(`Delete "${s.title}"?`)) return;
@@ -3638,8 +3718,9 @@ async function rate_card(known) {
         });
         s.progress[at] = (await response.json()).box;
     } catch (error) {
-        // the rating still counts for this session if it couldn't be saved
+        // the rating still counts for this session if it couldn't be saved, and offline it's sent later
         s.progress[at] = known ? Math.min(Math.max(s.progress[at] || 0, 1) + 1, 5) : 1;
+        if (offline_error(error)) queue_post(`/api/sets/${s.set.id}/cards`, { card: at, known });
     } finally {
         s.rating = false;
     }
@@ -3999,7 +4080,9 @@ async function finish_quiz() {
         if (el("study") && state.study === s) render_results();
         load_sets();
         load_performance();
-    } catch (error) {}
+    } catch (error) {
+        if (offline_error(error)) queue_post(`/api/sets/${s.set.id}/score`, { score: s.score });
+    }
 }
 
 function render_results() {
@@ -4931,6 +5014,8 @@ async function start() {
         mode_select.innerHTML = '<option value="general">General study</option>';
     }
     load_settings();
+    show_net_status();
+    send_queue();
     render_rows();
     load_today();
     load_history();
