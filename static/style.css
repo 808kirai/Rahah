@@ -1029,6 +1029,29 @@ button.picker-heading:focus-visible {
     margin-left: auto;
 }
 
+/* on the chats and tests page the new test button sits beside new chat on the right */
+#chats .page-tools > [data-tool="quiz"] {
+    margin-left: auto;
+}
+
+#chats .page-tools > [data-tool="quiz"] + .new-chat {
+    margin-left: 0;
+}
+
+/* the new test card stretches to the height of the test cards beside it */
+#chats .card-grid .new-test {
+    aspect-ratio: auto;
+    min-height: 160px;
+}
+
+/* the big headings that split a page into parts, like tests and chats */
+.section-title {
+    margin: 1.1rem 0 0.2rem;
+    font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
 /* the new chat drop down, the same rounded box as the + menu but opening down from the button */
 .new-chat {
     position: relative;

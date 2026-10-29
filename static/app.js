@@ -327,7 +327,7 @@ function add_notice(message_el, text) {
 
 // home, chats, recommendations and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats", recommendations: "Suggestions", reminders: "Reminders and Timetable", performance: "Performance" };
+const page_titles = { home: "Home", chats: "Chats & Tests", recommendations: "Suggestions", reminders: "Reminders and Timetable", performance: "Performance" };
 
 function current_view() {
     if (el("welcome")) return "home";
@@ -1097,40 +1097,52 @@ function day_group(seconds) {
     return "Earlier";
 }
 
+// the chats and tests page, saved tests first with a card to make a new one, then chats by day
 function render_chats() {
     const list = el("chat-groups");
     if (!list) return;
-    el("chat-search").hidden = !state.conversations.length;
-    if (!state.conversations.length) {
-        list.innerHTML = `<div class="page-empty">
-            <strong>Nothing here yet</strong>
-            Your chats show up here once you start one.
-            <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
-        </div>`;
-        return;
-    }
+    const all_tests = state.sets.filter((s) => s.kind === "quiz");
+    el("chat-search").hidden = !state.conversations.length && !all_tests.length;
     const words = el("chat-search").value.trim().toLowerCase();
-    const shown = state.conversations.filter((c) => !words || c.title.toLowerCase().includes(words));
-    if (!shown.length) {
-        list.innerHTML = '<p class="page-note">No chats match that search.</p>';
-        return;
+    const matches = (title) => !words || title.toLowerCase().includes(words);
+    const tests = all_tests.filter((s) => matches(s.title));
+    const chats = state.conversations.filter((c) => matches(c.title));
+
+    // the make a test card only shows when nothing is being searched for
+    const new_test = `<button class="tile tool poster new-test" type="button" data-tool="quiz" data-mode="exam">
+        ${sketch_html("checklist")}
+        <strong>New test</strong>
+        <span class="tile-sub">Questions on a topic or your notes, with a score</span>
+    </button>`;
+    const test_cards = tests.map(set_card).join("") + (words ? "" : new_test);
+    const tests_html = `<h2 class="section-title">Tests</h2>
+        ${test_cards ? `<div class="card-grid">${test_cards}</div>` : '<p class="page-note">No tests match that search.</p>'}`;
+
+    let chats_html;
+    if (!state.conversations.length) {
+        chats_html = '<p class="page-note">Your chats show up here once you start one.</p>';
+    } else if (!chats.length) {
+        chats_html = '<p class="page-note">No chats match that search.</p>';
+    } else {
+        const groups = new Map();
+        chats.forEach((c) => {
+            const name = day_group(c.updated);
+            if (!groups.has(name)) groups.set(name, []);
+            groups.get(name).push(c);
+        });
+        chats_html = [...groups].map(([name, items]) => `
+            <h3 class="group-title">${name}</h3>
+            <div class="card-grid">${items.map(chat_card).join("")}</div>`).join("");
     }
-    const groups = new Map();
-    shown.forEach((c) => {
-        const name = day_group(c.updated);
-        if (!groups.has(name)) groups.set(name, []);
-        groups.get(name).push(c);
-    });
-    list.innerHTML = [...groups].map(([name, chats]) => `
-        <h3 class="group-title">${name}</h3>
-        <div class="card-grid">${chats.map(chat_card).join("")}</div>`).join("");
+    list.innerHTML = tests_html + `<h2 class="section-title">Chats</h2>` + chats_html;
 }
 
 function show_chats() {
     if (state.busy) return;
-    enter_page("#/chats", "Chats", `<div class="list-page" id="chats">
+    enter_page("#/chats", "Chats & Tests", `<div class="list-page" id="chats">
         <div class="page-tools">
-            <input class="search" id="chat-search" type="search" placeholder="Search your chats" aria-label="Search your chats" hidden>
+            <input class="search" id="chat-search" type="search" placeholder="Search chats and tests" aria-label="Search chats and tests" hidden>
+            <button class="btn btn-soft btn-small" type="button" data-tool="quiz" data-mode="exam">${icons.quiz}New test</button>
             <div class="new-chat">
                 <button class="btn btn-accent btn-small" type="button" id="new-chat-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-chat-menu">${icons.plus}New chat</button>
                 <div class="new-chat-menu" id="new-chat-menu" role="menu" aria-label="New chat" hidden></div>
@@ -1950,7 +1962,7 @@ const sheet_copy = {
     },
     quiz: {
         title: "Make a quiz", submit: "Make the quiz", working: "Writing your quiz", label: "Questions",
-        choices: [[5, "5"], [10, "10"], [15, "15"]], pick: 10,
+        choices: [[5, "5"], [10, "10"], [15, "15"], [20, "20"]], pick: 10,
         topic: "A topic, like photosynthesis, or leave blank to use your notes",
     },
 };
@@ -2017,6 +2029,7 @@ async function load_sets() {
         return;
     }
     render_set_rows();
+    render_chats();
 }
 
 async function delete_set(s) {
