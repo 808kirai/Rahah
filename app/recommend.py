@@ -172,8 +172,8 @@ async def recommend(
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        raise study_error("Claude sent back something Rahah couldn't read. Try again.")
+        raise study_error("Something went wrong making that. Try again.")
     picked = clean(data, {s["id"] for s in sets})
     if not picked:
-        raise study_error("Claude didn't come up with any usable suggestions. Try again.")
+        raise study_error("Rahah couldn't come up with suggestions. Try again.")
     return picked

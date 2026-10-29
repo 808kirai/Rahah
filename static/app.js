@@ -482,7 +482,7 @@ async function send_message(text) {
                 saved = true;
                 if (frame) cancelAnimationFrame(frame);
                 paint();
-                if (event.v.truncated) add_notice(reply, "This answer hit the length limit and was cut short. Ask Rahah to continue.");
+                if (event.v.truncated) add_notice(reply, "This answer hit the length limit. Ask Rahah to continue.");
             } else if (event.t === "refusal" || event.t === "error") {
                 // partial text from a failed turn is dropped, it was never saved
                 if (frame) cancelAnimationFrame(frame);
@@ -679,7 +679,7 @@ function stop_voice(discard = false) {
 function start_voice() {
     const Engine = speech_engine();
     if (!Engine) {
-        composer_hint("Voice typing works in Chrome, Edge and Safari.");
+        composer_hint("Voice typing isn't available in this browser. Try Chrome, Edge or Safari.");
         return;
     }
     const rec = new Engine();
@@ -1249,7 +1249,7 @@ function render_recommendations() {
     if (!recs.has_activity) {
         page.innerHTML = `<div class="page-empty">
             <strong>Nothing to go on yet</strong>
-            Chat, make flashcards or take a quiz, and Rahah suggests what to study next based on it.
+            Chat, make flashcards or take a quiz, and Rahah will suggest what to study next.
             <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
         </div>`;
         return;
@@ -1466,7 +1466,7 @@ function render_reminders() {
     const finished = state.reminders.filter((r) => !is_upcoming(r)).reverse();
     const tools = `<h2 class="planner-title">Reminders</h2>
     <div class="page-tools">
-        <p class="page-note">Rahah reminds you while it's open. Add reminders to your calendar to get them on your phone too.</p>
+        <p class="page-note">Rahah reminds you while it's open. Add them to your calendar to get alerts even when it's closed.</p>
         <div class="tool-buttons">
             ${notification_tools()}
             ${upcoming.length ? `<a class="btn btn-soft btn-small" href="/api/reminders/calendar.ics" download>${icons.calendar}Add all to calendar</a>` : ""}
@@ -1476,7 +1476,7 @@ function render_reminders() {
     if (!state.reminders.length) {
         page.innerHTML = tools + `<div class="page-empty">
             <strong>No reminders yet</strong>
-            Add your exams, CATs, midterms and assignment deadlines, and Rahah reminds you as they come up.
+            Add exams, CATs, midterms and deadlines, and Rahah will remind you as they get close.
             <div><button class="btn btn-accent" type="button" data-rem-add>Add a reminder</button></div>
         </div>`;
         return;
@@ -1932,12 +1932,12 @@ const tools = {
 const sheet_copy = {
     ask: {
         title: "Ask a question", submit: "Ask", field: "Question", choices: [], pick: null, limit: 20000,
-        topic: "What would you like to know? Add notes if your question is about them",
+        topic: "What would you like to know? Attach notes if it's about them.",
     },
     summary: {
         title: "Summarise notes", submit: "Summarise", label: "Length",
         choices: [["short", "Short"], ["detailed", "Detailed"]], pick: "short",
-        topic: "What should it cover? Leave blank to summarise all of your notes",
+        topic: "What should it cover? Leave blank to summarise all your notes.",
     },
     flashcards: {
         title: "Make flashcards", submit: "Make flashcards", working: "Making your flashcards", label: "Cards",
@@ -2336,7 +2336,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
             return;
         }
         if (state.busy) {
-            show_sheet_error("Wait for Rahah to finish the answer it's writing first.");
+            show_sheet_error("Wait for Rahah to finish her current answer.");
             return;
         }
         run_ask(topic, mode);
@@ -2347,7 +2347,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
         return;
     }
     if (state.busy) {
-        show_sheet_error("Wait for Rahah to finish the answer it's writing first.");
+        show_sheet_error("Wait for Rahah to finish her current answer.");
         return;
     }
     if (sheet_state.tool === "summary") {
@@ -2724,7 +2724,7 @@ function render_performance() {
     if (!o) {
         page.innerHTML = `<div class="page-empty">
             <strong>No scores yet</strong>
-            Take a quiz and your percentages and grades show up here.
+            Take a quiz to see your scores and grades here.
             <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a quiz</button></div>
         </div>`;
         return;

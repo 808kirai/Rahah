@@ -183,10 +183,10 @@ async def make_set(client, cfg: settings, kind: str, topic: str, count: int, mod
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        raise study_error("Claude sent back something Rahah couldn't read. Try again.")
+        raise study_error("Something went wrong making that. Try again.")
 
     items = clean_cards(data, count) if kind == "flashcards" else clean_quiz(data, count)
     if not items:
-        raise study_error("Claude didn't manage to make any usable questions. Try again or change the topic.")
+        raise study_error("Rahah couldn't make questions on that. Try again or change the topic.")
     title = clean_text(data.get("title"))[:80] or topic[:60] or ("Flashcards" if kind == "flashcards" else "Quiz")
     return {"title": title, "items": items}

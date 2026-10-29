@@ -83,15 +83,15 @@ def friendly_error(error: Exception) -> str:
     if isinstance(error, anthropic.PermissionDeniedError):
         return "Rahah's API key doesn't have access to this model."
     if isinstance(error, anthropic.NotFoundError):
-        return "Claude couldn't find the model or an attached file. Try attaching the file again."
+        return "Rahah couldn't find an attached file. Try attaching it again."
     if isinstance(error, anthropic.RateLimitError):
         return "Rahah is busy right now. Wait a moment and try again."
     if isinstance(error, anthropic.BadRequestError):
-        return f"Claude couldn't process that request: {error.message}"
+        return f"Rahah couldn't handle that request: {error.message}"
     if isinstance(error, anthropic.APIStatusError):
-        return f"Claude is having trouble right now (error {error.status_code}). Try again in a moment."
+        return f"Rahah is having trouble right now (error {error.status_code}). Try again in a moment."
     if isinstance(error, anthropic.APIConnectionError):
-        return "Rahah couldn't reach Claude. Check the internet connection and try again."
+        return "Rahah couldn't connect right now. Try again in a moment."
     return "Rahah isn't set up yet. Add ANTHROPIC_API_KEY to the .env file and restart the server."
 
 
@@ -116,7 +116,7 @@ def sniff_upload(name: str, data: bytes) -> tuple[str, str]:
         try:
             data.decode("utf-8")
         except UnicodeDecodeError:
-            raise HTTPException(400, "That text file isn't UTF-8 text.")
+            raise HTTPException(400, "That text file couldn't be read. Save it as UTF-8 and try again.")
     elif media_type == "image/webp":
         if not (data[:4] == b"RIFF" and data[8:12] == b"WEBP"):
             raise HTTPException(400, "That file doesn't look like a WEBP image.")
@@ -178,7 +178,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     @app.post("/api/conversations")
     def new_conversation(body: new_conversation_in):
         if body.mode not in modes:
-            raise HTTPException(400, "Unknown subject mode.")
+            raise HTTPException(400, "Unknown subject.")
         return {"id": db.new_conversation(body.mode)}
 
     @app.get("/api/conversations/{conversation_id}")
@@ -217,7 +217,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     def send_message(conversation_id: str, body: message_in):
         conversation = conversation_or_404(conversation_id)
         if body.mode not in modes:
-            raise HTTPException(400, "Unknown subject mode.")
+            raise HTTPException(400, "Unknown subject.")
         text = body.text.strip()
         if not text:
             raise HTTPException(400, "Write a question first.")
@@ -337,7 +337,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if kind not in kinds:
             raise HTTPException(400, "Unknown kind of study set.")
         if mode not in modes:
-            raise HTTPException(400, "Unknown subject mode.")
+            raise HTTPException(400, "Unknown subject.")
         topic = topic.strip()
         if len(topic) > 2000:
             raise HTTPException(400, "Keep the topic under 2000 characters.")
