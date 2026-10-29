@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from .config import settings
 from .modes import modes
 from .tutor import fallback_options
+from .usage import usage_of
 
 study_prompt = """You make study material for students as part of Rahah, a study companion built on \
 Claude by Anthropic. Everything you write must be accurate, clear and pitched at the student's level. \
@@ -212,6 +213,7 @@ def clean_quiz(data: dict, count: int) -> list[dict]:
 
 async def make_set(
     client, cfg: settings, kind: str, topic: str, count: int, mode: str, uploads: list[upload], style: str = "choice",
+    on_usage=None,
 ) -> dict:
     """asks claude for a set and returns its title and checked items"""
     text = request_text(kind, topic, count, mode, bool(uploads), style)
@@ -225,6 +227,8 @@ async def make_set(
         **fallback_options(cfg),
     ) as stream:
         final = await stream.get_final_message()
+    if on_usage:
+        on_usage(usage_of(final))
 
     if final.stop_reason == "refusal":
         raise study_error("Rahah can't make study material on that. Try a different topic.")
@@ -262,7 +266,7 @@ mark_schema = {
 }
 
 
-async def mark_answer(client, cfg: settings, item: dict, mode: str, answer: str, photo: upload | None) -> dict:
+async def mark_answer(client, cfg: settings, item: dict, mode: str, answer: str, photo: upload | None, on_usage=None) -> dict:
     """marks one written answer and returns its score, clamped to the question's marks, and feedback"""
     lines = [
         modes[mode]["instruction"],
@@ -283,6 +287,8 @@ async def mark_answer(client, cfg: settings, item: dict, mode: str, answer: str,
         **fallback_options(cfg),
     ) as stream:
         final = await stream.get_final_message()
+    if on_usage:
+        on_usage(usage_of(final))
 
     if final.stop_reason == "refusal":
         raise study_error("Rahah can't mark that answer. Try rewording it.")

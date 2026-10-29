@@ -4,6 +4,7 @@ import json
 
 from .config import settings
 from .modes import modes
+from .usage import usage_of
 from .reminders import days_until, kinds as reminder_kinds
 from .study import clean_text, study_error
 from .tutor import fallback_options
@@ -151,6 +152,7 @@ def clean(data: dict, set_ids: set[str]) -> list[dict]:
 
 async def recommend(
     client, cfg: settings, chats: list[dict], sets: list[dict], results: dict, deadlines: list[dict] = (),
+    on_usage=None,
 ) -> list[dict]:
     """asks claude for suggestions and returns the ones that check out"""
     history = describe_history(chats, sets, results, deadlines)
@@ -165,6 +167,8 @@ async def recommend(
         **fallback_options(cfg),
     ) as stream:
         final = await stream.get_final_message()
+    if on_usage:
+        on_usage(usage_of(final))
 
     if final.stop_reason == "refusal":
         raise study_error("Rahah couldn't make suggestions from your history right now. Try again later.")

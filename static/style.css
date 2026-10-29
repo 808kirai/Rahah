@@ -1094,6 +1094,70 @@ button.picker-heading:focus-visible {
     gap: 0.4rem 0.75rem;
 }
 
+/* what rahah has cost, three windows side by side */
+.usage-card {
+    margin-top: 1rem;
+}
+
+.usage-cols {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.usage-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 14px;
+    background: var(--surface-2);
+}
+
+.usage-col span,
+.usage-col small {
+    font-size: 0.75rem;
+    color: var(--text-2);
+}
+
+.usage-col strong {
+    font-size: 1.3rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.usage-note {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.usage-kinds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+
+.usage-kinds span {
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    font-size: 0.78rem;
+    color: var(--text-2);
+}
+
+.usage-kinds strong {
+    margin-left: 0.25rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    .usage-cols {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* rows on the performance page that open a details box */
 .pick-row,
 .bar-row[data-subject] {

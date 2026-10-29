@@ -104,6 +104,19 @@ create table if not exists subjects (
     name text not null,
     created real not null
 );
+create table if not exists usage (
+    id integer primary key autoincrement,
+    kind text not null,
+    model text not null,
+    input_tokens integer not null,
+    output_tokens integer not null,
+    cache_read integer not null,
+    cache_write integer not null,
+    searches integer not null,
+    cost real,
+    created real not null
+);
+create index if not exists usage_by_time on usage(created);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -338,6 +351,22 @@ class store:
     def delete_reminder(self, reminder_id: str) -> None:
         with self._connect() as db:
             db.execute("delete from reminders where id = ?", (reminder_id,))
+
+    # what each request to claude used and cost
+
+    def add_usage(self, kind: str, use: dict, cost: float | None) -> None:
+        with self._connect() as db:
+            db.execute(
+                "insert into usage (kind, model, input_tokens, output_tokens, cache_read, cache_write, searches, cost, created) "
+                "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (kind, use["model"], use["input_tokens"], use["output_tokens"], use["cache_read"], use["cache_write"],
+                 use["searches"], cost, time.time()),
+            )
+
+    def usage_since(self, start: float) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute("select * from usage where created >= ? order by created", (start,)).fetchall()
+        return [dict(r) for r in rows]
 
     # subjects the student added themselves
 

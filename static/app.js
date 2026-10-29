@@ -3189,6 +3189,45 @@ function show_performance() {
     render_performance();
     sync_view();
     load_performance();
+    load_usage();
+}
+
+// what rahah has cost on this api key, today, this week and in all, with what caching saved
+
+const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions" };
+
+function dollars(value) {
+    return `$${value >= 1 ? value.toFixed(2) : value.toFixed(4)}`;
+}
+
+async function load_usage() {
+    try {
+        state.usage = await (await api("/api/usage")).json();
+    } catch (error) {
+        return;
+    }
+    render_usage();
+}
+
+function render_usage() {
+    const slot = el("usage-slot");
+    const u = state.usage;
+    if (!slot || !u) return;
+    const column = (label, w) => `<div class="usage-col">
+        <span>${label}</span>
+        <strong>${dollars(w.cost)}</strong>
+        <small>${plural(w.requests, "request")}${w.searches ? ` · ${plural(w.searches, "search")}` : ""}</small>
+    </div>`;
+    const all = u.all;
+    slot.innerHTML = `<section class="perf-card usage-card">
+        <div class="perf-head">
+            <h3>Usage and cost</h3>
+            <p>What Rahah has cost on this API key, worked out from Claude's prices</p>
+        </div>
+        <div class="usage-cols">${column("Today", u.today)}${column("Last 7 days", u.week)}${column("All time", all)}</div>
+        <p class="usage-note">${all.requests ? `Caching saved ${dollars(all.saved)}, and ${all.cache_share}% of what Claude read came from the cache.` : "Nothing used yet."}</p>
+        ${all.kinds.length ? `<div class="usage-kinds">${all.kinds.map((k) => `<span>${usage_kinds[k.kind] || k.kind} <strong>${dollars(k.cost)}</strong></span>`).join("")}</div>` : ""}
+    </section>`;
 }
 
 function render_performance() {
@@ -3201,7 +3240,9 @@ function render_performance() {
             <strong>No scores yet</strong>
             Take a test to see your scores and grades here.
             <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a test</button></div>
-        </div>`;
+        </div>
+        <div id="usage-slot"></div>`;
+        render_usage();
         return;
     }
     const best = p.subjects[0];
@@ -3299,8 +3340,10 @@ function render_performance() {
                 </tr>`).join("")}</tbody>
             </table></div>
         </section>
+        <div id="usage-slot"></div>
         <div class="chart-tip floating" id="perf-tip" hidden></div>`;
     draw_timeline();
+    render_usage();
 }
 
 // a box with the details of one test or one subject, opened from the performance page

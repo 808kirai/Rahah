@@ -19,6 +19,7 @@ from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
 from .store import store
 from .timetable import calendar_file as timetable_file, class_in
+from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
 
@@ -187,6 +188,17 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         # served from the root so it covers the whole app, and checked on every load so updates land
         return FileResponse(static_dir / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
+    def log_usage(kind: str):
+        # each request to claude is logged with what it used and cost, for the usage box and later for limits
+        return lambda use: db.add_usage(kind, use, cost_of(use))
+
+    @app.get("/api/usage")
+    def usage_report():
+        now = time.time()
+        today = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
+        since = {"today": today, "week": now - 7 * 86400, "all": 0}
+        return summarise_usage(db.usage_since(0), since)
+
     # this server's saved subjects join the list as it starts
     sync_custom(db.list_subjects())
 
@@ -275,7 +287,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if not history or conversation["mode"] != body.mode:
             rows.append(mode_note(body.mode))
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
-        return answer_response(conversation_id, messages, rows, body.mode, text[:60])
+        return answer_response(conversation_id, messages, rows, body.mode, text[:60], "chat")
 
     @app.post("/api/conversations/{conversation_id}/retry")
     def retry_answer(conversation_id: str, body: retry_in):
@@ -290,9 +302,9 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if conversation["mode"] != body.mode:
             rows.append(mode_note(body.mode))
             messages.append(mode_note(body.mode))
-        return answer_response(conversation_id, messages, rows, body.mode, "")
+        return answer_response(conversation_id, messages, rows, body.mode, "", "retry")
 
-    def answer_response(conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str):
+    def answer_response(conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str):
         # once code has run in a chat the tool stays on, since the history holds its runs
         sandbox = db.get_container(conversation_id)
         code = runs_code(mode) or sandbox is not None
@@ -344,6 +356,8 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 if not ended and final is None:
                     save_stopped(partial, searches)
             ended = True
+            if final.usage:
+                log_usage(kind)(final.usage)
 
             # a refused turn is not saved, so the student can rephrase and carry on
             if final.stop_reason == "refusal":
@@ -438,7 +452,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
         count = max(1, min(count, max_items))
         try:
-            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style)
+            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(kind))
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -481,7 +495,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if not answer and not shot:
             raise HTTPException(400, "Write, say or photograph an answer first.")
         try:
-            return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot)
+            return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage("marking"))
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -531,7 +545,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if not has_activity(*history):
             raise HTTPException(400, "Study something first, then Rahah can suggest what comes next.")
         try:
-            items = await recommend(claude(), cfg, *history)
+            items = await recommend(claude(), cfg, *history, on_usage=log_usage("suggestions"))
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:

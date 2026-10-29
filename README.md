@@ -32,6 +32,7 @@ Study tools
 - Multiple choice questions show why the right answer is right
 - After a test, Review mistakes lists every question that lost marks with your answer, the right or model answer and why, and Ask Rahah about this opens the Ask sheet with all of it filled in
 - A performance page with your average, your GPA out of 4.0, scores over time, GPA and grades by subject, and a table of every test, plus a summary under Exam on the home page. Choosing a subject opens a box with its tests, and choosing a test opens a box with every attempt and a Retake button
+- A Usage and cost box at the bottom of the performance page shows what Rahah has cost today, in the last 7 days and in all, what caching saved, and the cost of each kind of request
 - A Suggestions tab with ideas of what to study next, picked by Claude from your chats, decks and test scores and grouped by topic
 
 Pages
@@ -86,6 +87,7 @@ Project layout
 - `app/reminders.py` - Reminder dates, checks and calendar files
 - `app/timetable.py` - Weekly classes and their repeating calendar file
 - `app/recommend.py` - Suggestions of what to study next, asked for as structured JSON from the study history
+- `app/usage.py` - What each request to Claude used and cost, and the totals for the usage box
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
 - `app/store.py` - Local SQLite storage for chats, files, study sets, reminders, classes and subjects
 - `app/config.py` - Settings read from the environment
@@ -129,6 +131,8 @@ Suggestions on the Suggestions tab are saved and only made again when something 
 If Claude's safety checks decline a request, the request is retried on a fallback model automatically. A turn that still fails is not saved, and the question goes back into the message box.
 
 Costs
+
+Every request to Claude is logged with its tokens, cache use and web searches, and priced from Claude's price list, so the usage box shows real spending and per student limits can be built on the same log. Chats are cached, so in a long chat each follow up mostly reads the earlier messages from the cache at a twentieth of the price. A test showed a follow up in a long chat costing about a sixth of what it would without the cache. Very short chats are below the size Claude caches.
 
 Every question is billed to the API key. Opus 5.5 costs 4 dollars per million input tokens and 20 dollars per million output tokens, which is roughly 1 to 5 cents per question, and more when large PDFs are attached. A web search costs about 1 cent on top, plus the tokens for reading its results. Marking a written answer is one more request, a little more with a photo. Questions that run code cost more, since the code and its output are read by Claude too. Sandbox time is free for the first 1,550 hours a month per organization, then 5 cents an hour. Per student limits come with student accounts.
 

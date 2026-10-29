@@ -7,6 +7,7 @@ from typing import AsyncIterator
 from .config import settings
 from .modes import modes
 from .store import stored_file
+from .usage import add_up, usage_of
 
 base_prompt = """You are Rahah, a study companion for students. You help people understand things, \
 not just get answers: explain ideas clearly, match the student's level, and check their \
@@ -264,6 +265,7 @@ class reply:
     stop_reason: str | None
     container: str | None = None
     container_expires: datetime | None = None
+    usage: dict | None = None
 
 
 async def stream_reply(
@@ -280,6 +282,7 @@ async def stream_reply(
     options["tools"] = [web_tool, code_tool] if code else [web_tool]
     content, sent = [], messages
     reported, expires = None, None
+    used = []
     for _ in range(max_resumes + 1):
         extra = {"container": container} if container else {}
         async with client.beta.messages.stream(
@@ -312,6 +315,7 @@ async def stream_reply(
                         yield {"t": "search", "v": search_query(block)}
             final = await stream.get_final_message()
         content.extend(final.content)
+        used.append(usage_of(final))
         if final.container:
             container = reported = final.container.id
             expires = final.container.expires_at
@@ -320,4 +324,4 @@ async def stream_reply(
         # no new user message, claude carries on from the end of its own answer
         sent = messages + [{"role": "assistant", "content": history_blocks(content)}]
     # only a sandbox the api reported is passed on, with the time it now expires
-    yield {"t": "final", "v": reply(content, final.stop_reason, reported, expires)}
+    yield {"t": "final", "v": reply(content, final.stop_reason, reported, expires, add_up(used))}
