@@ -34,6 +34,9 @@
     --scroll-thumb: rgba(200, 225, 245, 0.16);
     --scroll-thumb-hover: rgba(200, 225, 245, 0.3);
     --card-bg: linear-gradient(160deg, #0c1620 0%, #09121b 100%);
+    /* a faint box that frames a section without the weight of a card */
+    --panel-bg: rgba(16, 28, 40, 0.18);
+    --panel-line: rgba(140, 200, 255, 0.06);
     /* the top of a card, lit from below like the cards in the reference */
     --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.11), transparent 70%), #0f1a26;
     /* the light behind the whole page, a teal wash from the top and a fainter one bottom right */
@@ -78,6 +81,8 @@
     --scroll-thumb: rgba(12, 26, 38, 0.18);
     --scroll-thumb-hover: rgba(12, 26, 38, 0.32);
     --card-bg: linear-gradient(160deg, #ffffff 0%, #fafcfd 100%);
+    --panel-bg: rgba(255, 255, 255, 0.28);
+    --panel-line: rgba(12, 26, 38, 0.06);
     --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.06), transparent 70%), #eaf2f7;
     --bg-glow:
         radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.06), transparent 70%),
@@ -1110,7 +1115,7 @@ button.picker-heading:focus-visible {
 
 /* reminder pop ups, near the top and out of the way of the message box */
 /* the reminders tab split in half, reminders on the left and the weekly timetable on the right,
-   two matching cards of the same height, one under the other when narrow */
+   each in a faint see through box with a hairline edge and no shadow, one under the other when narrow */
 .planner {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1122,8 +1127,8 @@ button.picker-heading:focus-visible {
     min-width: 0;
     padding: 1.1rem 1.25rem 1.25rem;
     border-radius: var(--card);
-    background: var(--card-bg);
-    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
+    background: var(--panel-bg);
+    box-shadow: inset 0 0 0 1px var(--panel-line);
 }
 
 /* title on the left, buttons on the right, on one line */
@@ -1176,14 +1181,8 @@ button.picker-heading:focus-visible {
     color: var(--text);
 }
 
-/* reminder cards sit inside the left card, so they go flat like the class rows instead of a card on a card */
 .planner .reminder-grid {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-}
-
-.planner .reminder-card {
-    background: var(--surface-2);
-    box-shadow: none;
 }
 
 .timetable-day {
@@ -1291,7 +1290,7 @@ button.picker-heading:focus-visible {
 @media (max-width: 900px) {
     .planner {
         grid-template-columns: 1fr;
-        gap: 1.5rem;
+        gap: 1.25rem;
     }
 }
 
