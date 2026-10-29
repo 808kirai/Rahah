@@ -40,7 +40,7 @@ def ask(web, conversation_id, text, mode="general", file_ids=()):
 
 def test_the_page_and_its_files_are_checked_for_changes_on_every_load(setup):
     web, _ = setup()
-    for path in ("/", "/static/style.css", "/static/app.js"):
+    for path in ("/", "/static/style.css", "/static/js/core.js", "/static/js/main.js"):
         assert web.get(path).headers["cache-control"] == "no-cache"
     # an unchanged file comes back as a short not modified reply
     first = web.get("/static/style.css")

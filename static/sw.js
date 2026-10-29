@@ -3,14 +3,20 @@
 // nothing goes stale while online. saved are the app itself, flashcard decks and tests, and the lists
 // the home page shows, so decks and tests that were opened before still work offline
 
-const shell_cache = "rahah-shell-3";
+const shell_cache = "rahah-shell-4";
 const data_cache = "rahah-data-1";
 const offline_page = "/static/offline.html";
 
 // the app itself, kept at install so the first offline visit works
 const shell = [
     "/",
-    "/static/app.js",
+    "/static/js/core.js",
+    "/static/js/chat.js",
+    "/static/js/pages.js",
+    "/static/js/reminders.js",
+    "/static/js/study.js",
+    "/static/js/performance.js",
+    "/static/js/main.js",
     "/static/sketches.js",
     "/static/style.css",
     "/static/manifest.webmanifest",

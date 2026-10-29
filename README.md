@@ -106,10 +106,12 @@ Project layout
 - `app/timetable.py` - Weekly classes and their repeating calendar file
 - `app/recommend.py` - Suggestions of what to study next, asked for as structured JSON from the study history
 - `app/usage.py` - What each request to Claude used and cost, and the totals for the usage box
+- `app/report.py` - The weekly report, this week next to last on the student's own clock
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
-- `app/store.py` - Local SQLite storage for chats, files, study sets, reminders, classes and subjects
+- `app/store.py` - Local SQLite storage for chats, files, notes, study sets, reminders, classes and subjects
 - `app/config.py` - Settings read from the environment
-- `static/` - The page, its styles and its script, the app manifest, the service worker and the offline page
+- `static/` - The page, its styles, the app manifest, the service worker and the offline page
+- `static/js/` - The page's script in seven plain files with no build step, loaded in order and sharing one scope: `core.js` (shared helpers, markdown, diagrams), `chat.js` (answers, voice, printing, attachments, settings), `pages.js` (home, chats and tests, notes, suggestions), `reminders.js` (reminders, timetable, revision plans), `study.js` (tool sheets, flashcards, tests), `performance.js` (scores, weekly report, usage) and `main.js` (conversations, theme, message box, start). Code that runs as a file loads can only use what earlier files define
 - `tests/` - Tests with a fake Claude client
 
 Settings

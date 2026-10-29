@@ -1,0 +1,289 @@
+// rahah, conversations, sheets, motion, the theme and the message box, then it all starts
+// plain scripts with no build step, loaded in order and sharing one global scope
+
+// conversations
+
+function set_title(text) {
+    el("chat-title").textContent = text || "New chat";
+    document.title = text ? `${text} · Rahah` : "Rahah";
+}
+
+async function delete_conversation(c) {
+    if (!confirm(`Delete "${c.title}"?`)) return;
+    try {
+        await api(`/api/conversations/${c.id}`, { method: "DELETE" });
+    } catch (error) {
+        alert(error.message);
+        return;
+    }
+    if (c.id === state.conversation_id) start_new_chat();
+    else load_history();
+}
+
+async function load_history() {
+    try {
+        const response = await api("/api/conversations");
+        const { conversations } = await response.json();
+        state.conversations = conversations;
+    } catch (error) {
+        return;
+    }
+    render_continue();
+    render_chats();
+}
+
+async function open_conversation(conversation_id) {
+    if (state.busy) return;
+    stop_reading();
+    try {
+        const response = await api(`/api/conversations/${conversation_id}`);
+        const conversation = await response.json();
+        state.conversation_id = conversation.id;
+        state.pending = [];
+        render_attachments();
+        mode_select.value = conversation.mode;
+        sync_placeholder();
+        thread.innerHTML = "";
+        if (!conversation.messages.length) show_welcome();
+        conversation.messages.forEach((m) => {
+            if (m.role === "user") {
+                add_user_message(m.text, m.files || []);
+                return;
+            }
+            const reply = add_assistant_message(m.text, m.sources || [], m.runs || []);
+            render_searches(reply, m.searches);
+            if (m.stopped) add_notice(reply, "You stopped this answer.");
+            reply.classList.add("answered");
+            reply.raw_text = m.text;
+            reply.message_id = m.id;
+            reply.rating = m.rating || 0;
+            add_answer_actions(reply);
+        });
+        sync_view();
+        set_title(conversation.title);
+        offer_retry();
+        scroll_to_bottom();
+    } catch (error) {
+        start_new_chat();
+    }
+    load_history();
+}
+
+function start_new_chat() {
+    if (state.busy) return;
+    stop_reading();
+    state.conversation_id = null;
+    state.pending = [];
+    render_attachments();
+    mode_select.value = state.default_mode;
+    sync_placeholder();
+    history.replaceState(null, "", "/");
+    set_title("");
+    show_welcome();
+    load_history();
+    load_sets();
+    load_performance();
+    input.focus({ preventScroll: true });
+}
+
+function route() {
+    // recents was merged into chats, so old links still land there
+    if (location.hash === "#/chats" || location.hash === "#/recents") {
+        if (!el("chats")) show_chats();
+        return;
+    }
+    // the suggestions page was called for you and then recommendations, so those links still land here
+    if (["#/suggestions", "#/recommendations", "#/for-you"].includes(location.hash)) {
+        if (!el("recommendations")) show_recommendations();
+        return;
+    }
+    if (location.hash === "#/reminders") {
+        if (!el("reminders")) show_reminders();
+        return;
+    }
+    if (location.hash === "#/performance") {
+        if (!el("performance")) show_performance();
+        return;
+    }
+    const set_match = location.hash.match(/^#\/set\/([0-9a-f]+)$/);
+    if (set_match) {
+        if (!el("study") || state.study?.set.id !== set_match[1]) open_set(set_match[1]);
+        return;
+    }
+    const match = location.hash.match(/^#\/c\/([0-9a-f]+)$/);
+    if (match && match[1] !== state.conversation_id) open_conversation(match[1]);
+}
+
+window.addEventListener("hashchange", route);
+
+// a click outside any sheet closes it like cancel, but only when the press started outside too,
+// so dragging out of a text field while selecting doesn't throw away what was typed
+document.querySelectorAll("dialog.sheet").forEach((dialog) => {
+    let pressed_outside = false;
+    const outside = (event) => {
+        const box = dialog.getBoundingClientRect();
+        return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+    };
+    // clicks on the dimmed backdrop land on the dialog itself
+    dialog.addEventListener("pointerdown", (event) => {
+        pressed_outside = event.target === dialog && outside(event);
+    });
+    dialog.addEventListener("click", (event) => {
+        if (pressed_outside && event.target === dialog && outside(event)) dialog.close();
+        pressed_outside = false;
+    });
+});
+
+// the bar floats over the page, so the page keeps room at its end that matches the bar as it grows and shrinks
+new ResizeObserver(([entry]) => {
+    document.querySelector(".main").style.setProperty("--dock-h", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
+}).observe(el("dock-wrap"));
+document.querySelectorAll(".tabs [data-chats]").forEach((button) => button.addEventListener("click", show_chats));
+document.querySelectorAll(".tabs [data-recommendations]").forEach((button) => button.addEventListener("click", show_recommendations));
+document.querySelectorAll(".tabs [data-reminders]").forEach((button) => button.addEventListener("click", show_reminders));
+document.querySelectorAll(".tabs [data-performance]").forEach((button) => button.addEventListener("click", show_performance));
+document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
+    event.preventDefault();
+    start_new_chat();
+}));
+
+// motion, rows fade up once as they scroll into view, all of it skipped when someone prefers less motion
+
+const calm = matchMedia("(prefers-reduced-motion: reduce)");
+const reveal_kinds = [[".row", "reveal-row"], [".card-grid", "reveal-grid"], [".category-title, .group-title, .greeting, .kpis, .perf-card, .perf-grid", "reveal"]];
+let reveal_frame = 0;
+
+const reveal_observer = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add("shown");
+            reveal_observer.unobserve(entry.target);
+        });
+    }, { root: thread, rootMargin: "0px 0px -6% 0px", threshold: 0.1 })
+    : null;
+
+function reveal_new() {
+    reveal_frame = 0;
+    if (!reveal_observer || calm.matches) return;
+    reveal_kinds.forEach(([selector, name]) => {
+        thread.querySelectorAll(selector).forEach((item) => {
+            if (item.classList.contains(name)) return;
+            item.classList.add(name);
+            reveal_observer.observe(item);
+        });
+    });
+}
+
+// anything new in the thread is picked up before it is first painted, so nothing flashes
+new MutationObserver(() => {
+    if (!reveal_frame) reveal_frame = requestAnimationFrame(reveal_new);
+}).observe(thread, { childList: true, subtree: true });
+
+function sync_nav_line() {
+    document.querySelector(".nav").classList.toggle("scrolled", thread.scrollTop > 8);
+}
+
+thread.addEventListener("scroll", sync_nav_line, { passive: true });
+
+// theme
+
+function sync_theme_label() {
+    const light = document.documentElement.getAttribute("data-theme") === "light";
+    const label = light ? "Switch to dark mode" : "Switch to light mode";
+    el("theme-toggle").setAttribute("aria-label", label);
+    el("theme-toggle").title = label;
+}
+
+el("theme-toggle").addEventListener("click", () => {
+    const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+    const apply = () => {
+        document.documentElement.setAttribute("data-theme", next);
+        sync_theme_label();
+        redraw_diagrams();
+    };
+    // the browser cross fades the whole page where it can
+    if (document.startViewTransition && !calm.matches) document.startViewTransition(apply);
+    else apply();
+    try {
+        localStorage.setItem("rahah-theme", next);
+    } catch (e) {}
+});
+
+// composer
+
+function resize_input() {
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 220)}px`;
+}
+
+input.addEventListener("input", () => {
+    resize_input();
+    update_send_button();
+});
+
+input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        if (!send_btn.disabled) send_message(input.value);
+    }
+});
+
+el("composer").addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!send_btn.disabled) send_message(input.value);
+});
+
+const welcome_template = el("welcome").cloneNode(true);
+
+function apply_modes(modes, redraw = true) {
+    state.modes = modes;
+    state.code_modes = new Set(modes.filter((m) => m.runs_code).map((m) => m.id));
+    modes.forEach((m) => {
+        state.mode_names[m.id] = m.name;
+        state.mode_groups[m.id] = m.group;
+    });
+    // the top picker keeps its choice, or goes back to the default if that subject was removed
+    const picked = mode_select.value;
+    mode_select.innerHTML = mode_options_html();
+    mode_select.value = modes.some((m) => m.id === picked) ? picked : state.default_mode;
+    if (redraw) render_rows();
+}
+
+async function start() {
+    sync_theme_label();
+    try {
+        set_hint_mode(localStorage.getItem("rahah-hints") === "1");
+    } catch (e) {}
+    try {
+        const response = await api("/api/modes");
+        const { modes, groups, menu_groups, default: default_mode, languages } = await response.json();
+        state.default_mode = default_mode;
+        if (languages) state.languages = languages;
+        if (groups) state.groups = groups;
+        if (menu_groups) state.menu_groups = menu_groups;
+        apply_modes(modes, false);
+        mode_select.value = default_mode;
+    } catch (error) {
+        mode_select.innerHTML = '<option value="general">General study</option>';
+    }
+    load_settings();
+    show_net_status();
+    send_queue();
+    render_rows();
+    load_today();
+    load_history();
+    load_sets();
+    load_notes();
+    load_performance();
+    load_reminders();
+    route();
+    input.focus({ preventScroll: true });
+}
+
+start();
+
+// installing rahah as an app needs a service worker, it only steps in to show a page when offline
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
