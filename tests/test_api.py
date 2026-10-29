@@ -377,3 +377,17 @@ def test_the_server_backs_up_when_it_starts(tmp_path):
     with TestClient(create_app(settings(db_path=tmp_path / "start.db"), client=fake_client())) as web:
         assert web.get("/api/modes").status_code == 200
     assert len(list((tmp_path / "backups").glob("rahah-*.db"))) == 1
+
+
+def test_hint_mode_adds_a_note_for_that_question_only(setup):
+    web, claude = setup([message([text_block("Try this first...")]), message([text_block("Here is the answer")]), message([text_block("a hint again")])])
+    chat = new_chat(web)
+    web.post(f"/api/conversations/{chat}/messages", json={"text": "solve 2x = 6", "mode": "maths", "file_ids": [], "hints": True})
+    sent = claude.beta.messages.calls[0]["messages"]
+    # the subject note and the hint note go together as one note after the question
+    assert sent[-1]["role"] == "system" and "Mode: maths" in sent[-1]["content"] and "Hint mode is on" in sent[-1]["content"]
+    web.post(f"/api/conversations/{chat}/messages", json={"text": "just tell me", "mode": "maths", "file_ids": []})
+    assert claude.beta.messages.calls[1]["messages"][-1]["role"] == "user"
+    # try again keeps hint mode when asked to
+    web.post(f"/api/conversations/{chat}/retry", json={"mode": "maths", "hints": True})
+    assert "Hint mode is on" in claude.beta.messages.calls[2]["messages"][-1]["content"]

@@ -25,7 +25,7 @@ from .store import store
 from .timetable import calendar_file as timetable_file, class_in
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
-from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
+from .tutor import display_from_content, history_blocks, stream_reply, turn_note, user_content
 
 log = logging.getLogger("rahah")
 static_dir = Path(__file__).resolve().parent.parent / "static"
@@ -105,10 +105,12 @@ class message_in(BaseModel):
     text: str = Field(min_length=1, max_length=20000)
     mode: str = default_mode
     file_ids: list[str] = Field(default_factory=list, max_length=10)
+    hints: bool = False
 
 
 class retry_in(BaseModel):
     mode: str = default_mode
+    hints: bool = False
 
 
 def friendly_error(error: Exception) -> str:
@@ -347,8 +349,10 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             "display": {"text": text, "files": [{"name": f.name, "kind": f.kind} for f in files]},
             "file_ids": [f.id for f in files],
         }]
-        if not history or conversation["mode"] != body.mode:
-            rows.append(mode_note(body.mode))
+        changed = not history or conversation["mode"] != body.mode
+        note = turn_note(body.mode if changed else None, hints=body.hints)
+        if note:
+            rows.append(note)
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
         return answer_response(conversation_id, messages, rows, body.mode, text[:60], "chat")
 
@@ -362,9 +366,10 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(400, "There's no answer to try again yet.")
         messages = db.api_messages(conversation_id)
         rows = []
-        if conversation["mode"] != body.mode:
-            rows.append(mode_note(body.mode))
-            messages.append(mode_note(body.mode))
+        note = turn_note(body.mode if conversation["mode"] != body.mode else None, hints=body.hints)
+        if note:
+            rows.append(note)
+            messages.append(note)
         return answer_response(conversation_id, messages, rows, body.mode, "", "retry")
 
     def answer_response(conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str):

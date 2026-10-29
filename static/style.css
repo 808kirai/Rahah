@@ -3928,6 +3928,47 @@ button.plan-task:focus-visible {
     outline-offset: -2px;
 }
 
+/* a small chip in the message box for a mode that's on, like hint mode */
+.composer-chips {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.composer-chips:not(:empty) {
+    padding: 0.35rem 0.5rem 0.1rem;
+}
+
+.composer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.3rem 0.2rem 0.75rem;
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.composer-chip button {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--pill);
+    color: inherit;
+}
+
+.composer-chip svg {
+    width: 13px;
+    height: 13px;
+}
+
+.input-option.on .opt-icon {
+    background: var(--accent-fill);
+    color: var(--on-accent);
+}
+
 .attachments {
     display: flex;
     flex-wrap: wrap;

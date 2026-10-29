@@ -100,6 +100,7 @@
                 </nav>
                 <form class="composer" id="composer">
                     <div class="composer-box" id="composer-box">
+                        <div class="composer-chips" id="composer-chips"></div>
                         <div class="attachments" id="attachments"></div>
                         <div class="composer-row">
                             <!-- one button for everything that isn't typing: files, photos and voice -->
@@ -116,6 +117,10 @@
                                     <button type="button" class="input-option" role="menuitem" data-input="photo">
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg></span>
                                         <span><strong>Take or choose a photo</strong><small>Camera, gallery or a screenshot</small></span>
+                                    </button>
+                                    <button type="button" class="input-option" role="menuitemcheckbox" aria-checked="false" data-input="hints" id="hints-option">
+                                        <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></span>
+                                        <span><strong>Hint mode</strong><small>Hints and questions instead of full answers</small></span>
                                     </button>
                                     <button type="button" class="input-option" role="menuitem" data-input="voice" id="voice-option" hidden>
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>

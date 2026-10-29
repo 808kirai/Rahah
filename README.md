@@ -13,6 +13,7 @@ Chat
 - Listen reads an answer aloud with the device's own voice, free and offline, saying simple maths in words and skipping code and citation marks
 - Every answer has Test me and Flashcards, which open the test or deck sheet with that answer attached as notes, so a chat turns into practice in one tap
 - Rahah searches the web when a question needs current or very specific facts, shows what it searched for, and links each web source
+- Hint mode, in the + menu, has Rahah guide with hints and questions one step at a time instead of giving the answer, until you ask for it after having a go
 - Upload PDF, TXT, MD, image and code files and ask questions about them
 - Take a photo with the camera, choose one from the gallery or paste a screenshot, for example of a homework question, and large photos are shrunk before they upload
 - Speak a question with the mic, the browser turns it into text in the message box as you talk, in Chrome, Edge and Safari. Claude can't hear audio, so only the words are sent

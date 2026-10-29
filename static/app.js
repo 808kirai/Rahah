@@ -635,7 +635,7 @@ async function send_message(text) {
             return api(`/api/conversations/${conversation_id}/messages`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text, mode: mode_select.value, file_ids: sent_files.map((f) => f.id) }),
+                body: JSON.stringify({ text, mode: mode_select.value, file_ids: sent_files.map((f) => f.id), hints: Boolean(state.hints) }),
                 signal,
             });
         }, give_back, again);
@@ -760,7 +760,7 @@ async function retry_answer() {
         await run_answer(reply, (signal) => api(`/api/conversations/${conversation_id}/retry`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mode: mode_select.value }),
+            body: JSON.stringify({ mode: mode_select.value, hints: Boolean(state.hints) }),
             signal,
         }), () => {}, retry_answer);
     } finally {
@@ -895,6 +895,24 @@ input.addEventListener("paste", (event) => {
     add_photos(images.map((f) => new File([f], f.name && f.name !== "image.png" ? f.name : photo_name().replace(".jpg", ".png"), { type: f.type })));
 });
 
+// hint mode, rahah guides with hints and questions instead of giving the answer, remembered on this device
+
+function set_hint_mode(on) {
+    state.hints = on;
+    try {
+        localStorage.setItem("rahah-hints", on ? "1" : "");
+    } catch (e) {}
+    el("hints-option").setAttribute("aria-checked", String(on));
+    el("hints-option").classList.toggle("on", on);
+    el("composer-chips").innerHTML = on
+        ? `<span class="composer-chip">Hint mode<button type="button" data-hints-off aria-label="Turn hint mode off" title="Turn off">${icons.close}</button></span>`
+        : "";
+}
+
+el("composer-chips").addEventListener("click", (event) => {
+    if (event.target.closest("[data-hints-off]")) set_hint_mode(false);
+});
+
 // voice typing, the browser turns speech into words in the message box and rahah reads the words
 // claude can't hear audio, so only the text is ever sent
 
@@ -1016,6 +1034,7 @@ input_menu.addEventListener("click", (event) => {
     close_input_menu();
     if (option.dataset.input === "files") file_input.click();
     else if (option.dataset.input === "photo") open_camera();
+    else if (option.dataset.input === "hints") set_hint_mode(!state.hints);
     else start_voice();
 });
 
@@ -4280,6 +4299,9 @@ function apply_modes(modes, redraw = true) {
 
 async function start() {
     sync_theme_label();
+    try {
+        set_hint_mode(localStorage.getItem("rahah-hints") === "1");
+    } catch (e) {}
     try {
         const response = await api("/api/modes");
         const { modes, groups, menu_groups, default: default_mode } = await response.json();

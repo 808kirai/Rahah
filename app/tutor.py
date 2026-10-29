@@ -71,6 +71,22 @@ def mode_note(mode: str) -> dict:
     return {"role": "system", "content": modes[mode]["instruction"]}
 
 
+hint_note = (
+    "Hint mode is on for this question. Don't give the final answer or a full worked solution. Give one hint "
+    "or ask one guiding question at a time, build on what the student says, and only give the full answer if "
+    "they ask for it after having a go."
+)
+
+
+def turn_note(mode: str | None = None, hints: bool = False, extra: tuple = ()) -> dict | None:
+    """one system note for this turn, the subject when it changes plus the student's settings, or None"""
+    parts = [modes[mode]["instruction"]] if mode else []
+    if hints:
+        parts.append(hint_note)
+    parts += [e for e in extra if e]
+    return {"role": "system", "content": "\n\n".join(parts)} if parts else None
+
+
 def user_content(text: str, files: list[stored_file]) -> list[dict]:
     # documents go before the question, which is where claude reads them best
     blocks = []
