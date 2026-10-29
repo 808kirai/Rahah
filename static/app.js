@@ -2868,6 +2868,24 @@ function route() {
 
 window.addEventListener("hashchange", route);
 
+// a click outside any sheet closes it like cancel, but only when the press started outside too,
+// so dragging out of a text field while selecting doesn't throw away what was typed
+document.querySelectorAll("dialog.sheet").forEach((dialog) => {
+    let pressed_outside = false;
+    const outside = (event) => {
+        const box = dialog.getBoundingClientRect();
+        return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+    };
+    // clicks on the dimmed backdrop land on the dialog itself
+    dialog.addEventListener("pointerdown", (event) => {
+        pressed_outside = event.target === dialog && outside(event);
+    });
+    dialog.addEventListener("click", (event) => {
+        if (pressed_outside && event.target === dialog && outside(event)) dialog.close();
+        pressed_outside = false;
+    });
+});
+
 // the bar floats over the page, so the page keeps room at its end that matches the bar as it grows and shrinks
 new ResizeObserver(([entry]) => {
     document.querySelector(".main").style.setProperty("--dock-h", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
