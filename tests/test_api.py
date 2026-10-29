@@ -178,6 +178,13 @@ def test_unknown_conversations_and_modes_are_rejected(setup):
     assert bad.status_code == 400
 
 
+def test_only_the_ten_newest_chats_are_listed(setup):
+    web, _ = setup([message([text_block("hi")]) for _ in range(12)])
+    for n in range(12):
+        ask(web, new_chat(web), f"question {n}")
+    assert len(web.get("/api/conversations").json()["conversations"]) == 10
+
+
 def test_deleting_a_conversation_removes_it(setup):
     web, _ = setup([message([text_block("hi")])])
     conversation_id = new_chat(web)

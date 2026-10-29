@@ -1008,7 +1008,7 @@ function render_continue() {
     Object.entries(continue_titles).forEach(([group, title]) => {
         const slot = el(`continue-${group}`);
         if (!slot) return;
-        const chats = state.conversations.filter((c) => group_of(c.mode) === group).slice(0, 12);
+        const chats = state.conversations.filter((c) => group_of(c.mode) === group).slice(0, 5);
         slot.innerHTML = chats.length ? row_html(title, chats.map(chat_card).join("")) : "";
     });
 }

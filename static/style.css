@@ -1,4 +1,4 @@
-/* near black navy with teal glows behind it, blue gradients for what matters, mauve and mint only for right and wrong, laid out like a streaming app */
+/* near black navy with teal glows behind it, solid blue for what matters, mauve and mint only for right and wrong, laid out like a streaming app */
 :root {
     --bg: #04070c;
     --surface: #0a121b;
@@ -12,11 +12,9 @@
     --accent-soft: rgba(20, 140, 200, 0.14);
     --on-accent: #ffffff;
     /* filled buttons and bubbles, deep enough at every stop for white text */
-    --accent-fill: linear-gradient(135deg, #08699a 0%, #075a85 55%, #05476a 100%);
-    --accent-fill-hover: linear-gradient(135deg, #0977ad 0%, #08679a 55%, #06527a 100%);
+    --accent-fill: linear-gradient(135deg, #08699a, #07628f);
+    --accent-fill-hover: linear-gradient(135deg, #0977ad, #0870a2);
     --glow: rgba(16, 140, 200, 0.22);
-    /* headings fade from white into this */
-    --sky: #7cc2ec;
     --mauve: #a783a6;
     --mint: #98dea3;
     --mint-text: #98dea3;
@@ -59,7 +57,6 @@
     --accent-text: #085c85;
     --accent-soft: rgba(8, 105, 154, 0.08);
     --glow: rgba(8, 105, 154, 0.15);
-    --sky: #08699a;
     --mint-text: #2f8a4a;
     --record: var(--accent);
     --shadow: rgba(12, 26, 38, 0.1);
@@ -565,16 +562,6 @@ button.picker-heading:focus-visible {
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: -0.02em;
-}
-
-/* big headings fade from the text colour into light blue, text fill only so icons inside keep their colour */
-.greeting h2,
-.category-title {
-    width: fit-content;
-    background: linear-gradient(90deg, var(--text) 35%, var(--sky));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
 }
 
 .row {

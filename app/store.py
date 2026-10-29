@@ -137,7 +137,8 @@ class store:
             row = db.execute("select * from conversations where id = ?", (conversation_id,)).fetchone()
         return dict(row) if row else None
 
-    def list_conversations(self, limit: int = 50) -> list[dict]:
+    # only the newest chats are listed, older ones stay saved but aren't sent to the page
+    def list_conversations(self, limit: int = 10) -> list[dict]:
         with self._connect() as db:
             rows = db.execute(
                 "select id, title, mode, updated from conversations "
