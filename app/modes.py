@@ -86,8 +86,43 @@ default_mode = "general"
 # the home page is split into these, in this order
 groups = {"study": "Study", "exam": "Exam", "code": "Code"}
 
-# the subject picker uses smaller groups, so none of them runs long
-menu_groups = {"everyday": "Everyday", "sciences": "Sciences", "humanities": "Humanities", "practice": "Exam and code"}
+# the subject picker uses smaller groups, so none of them runs long, the student's own subjects come first
+menu_groups = {
+    "custom": "Your subjects", "everyday": "Everyday", "sciences": "Sciences", "humanities": "Humanities",
+    "practice": "Exam and code",
+}
+
+# subjects the student types in themselves, kept in the database and added to modes while the app runs
+# they behave like general study, with the subject named so rahah teaches it the way that subject is taught
+custom_prefix = "my-"
+
+
+def custom_mode(name: str) -> dict:
+    return {
+        "group": "study",
+        "menu": "custom",
+        "name": name,
+        "hint": "Your own subject",
+        "custom": True,
+        "instruction": (
+            f"Mode: {name}. The student added this subject themselves. Teach it the way a good {name} "
+            "teacher would, using the terms, methods and kinds of examples that subject uses."
+        ),
+    }
+
+
+def sync_custom(subjects: list[dict]) -> None:
+    """swap the custom subjects in modes for the ones saved now"""
+    for key in [k for k in modes if k.startswith(custom_prefix)]:
+        del modes[key]
+    for subject in subjects:
+        modes[subject["id"]] = custom_mode(subject["name"])
+
+
+def find_mode(name: str) -> str | None:
+    """the id of a subject with this name, ignoring case, so the same subject isn't added twice"""
+    wanted = name.casefold()
+    return next((key for key, m in modes.items() if m["name"].casefold() == wanted), None)
 
 
 def runs_code(mode: str) -> bool:
@@ -98,7 +133,7 @@ def public_modes() -> list[dict]:
     return [
         {
             "id": key, "name": m["name"], "hint": m["hint"], "group": m["group"], "menu": m["menu"],
-            "runs_code": runs_code(key),
+            "runs_code": runs_code(key), "custom": m.get("custom", False),
         }
         for key, m in modes.items()
     ]

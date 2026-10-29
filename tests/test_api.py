@@ -244,3 +244,45 @@ def test_a_class_starts_on_the_next_matching_weekday():
     assert first_day(2, wednesday) == wednesday
     assert first_day(0, wednesday) == date(2026, 11, 2)
     assert first_day(3, wednesday) == date(2026, 10, 29)
+
+
+# subjects the student adds themselves
+
+def test_a_custom_subject_is_added_once_and_listed(setup):
+    web, _ = setup()
+    added = web.post("/api/subjects", json={"name": "  Law   of torts "}).json()
+    assert added["id"].startswith("my-")
+    listed = {m["id"]: m for m in web.get("/api/modes").json()["modes"]}
+    assert listed[added["id"]]["name"] == "Law of torts"
+    assert listed[added["id"]]["custom"] and listed[added["id"]]["menu"] == "custom"
+    # the same name again, in any case, picks the one already there
+    assert web.post("/api/subjects", json={"name": "LAW OF TORTS"}).json()["id"] == added["id"]
+    # a built in name picks the built in subject
+    assert web.post("/api/subjects", json={"name": "maths"}).json()["id"] == "maths"
+    assert web.post("/api/subjects", json={"name": "   "}).status_code == 422
+    assert web.post("/api/subjects", json={"name": "x" * 41}).status_code == 422
+
+
+def test_custom_subjects_work_everywhere_a_subject_does(setup):
+    web, _ = setup([message([text_block("hi")])])
+    law = web.post("/api/subjects", json={"name": "Law of torts"}).json()["id"]
+    assert web.post("/api/conversations", json={"mode": law}).status_code == 200
+    assert web.post("/api/timetable", json=a_class(mode=law)).status_code == 200
+    reminder = {"kind": "exam", "title": "Torts paper", "mode": law, "due_date": "2030-01-10"}
+    assert web.post("/api/reminders", json=reminder).status_code == 200
+    events = ask(web, new_chat(web, law), "what is negligence", mode=law)
+    assert events[-1]["t"] != "error"
+
+
+def test_removing_a_custom_subject_moves_its_things_to_general(setup):
+    web, _ = setup()
+    law = web.post("/api/subjects", json={"name": "Law of torts"}).json()["id"]
+    chat = web.post("/api/conversations", json={"mode": law}).json()["id"]
+    item = web.post("/api/timetable", json=a_class(mode=law)).json()
+    assert web.delete(f"/api/subjects/{law}").json()["ok"]
+    assert law not in {m["id"] for m in web.get("/api/modes").json()["modes"]}
+    assert web.get(f"/api/conversations/{chat}").json()["mode"] == "general"
+    assert web.get("/api/timetable").json()["classes"][0]["mode"] == ""
+    assert web.post("/api/conversations", json={"mode": law}).status_code == 400
+    assert web.delete(f"/api/subjects/{law}").status_code == 404
+    assert web.delete("/api/subjects/maths").status_code == 404

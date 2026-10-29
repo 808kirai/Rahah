@@ -10,10 +10,10 @@ import anthropic
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .config import load_settings, settings
-from .modes import default_mode, groups, menu_groups, modes, public_modes, runs_code
+from .modes import custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom
 from .performance import summarise
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
@@ -64,6 +64,16 @@ class score_in(BaseModel):
 
 class done_in(BaseModel):
     done: bool
+
+
+class subject_in(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+    # one line, single spaces, so it reads cleanly in menus and in rahah's instructions
+    @field_validator("name", mode="before")
+    @classmethod
+    def tidy(cls, value):
+        return " ".join(value.split()) if isinstance(value, str) else value
 
 
 class seen_in(BaseModel):
@@ -166,6 +176,26 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     @app.get("/")
     def index():
         return FileResponse(static_dir / "index.html")
+
+    # this server's saved subjects join the list as it starts
+    sync_custom(db.list_subjects())
+
+    @app.post("/api/subjects")
+    def add_subject(body: subject_in):
+        # a subject that already exists, built in or added before, is picked instead of added again
+        found = find_mode(body.name)
+        if not found:
+            found = db.add_subject(body.name)
+            sync_custom(db.list_subjects())
+        return {"id": found, "modes": public_modes()}
+
+    @app.delete("/api/subjects/{subject_id}")
+    def delete_subject(subject_id: str):
+        if not subject_id.startswith(custom_prefix) or subject_id not in modes:
+            raise HTTPException(404, "That subject doesn't exist.")
+        db.delete_subject(subject_id)
+        sync_custom(db.list_subjects())
+        return {"ok": True, "modes": public_modes()}
 
     @app.get("/api/modes")
     def list_modes():

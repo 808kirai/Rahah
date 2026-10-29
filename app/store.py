@@ -99,6 +99,11 @@ create table if not exists classes (
     created real not null,
     updated real not null
 );
+create table if not exists subjects (
+    id text primary key,
+    name text not null,
+    created real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -319,6 +324,28 @@ class store:
     def delete_reminder(self, reminder_id: str) -> None:
         with self._connect() as db:
             db.execute("delete from reminders where id = ?", (reminder_id,))
+
+    # subjects the student added themselves
+
+    def list_subjects(self) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute("select id, name from subjects order by created").fetchall()
+        return [dict(r) for r in rows]
+
+    def add_subject(self, name: str) -> str:
+        subject_id = "my-" + uuid.uuid4().hex[:10]
+        with self._connect() as db:
+            db.execute("insert into subjects (id, name, created) values (?, ?, ?)", (subject_id, name, time.time()))
+        return subject_id
+
+    def delete_subject(self, subject_id: str) -> None:
+        # anything filed under it moves back to general study, which reminders and classes store as blank
+        with self._connect() as db:
+            db.execute("delete from subjects where id = ?", (subject_id,))
+            db.execute("update conversations set mode = 'general' where mode = ?", (subject_id,))
+            db.execute("update study_sets set mode = 'general' where mode = ?", (subject_id,))
+            db.execute("update reminders set mode = '' where mode = ?", (subject_id,))
+            db.execute("update classes set mode = '' where mode = ?", (subject_id,))
 
     # the weekly timetable, in order through the week
 

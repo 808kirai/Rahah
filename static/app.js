@@ -2052,10 +2052,18 @@ const select_value = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype
 
 function picker_menu_html(select, headings_open) {
     const current = select.value;
-    const item = (m) => `
+    const option = (m) => `
         <button type="button" class="picker-option" role="option" aria-selected="${m.id === current}" data-value="${escape_html(m.id)}"${m.hint ? ` title="${escape_html(m.hint)}"` : ""}>
             <span>${escape_html(m.name)}</span>${m.id === current ? icons.check : ""}
         </button>`;
+    const item = (m) => m.custom
+        ? `<div class="picker-row">${option(m)}<button type="button" class="picker-remove" data-remove-subject="${escape_html(m.id)}" aria-label="Remove ${escape_html(m.name)}" title="Remove">${icons.close}</button></div>`
+        : option(m);
+    // a plain box rather than a form, since pickers inside sheets already sit in the sheet's form
+    const add = `<div class="picker-add">
+        <input class="picker-add-input" maxlength="40" placeholder="Add your own subject" aria-label="Add your own subject" autocomplete="off" enterkeyhint="done">
+        <button type="button" class="picker-add-btn" aria-label="Add subject">${icons.plus}</button>
+    </div>`;
     // in the top picker a group heading can be clicked too, and opens its first subject
     const heading = (group, label) => headings_open
         ? `<button type="button" class="picker-heading" data-group="${escape_html(group)}">${escape_html(label)}</button>`
@@ -2065,10 +2073,10 @@ function picker_menu_html(select, headings_open) {
         if (!items.length) return "";
         return `<div class="picker-group" role="group" aria-label="${escape_html(label)}">${heading(group, label)}${items.map(item).join("")}</div>`;
     }).join("");
-    if (grouped) return grouped;
+    if (grouped) return grouped + add;
     // without groups from the server, list whatever the select holds
     const plain = [...select.options].map((o) => ({ id: o.value, name: o.textContent, hint: o.title }));
-    return `<div class="picker-group">${plain.map(item).join("")}</div>`;
+    return `<div class="picker-group">${plain.map(item).join("")}</div>` + add;
 }
 
 // with on_pick, choosing a subject hands it over instead of selecting it straight away
@@ -2096,7 +2104,7 @@ function make_picker(select, on_pick = null) {
     });
     new MutationObserver(sync).observe(select, { childList: true, subtree: true });
 
-    const options = () => [...menu.querySelectorAll(".picker-option, button.picker-heading")];
+    const options = () => [...menu.querySelectorAll(".picker-option, button.picker-heading, .picker-add-input")];
     const close = (refocus = false) => {
         if (menu.hidden) return;
         menu.hidden = true;
@@ -2117,8 +2125,78 @@ function make_picker(select, on_pick = null) {
         (options().find((o) => o.getAttribute("aria-selected") === "true") || options()[0])?.focus();
     };
 
+    const choose = (value) => {
+        if (on_pick) {
+            close();
+            on_pick(value);
+            return;
+        }
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        close(true);
+    };
+
+    // a new subject is saved, every list is refreshed, then it's picked
+    const add_subject = async () => {
+        const field = menu.querySelector(".picker-add-input");
+        const name = field.value.trim();
+        if (!name) return field.focus();
+        field.disabled = true;
+        try {
+            const response = await api("/api/subjects", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name }),
+            });
+            const body = await response.json();
+            apply_modes(body.modes);
+            if (select !== mode_select) select.innerHTML = mode_options_html();
+            choose(body.id);
+        } catch (error) {
+            field.disabled = false;
+            field.value = "";
+            field.placeholder = error.message;
+            field.focus();
+        }
+    };
+
+    // enter in the box adds the subject, and never submits the sheet around it
+    menu.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && event.target.closest(".picker-add-input")) {
+            event.preventDefault();
+            event.stopPropagation();
+            add_subject();
+        }
+    });
+
     button.addEventListener("click", () => (menu.hidden ? open() : close()));
-    menu.addEventListener("click", (event) => {
+    menu.addEventListener("click", async (event) => {
+        if (event.target.closest(".picker-add-btn")) {
+            add_subject();
+            return;
+        }
+        const remove = event.target.closest("[data-remove-subject]");
+        if (remove) {
+            const id = remove.dataset.removeSubject;
+            if (!confirm(`Remove ${mode_name(id)}? Anything filed under it moves to General study.`)) return;
+            try {
+                const response = await api(`/api/subjects/${id}`, { method: "DELETE" });
+                apply_modes((await response.json()).modes);
+                if (select !== mode_select) {
+                    const picked = select.value;
+                    select.innerHTML = mode_options_html();
+                    select.value = picked === id ? "general" : picked;
+                }
+                menu.innerHTML = picker_menu_html(select, Boolean(on_pick));
+                // chats, reminders and classes may have moved to general study
+                load_history();
+                load_reminders();
+                if (el("timetable")) load_timetable();
+            } catch (error) {
+                alert(error.message);
+            }
+            return;
+        }
         const heading = event.target.closest("button.picker-heading");
         if (heading && on_pick) {
             const first = state.modes.find((m) => m.menu === heading.dataset.group);
@@ -2127,15 +2205,7 @@ function make_picker(select, on_pick = null) {
             return;
         }
         const option = event.target.closest(".picker-option");
-        if (!option) return;
-        if (on_pick) {
-            close();
-            on_pick(option.dataset.value);
-            return;
-        }
-        select.value = option.dataset.value;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-        close(true);
+        if (option) choose(option.dataset.value);
     });
     box.addEventListener("keydown", (event) => {
         if (menu.hidden) return;
@@ -2150,7 +2220,7 @@ function make_picker(select, on_pick = null) {
             event.preventDefault();
             const step = event.key === "ArrowDown" ? 1 : -1;
             list[(at + step + list.length) % list.length]?.focus();
-        } else if (event.key === "Home" || event.key === "End") {
+        } else if ((event.key === "Home" || event.key === "End") && !event.target.closest(".picker-add")) {
             event.preventDefault();
             list[event.key === "Home" ? 0 : list.length - 1]?.focus();
         } else if (event.key === "Tab") {
@@ -3177,21 +3247,29 @@ el("composer").addEventListener("submit", (event) => {
 
 const welcome_template = el("welcome").cloneNode(true);
 
+function apply_modes(modes, redraw = true) {
+    state.modes = modes;
+    state.code_modes = new Set(modes.filter((m) => m.runs_code).map((m) => m.id));
+    modes.forEach((m) => {
+        state.mode_names[m.id] = m.name;
+        state.mode_groups[m.id] = m.group;
+    });
+    // the top picker keeps its choice, or goes back to the default if that subject was removed
+    const picked = mode_select.value;
+    mode_select.innerHTML = mode_options_html();
+    mode_select.value = modes.some((m) => m.id === picked) ? picked : state.default_mode;
+    if (redraw) render_rows();
+}
+
 async function start() {
     sync_theme_label();
     try {
         const response = await api("/api/modes");
         const { modes, groups, menu_groups, default: default_mode } = await response.json();
         state.default_mode = default_mode;
-        state.modes = modes;
         if (groups) state.groups = groups;
         if (menu_groups) state.menu_groups = menu_groups;
-        state.code_modes = new Set(modes.filter((m) => m.runs_code).map((m) => m.id));
-        modes.forEach((m) => {
-            state.mode_names[m.id] = m.name;
-            state.mode_groups[m.id] = m.group;
-        });
-        mode_select.innerHTML = mode_options_html();
+        apply_modes(modes, false);
         mode_select.value = default_mode;
     } catch (error) {
         mode_select.innerHTML = '<option value="general">General study</option>';

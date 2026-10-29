@@ -514,6 +514,92 @@ button.picker-heading:focus-visible {
     outline: none;
 }
 
+/* the student's own subjects carry a small remove button beside them */
+.picker-row {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.picker-row .picker-option {
+    flex: 1;
+    min-width: 0;
+}
+
+.picker-remove {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--pill);
+    color: var(--text-2);
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.picker-remove svg {
+    width: 14px;
+    height: 14px;
+}
+
+.picker-remove:hover,
+.picker-remove:focus-visible {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+/* the box at the bottom of every subject menu for typing a new one, pinned there when the menu scrolls */
+.picker-add {
+    grid-column: 1 / -1;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    box-shadow: 0 0 0 0.6rem var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.2rem;
+    padding: 0.25rem 0.25rem 0.25rem 0.9rem;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+}
+
+.picker-add:focus-within {
+    box-shadow: inset 0 0 0 1px var(--accent-text), 0 0 0 0.6rem var(--surface);
+}
+
+.picker-add-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.35rem 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-size: 0.88rem;
+    color: var(--text);
+}
+
+.picker-add-input::placeholder {
+    color: var(--text-2);
+}
+
+.picker-add-btn {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--pill);
+    background: var(--accent-fill);
+    color: var(--on-accent);
+}
+
+.picker-add-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
 .picker-option {
     display: flex;
     align-items: center;
@@ -3632,7 +3718,8 @@ button.picker-heading:focus-visible {
 @media (pointer: coarse) {
     .chat-card .icon-btn,
     .reminder-actions .icon-btn,
-    .class-row .icon-btn {
+    .class-row .icon-btn,
+    .picker-remove {
         width: 44px;
         height: 44px;
     }
