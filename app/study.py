@@ -1,4 +1,5 @@
-"""flashcards and quizzes, made by claude as structured json and checked before they are saved"""
+"""flashcards and tests, made by claude as structured json and checked before they are saved,
+and written answers marked by claude against the question's mark scheme"""
 
 import base64
 import json
@@ -43,12 +44,16 @@ quiz_schema = {
             "items": {
                 "type": "object",
                 "properties": {
+                    "type": {"type": "string", "enum": ["choice", "written"]},
                     "question": {"type": "string"},
                     "options": {"type": "array", "items": {"type": "string"}},
                     "answer": {"type": "integer"},
                     "explanation": {"type": "string"},
+                    "marks": {"type": "integer"},
+                    "mark_scheme": {"type": "string"},
+                    "model_answer": {"type": "string"},
                 },
-                "required": ["question", "options", "answer", "explanation"],
+                "required": ["type", "question", "options", "answer", "explanation", "marks", "mark_scheme", "model_answer"],
                 "additionalProperties": False,
             },
         },
@@ -67,12 +72,31 @@ kinds = {
     },
     "quiz": {
         "schema": quiz_schema,
-        "ask": (
-            "Write exactly {count} multiple choice questions. Give each one four options with exactly one "
-            "correct, put the index of the correct option in answer, counting from 0, and make the wrong "
-            "options plausible. The explanation says in one or two sentences why the answer is right."
-        ),
+        "ask": "{style}",
     },
+}
+
+choice_rule = (
+    "A multiple choice question has type choice, four options with exactly one correct, the index of the "
+    "correct option in answer counting from 0, and plausible wrong options. Its explanation says in one or "
+    "two sentences why the answer is right. Set its marks to 1 and leave mark_scheme and model_answer empty."
+)
+written_rule = (
+    "A written question has type written and is answered in a sentence, a paragraph or worked steps, like a "
+    "short answer or structured exam question. Set its options to an empty list, answer to -1 and leave "
+    "explanation empty. Give it marks from 1 to 6 to suit its size, a mark_scheme listing the points that each "
+    "earn a mark, and a model_answer that would get full marks. In maths and science, questions that need "
+    "working are good, the student can send a photo of it."
+)
+
+# what kind of questions a test has, picked when it's made
+styles = {
+    "choice": f"Write exactly {{count}} multiple choice questions. {choice_rule}",
+    "written": f"Write exactly {{count}} written questions. {written_rule}",
+    "mixed": (
+        f"Write exactly {{count}} questions, about half multiple choice and half written, mixed through the test. "
+        f"{choice_rule} {written_rule}"
+    ),
 }
 
 max_items = 25
@@ -107,8 +131,9 @@ def source_blocks(uploads: list[upload]) -> list[dict]:
     return blocks
 
 
-def request_text(kind: str, topic: str, count: int, mode: str, has_notes: bool) -> str:
-    parts = [modes[mode]["instruction"], kinds[kind]["ask"].format(count=count)]
+def request_text(kind: str, topic: str, count: int, mode: str, has_notes: bool, style: str = "choice") -> str:
+    ask = styles[style] if kind == "quiz" else kinds[kind]["ask"]
+    parts = [modes[mode]["instruction"], ask.format(count=count)]
     if topic and has_notes:
         parts.append(f"Use the attached notes and focus on: {topic}")
     elif topic:
@@ -140,9 +165,31 @@ def clean_cards(data: dict, count: int) -> list[dict]:
     return cards[:count]
 
 
+def clean_written(q: dict) -> dict | None:
+    question, scheme, model = clean_text(q.get("question")), clean_text(q.get("mark_scheme")), clean_text(q.get("model_answer"))
+    marks = q.get("marks")
+    if not question or not scheme or not model or not isinstance(marks, int):
+        return None
+    return {"type": "written", "question": question, "marks": max(1, min(marks, 10)), "mark_scheme": scheme, "model_answer": model}
+
+
+def question_marks(item: dict) -> int:
+    # a multiple choice question is worth one mark, a written one what its mark scheme says
+    return item["marks"] if item.get("type") == "written" else 1
+
+
+def total_marks(items: list[dict]) -> int:
+    return sum(question_marks(i) for i in items)
+
+
 def clean_quiz(data: dict, count: int) -> list[dict]:
     questions = []
     for q in data.get("questions", []):
+        if q.get("type") == "written":
+            written = clean_written(q)
+            if written:
+                questions.append(written)
+            continue
         question = clean_text(q.get("question"))
         options = [clean_text(o) for o in q.get("options", [])]
         answer = q.get("answer")
@@ -154,6 +201,7 @@ def clean_quiz(data: dict, count: int) -> list[dict]:
         right = options[answer]
         random.shuffle(options)
         questions.append({
+            "type": "choice",
             "question": question,
             "options": options,
             "answer": options.index(right),
@@ -162,9 +210,12 @@ def clean_quiz(data: dict, count: int) -> list[dict]:
     return questions[:count]
 
 
-async def make_set(client, cfg: settings, kind: str, topic: str, count: int, mode: str, uploads: list[upload]) -> dict:
+async def make_set(
+    client, cfg: settings, kind: str, topic: str, count: int, mode: str, uploads: list[upload], style: str = "choice",
+) -> dict:
     """asks claude for a set and returns its title and checked items"""
-    content = source_blocks(uploads) + [{"type": "text", "text": request_text(kind, topic, count, mode, bool(uploads))}]
+    text = request_text(kind, topic, count, mode, bool(uploads), style)
+    content = source_blocks(uploads) + [{"type": "text", "text": text}]
     async with client.beta.messages.stream(
         model=cfg.model,
         max_tokens=cfg.max_tokens,
@@ -188,5 +239,62 @@ async def make_set(client, cfg: settings, kind: str, topic: str, count: int, mod
     items = clean_cards(data, count) if kind == "flashcards" else clean_quiz(data, count)
     if not items:
         raise study_error("Rahah couldn't make questions on that. Try again or change the topic.")
-    title = clean_text(data.get("title"))[:80] or topic[:60] or ("Flashcards" if kind == "flashcards" else "Quiz")
+    title = clean_text(data.get("title"))[:80] or topic[:60] or ("Flashcards" if kind == "flashcards" else "Test")
     return {"title": title, "items": items}
+
+
+# marking a written answer, typed, spoken or a photo of working, against the question's mark scheme
+
+mark_prompt = """You mark students' answers as part of Rahah, a study companion built on Claude by \
+Anthropic. Mark fairly and the way an examiner would, using the mark scheme: award a mark for each \
+point the answer makes correctly, even in different words, and give no marks for points it misses or \
+gets wrong. An answer may be typed, spoken and turned into text, so ignore small slips in wording from \
+that, or a photo of handwritten working, so read it carefully and credit correct working. If the photo \
+is unreadable or doesn't answer the question, say so and give 0. Write the feedback to the student as \
+you, in two to four short sentences: what earned marks, what was missing, and one tip to get full \
+marks. Write maths in LaTeX using \\( ... \\) inline, never with dollar signs."""
+
+mark_schema = {
+    "type": "object",
+    "properties": {"score": {"type": "integer"}, "feedback": {"type": "string"}},
+    "required": ["score", "feedback"],
+    "additionalProperties": False,
+}
+
+
+async def mark_answer(client, cfg: settings, item: dict, mode: str, answer: str, photo: upload | None) -> dict:
+    """marks one written answer and returns its score, clamped to the question's marks, and feedback"""
+    lines = [
+        modes[mode]["instruction"],
+        f"Question, worth {item['marks']} marks:\n{item['question']}",
+        f"Mark scheme:\n{item['mark_scheme']}",
+        f"A model answer:\n{item['model_answer']}",
+        f"The student's answer:\n{answer}" if answer else "The student's answer is in the photo.",
+    ]
+    if answer and photo:
+        lines.append("The photo shows their working.")
+    content = (source_blocks([photo]) if photo else []) + [{"type": "text", "text": "\n\n".join(lines)}]
+    async with client.beta.messages.stream(
+        model=cfg.model,
+        max_tokens=4000,
+        system=mark_prompt,
+        messages=[{"role": "user", "content": content}],
+        output_config={"effort": cfg.effort, "format": {"type": "json_schema", "schema": mark_schema}},
+        **fallback_options(cfg),
+    ) as stream:
+        final = await stream.get_final_message()
+
+    if final.stop_reason == "refusal":
+        raise study_error("Rahah can't mark that answer. Try rewording it.")
+    text = "".join(b.text for b in final.content if b.type == "text")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        raise study_error("Something went wrong marking that. Try again.")
+    score = data.get("score") if isinstance(data.get("score"), int) else 0
+    return {
+        "score": max(0, min(score, item["marks"])),
+        "marks": item["marks"],
+        "feedback": clean_text(data.get("feedback")) or "Marked.",
+        "model_answer": item["model_answer"],
+    }

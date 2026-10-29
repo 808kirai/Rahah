@@ -2356,6 +2356,92 @@ button.picker-heading:focus-visible {
     color: var(--mauve);
 }
 
+/* some of the marks, between right and wrong */
+.feedback.partial strong {
+    color: var(--accent-text);
+}
+
+/* a written answer, a box to type in, a photo of the working and the mic */
+.written {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.written-answer {
+    width: 100%;
+    min-height: 8rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 20px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.written-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.written-tools[hidden] {
+    display: none;
+}
+
+.written-tools .spacer {
+    flex: 1;
+}
+
+.written-tools .btn svg {
+    width: 17px;
+    height: 17px;
+}
+
+.written-tools .listening {
+    box-shadow: inset 0 0 0 1px var(--accent-text);
+    color: var(--accent-text);
+}
+
+.written-photo {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.written-photo img {
+    display: block;
+    max-width: min(100%, 360px);
+    max-height: 260px;
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.written-photo .icon-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 32px;
+    height: 32px;
+    background: var(--glass);
+    color: var(--text);
+}
+
+.model-answer {
+    margin-top: 0.75rem;
+}
+
+.model-answer summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent-text);
+}
+
+.model-answer .answer {
+    margin-top: 0.4rem;
+}
+
 .quiz-results {
     padding-top: 8vh;
     text-align: center;

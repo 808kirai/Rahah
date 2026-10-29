@@ -432,11 +432,19 @@ class store:
     def list_sets(self, limit: int = 50) -> list[dict]:
         with self._connect() as db:
             rows = db.execute(
-                "select id, kind, title, mode, size, best_score, updated from study_sets "
+                "select id, kind, title, mode, size, best_score, updated, items from study_sets "
                 "order by updated desc limit ?",
                 (limit,),
             ).fetchall()
-        return [dict(r) for r in rows]
+        # tests are scored in marks, which can be more than the number of questions once some are written
+        sets = []
+        for r in rows:
+            row = dict(r)
+            items = json.loads(row.pop("items"))
+            row["marks"] = sum(i["marks"] if i.get("type") == "written" else 1 for i in items)
+            row["written"] = any(i.get("type") == "written" for i in items)
+            sets.append(row)
+        return sets
 
     def get_set(self, set_id: str) -> dict | None:
         with self._connect() as db:

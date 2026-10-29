@@ -51,6 +51,8 @@ const icons = {
     chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+    camera: '<svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg>',
+    mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>',
     retry: '<svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5v4h4"/></svg>',
     stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/></svg>',
     bell: '<svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>',
@@ -2105,7 +2107,8 @@ const sheet_copy = {
 };
 
 const sheet = el("sheet");
-const sheet_state = { tool: "flashcards", files: [], pick: 10, opened: 0 };
+const sheet_state = { tool: "flashcards", files: [], pick: 10, style: "choice", opened: 0 };
+const test_styles = [["choice", "Multiple choice"], ["written", "Written"], ["mixed", "Mixed"]];
 
 const tool_sketches = { summary: "notes", flashcards: "cards", quiz: "checklist" };
 
@@ -2120,7 +2123,8 @@ function tool_tile(id, mode) {
 
 function set_detail(s) {
     if (s.kind === "flashcards") return `${s.size} card${s.size === 1 ? "" : "s"}`;
-    const best = s.best_score === null || s.best_score === undefined ? "" : ` · best ${s.best_score}/${s.size}`;
+    const out_of = s.marks || s.size;
+    const best = s.best_score === null || s.best_score === undefined ? "" : ` · best ${s.best_score}/${out_of}`;
     return `${s.size} question${s.size === 1 ? "" : "s"}${best}`;
 }
 
@@ -2469,6 +2473,10 @@ function open_sheet(tool, mode, topic = "") {
     el("sheet-choice-label").textContent = copy.label;
     el("sheet-choices").innerHTML = copy.choices.map(([value, label]) =>
         `<button class="choice" type="button" data-choice="${value}" aria-pressed="${value === copy.pick}">${label}</button>`).join("");
+    // tests can be multiple choice, written answers marked by rahah, or a mix
+    sheet_state.style = "choice";
+    el("sheet-style-field").hidden = tool !== "quiz";
+    el("sheet-styles").innerHTML = choice_buttons(test_styles, sheet_state.style, "style");
     show_sheet_error("");
     set_sheet_busy(false);
     render_sheet_files();
@@ -2482,6 +2490,13 @@ el("sheet-choices").addEventListener("click", (event) => {
     const value = sheet_copy[sheet_state.tool].choices.find(([v]) => String(v) === choice.dataset.choice)[0];
     sheet_state.pick = value;
     el("sheet-choices").querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === choice)));
+});
+
+el("sheet-styles").addEventListener("click", (event) => {
+    const choice = event.target.closest("[data-style]");
+    if (!choice) return;
+    sheet_state.style = choice.dataset.style;
+    el("sheet-styles").querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === choice)));
 });
 
 el("sheet-attach").addEventListener("click", () => el("sheet-file-input").click());
@@ -2585,6 +2600,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
     form.append("topic", topic);
     form.append("count", String(sheet_state.pick));
     form.append("mode", mode);
+    if (sheet_state.tool === "quiz") form.append("style", sheet_state.style);
     sheet_state.files.forEach((file) => form.append("files", file));
     show_sheet_error("");
     set_sheet_busy(true);
@@ -2707,6 +2723,9 @@ function shuffle_deck() {
     render_deck();
 }
 
+const is_written = (q) => q.type === "written";
+const question_marks = (q) => (is_written(q) ? q.marks : 1);
+
 function render_quiz() {
     const s = state.study;
     const total = s.set.items.length;
@@ -2715,6 +2734,10 @@ function render_quiz() {
         return;
     }
     const q = s.set.items[s.index];
+    if (is_written(q)) {
+        render_written(q, total);
+        return;
+    }
     el("study").innerHTML = `
         <div class="quiz">
             <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
@@ -2730,11 +2753,156 @@ function render_quiz() {
         </div>`;
 }
 
+// a written answer, typed, spoken or a photo of the working, then marked by rahah against the mark scheme
+
+function render_written(q, total) {
+    const s = state.study;
+    s.photo = null;
+    el("study").innerHTML = `
+        <div class="quiz">
+            <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
+            <p class="study-meta">Question ${s.index + 1} of ${total} · ${q.marks} mark${q.marks === 1 ? "" : "s"}</p>
+            <div class="quiz-question answer">${render_markdown(q.question)}</div>
+            <div class="written">
+                <textarea class="text-input written-answer" id="written-answer" rows="5" maxlength="5000" placeholder="Write your answer, say it, or add a photo of your working" aria-label="Your answer"></textarea>
+                <div class="written-photo" id="written-photo" hidden></div>
+                <div class="written-tools">
+                    <button class="btn btn-soft btn-small" type="button" data-written="photo">${icons.camera}Add a photo</button>
+                    ${speech_engine() ? `<button class="btn btn-soft btn-small" type="button" data-written="mic" id="written-mic">${icons.mic}Say it</button>` : ""}
+                    <span class="spacer"></span>
+                    <button class="btn btn-accent" type="button" data-written="mark" id="written-mark">Mark my answer</button>
+                </div>
+                <input type="file" id="written-photo-input" accept="image/*" hidden>
+            </div>
+            <div id="quiz-feedback"></div>
+        </div>`;
+    el("written-photo-input").addEventListener("change", async () => {
+        const file = el("written-photo-input").files[0];
+        el("written-photo-input").value = "";
+        if (file) set_written_photo(await shrink_photo(file));
+    });
+}
+
+function set_written_photo(file) {
+    const s = state.study;
+    const box = el("written-photo");
+    if (s.photo_url) URL.revokeObjectURL(s.photo_url);
+    s.photo = file;
+    s.photo_url = file ? URL.createObjectURL(file) : null;
+    box.hidden = !file;
+    box.innerHTML = file ? `<img src="${s.photo_url}" alt="Your working">
+        <button class="icon-btn" type="button" data-written="unphoto" aria-label="Remove the photo" title="Remove">${icons.close}</button>` : "";
+}
+
+// speaking an answer, the browser turns the words into text in the answer box
+const answer_voice = { rec: null };
+
+function stop_answer_voice() {
+    if (answer_voice.rec) answer_voice.rec.stop();
+}
+
+function toggle_answer_voice() {
+    if (answer_voice.rec) {
+        stop_answer_voice();
+        return;
+    }
+    const Engine = speech_engine();
+    const box = el("written-answer");
+    const button = el("written-mic");
+    if (!Engine || !box) return;
+    const rec = new Engine();
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    const base = box.value.trim() ? `${box.value.trimEnd()} ` : "";
+    let heard = "";
+    rec.onresult = (event) => {
+        let guess = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const words = event.results[i][0].transcript.trim();
+            if (!words) continue;
+            if (event.results[i].isFinal) heard += (heard ? " " : "") + words;
+            else guess += (guess ? " " : "") + words;
+        }
+        box.value = base + heard + (guess ? `${heard ? " " : ""}${guess}` : "");
+    };
+    rec.onend = () => {
+        answer_voice.rec = null;
+        if (button?.isConnected) button.innerHTML = `${icons.mic}Say it`;
+        button?.classList.remove("listening");
+    };
+    try {
+        rec.start();
+        answer_voice.rec = rec;
+        button.innerHTML = `${icons.stop}Stop`;
+        button.classList.add("listening");
+    } catch (e) {
+        answer_voice.rec = null;
+    }
+}
+
+async function mark_written() {
+    const s = state.study;
+    if (s.answered || s.done || s.marking) return;
+    stop_answer_voice();
+    const q = s.set.items[s.index];
+    const text = el("written-answer").value.trim();
+    const feedback = el("quiz-feedback");
+    if (!text && !s.photo) {
+        feedback.innerHTML = '<p class="sheet-error">Write, say or add a photo of your answer first.</p>';
+        return;
+    }
+    const form = new FormData();
+    form.append("index", String(s.index));
+    form.append("answer", text);
+    if (s.photo) form.append("photo", s.photo, s.photo.name || "working.jpg");
+    s.marking = true;
+    const button = el("written-mark");
+    button.disabled = true;
+    button.textContent = "Marking…";
+    feedback.innerHTML = "";
+    const at = s.index;
+    try {
+        const response = await api(`/api/sets/${s.set.id}/mark`, { method: "POST", body: form });
+        const result = await response.json();
+        // the student may have left the test while it was being marked
+        if (state.study !== s || s.index !== at || !el("study")) return;
+        s.answered = true;
+        s.score += result.score;
+        // once marked the answer stays as it was sent, and the tools for changing it go away
+        el("written-answer").readOnly = true;
+        el("study").querySelector(".written-tools").hidden = true;
+        el("study").querySelector('#written-photo [data-written="unphoto"]')?.remove();
+        const grade = result.score === result.marks ? "right" : result.score === 0 ? "wrong" : "partial";
+        const last = s.index === s.set.items.length - 1;
+        feedback.innerHTML = `
+            <div class="feedback ${grade}">
+                <strong>${result.score} out of ${result.marks}</strong>
+                <div class="answer">${render_markdown(result.feedback)}</div>
+                <details class="model-answer">
+                    <summary>Model answer</summary>
+                    <div class="answer">${render_markdown(result.model_answer)}</div>
+                </details>
+            </div>
+            <div class="study-controls">
+                <button class="btn btn-accent" type="button" data-quiz="next">${last ? "See your score" : "Next question"}</button>
+            </div>`;
+        feedback.querySelector("[data-quiz]").focus({ preventScroll: true });
+    } catch (error) {
+        if (state.study !== s || !el("study")) return;
+        feedback.innerHTML = `<p class="sheet-error">${escape_html(error.message)}</p>`;
+        button.disabled = false;
+        button.textContent = "Mark my answer";
+    } finally {
+        s.marking = false;
+    }
+}
+
 function answer_option(i) {
     const s = state.study;
     if (s.answered || s.done) return;
     const q = s.set.items[s.index];
-    if (i < 0 || i >= q.options.length) return;
+    if (is_written(q) || i < 0 || i >= q.options.length) return;
     s.answered = true;
     const right = i === q.answer;
     if (right) s.score += 1;
@@ -2757,6 +2925,7 @@ function answer_option(i) {
 
 async function next_question() {
     const s = state.study;
+    stop_answer_voice();
     s.index += 1;
     s.answered = false;
     if (s.index < s.set.items.length) {
@@ -2780,27 +2949,28 @@ async function next_question() {
 
 function render_results() {
     const s = state.study;
-    const total = s.set.items.length;
+    const total = s.set.items.reduce((sum, q) => sum + question_marks(q), 0);
     const best = s.set.best_score;
     const note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
+    const in_marks = s.set.items.some(is_written);
     el("study").innerHTML = `
         <div class="quiz-results">
             <p class="study-meta">Test complete</p>
-            <p class="score"><strong>${s.score}</strong> / ${total}</p>
+            <p class="score"><strong>${s.score}</strong> / ${total}${in_marks ? " marks" : ""}</p>
             <p class="score-note">${note}</p>
             <div class="study-controls">
                 <button class="btn btn-accent" type="button" data-quiz="again">Try again</button>
                 <button class="btn btn-soft" type="button" data-home>Back to home</button>
             </div>
             <div class="study-extra">
-                <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete quiz</button>
+                <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete test</button>
             </div>
         </div>`;
 }
 
 function restart_quiz() {
     const s = state.study;
-    Object.assign(s, { index: 0, score: 0, answered: false, done: false });
+    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null });
     render_quiz();
 }
 
@@ -2830,6 +3000,15 @@ thread.addEventListener("click", (event) => {
     const option = target.closest("[data-option]");
     if (option) {
         answer_option(Number(option.dataset.option));
+        return;
+    }
+    const written = target.closest("[data-written]");
+    if (written) {
+        const action = written.dataset.written;
+        if (action === "photo") el("written-photo-input").click();
+        if (action === "unphoto") set_written_photo(null);
+        if (action === "mic") toggle_answer_voice();
+        if (action === "mark") mark_written();
         return;
     }
     const quiz = target.closest("[data-quiz]");

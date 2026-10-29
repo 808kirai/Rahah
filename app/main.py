@@ -19,7 +19,7 @@ from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
 from .store import store
 from .timetable import calendar_file as timetable_file, class_in
-from .study import kinds, make_set, max_items, study_error, upload
+from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
 
 log = logging.getLogger("rahah")
@@ -52,6 +52,7 @@ magic_bytes = {
 # notes for a study set are sent inline, which counts against claude's request size
 max_set_files = 5
 max_set_mb = 20
+max_photo_mb = 10
 
 
 class new_conversation_in(BaseModel):
@@ -400,10 +401,13 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         topic: str = Form(""),
         count: int = Form(10),
         mode: str = Form(default_mode),
+        style: str = Form("choice"),
         files: list[UploadFile] | None = File(None),
     ):
         if kind not in kinds:
             raise HTTPException(400, "Unknown kind of study set.")
+        if style not in styles:
+            raise HTTPException(400, "Pick multiple choice, written or mixed.")
         if mode not in modes:
             raise HTTPException(400, "Unknown subject.")
         topic = topic.strip()
@@ -429,7 +433,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
         count = max(1, min(count, max_items))
         try:
-            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads)
+            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -444,12 +448,54 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     def get_set(set_id: str):
         return set_or_404(set_id)
 
+    @app.post("/api/sets/{set_id}/mark")
+    async def mark_written(
+        set_id: str,
+        index: int = Form(...),
+        answer: str = Form(""),
+        photo: UploadFile | None = File(None),
+    ):
+        # one written answer, typed, spoken or a photo of working, marked against its mark scheme
+        study_set = set_or_404(set_id)
+        items = study_set["items"]
+        if study_set["kind"] != "quiz" or not 0 <= index < len(items) or items[index].get("type") != "written":
+            raise HTTPException(400, "That question can't be marked.")
+        answer = answer.strip()
+        if len(answer) > 5000:
+            raise HTTPException(400, "Keep the answer under 5000 characters.")
+        shot = None
+        if photo is not None:
+            data = await photo.read(max_photo_mb * 1024 * 1024 + 1)
+            if len(data) > max_photo_mb * 1024 * 1024:
+                raise HTTPException(413, f"A photo can be up to {max_photo_mb} MB.")
+            name = Path(photo.filename or "photo.jpg").name[:120]
+            media_type, kind = sniff_upload(name, data) if data else ("", "")
+            if kind != "image":
+                raise HTTPException(400, "Send the working as a photo, a JPG, PNG, WEBP or GIF.")
+            shot = upload(name, media_type, kind, data)
+        if not answer and not shot:
+            raise HTTPException(400, "Write, say or photograph an answer first.")
+        try:
+            return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot)
+        except study_error as error:
+            raise HTTPException(422, str(error))
+        except Exception as error:
+            if not is_claude_error(error):
+                raise
+            # a photo claude can't open gets a plain message instead of the api's own
+            if shot and isinstance(error, anthropic.BadRequestError) and "image" in str(error).lower():
+                raise HTTPException(400, "Rahah couldn't read that photo. Try a clearer one, or type the answer.")
+            log.warning("marking failed: %s", error)
+            raise HTTPException(502, friendly_error(error))
+
     @app.post("/api/sets/{set_id}/score")
     def record_score(set_id: str, body: score_in):
+        # scores are in marks, a multiple choice question is one mark and a written one its own count
         study_set = set_or_404(set_id)
-        if study_set["kind"] != "quiz" or body.score > study_set["size"]:
+        marks = total_marks(study_set["items"])
+        if study_set["kind"] != "quiz" or body.score > marks:
             raise HTTPException(400, "That score doesn't fit this set.")
-        return {"best_score": db.record_score(set_id, body.score, study_set["size"])}
+        return {"best_score": db.record_score(set_id, body.score, marks)}
 
     @app.get("/api/performance")
     def performance():

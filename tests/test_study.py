@@ -123,3 +123,65 @@ def test_modes_come_with_their_groups(setup):
     body = web.get("/api/modes").json()
     assert list(body["groups"]) == ["study", "exam", "code"]
     assert all(m["group"] in body["groups"] for m in body["modes"])
+
+
+# written questions, marked by claude
+
+png_bytes = b"\x89PNG\r\n\x1a\n" + b"fake png body"
+
+mixed = {"title": "Forces", "questions": [
+    {"type": "choice", "question": "Unit of force?", "options": ["newton", "joule", "watt", "pascal"], "answer": 0,
+     "explanation": "Force is measured in newtons.", "marks": 1, "mark_scheme": "", "model_answer": ""},
+    {"type": "written", "question": "State Newton's second law.", "options": [], "answer": -1, "explanation": "",
+     "marks": 2, "mark_scheme": "Force equals mass times acceleration (1). Named or shown as F = ma (1).",
+     "model_answer": "The resultant force equals mass times acceleration, F = ma."},
+    {"type": "written", "question": "  ", "options": [], "answer": -1, "explanation": "",
+     "marks": 3, "mark_scheme": "dropped, no question", "model_answer": "x"},
+]}
+
+
+def make_mixed(web):
+    made = web.post("/api/sets", data={"kind": "quiz", "topic": "forces", "count": "3", "mode": "science", "style": "mixed"})
+    assert made.status_code == 200
+    return made.json()
+
+
+def test_a_mixed_test_keeps_both_kinds_and_is_scored_in_marks(setup):
+    web, claude = setup([reply(mixed)])
+    body = make_mixed(web)
+    assert [q["type"] for q in body["items"]] == ["choice", "written"]
+    assert body["items"][1]["marks"] == 2
+    assert "half multiple choice and half written" in claude.beta.messages.calls[0]["messages"][0]["content"][0]["text"]
+    listed = web.get("/api/sets").json()["sets"][0]
+    assert listed["marks"] == 3 and listed["written"]
+    # a score is out of the marks, 1 for the choice question and 2 for the written one
+    assert web.post(f"/api/sets/{body['id']}/score", json={"score": 3}).json()["best_score"] == 3
+    assert web.post(f"/api/sets/{body['id']}/score", json={"score": 4}).status_code == 400
+    assert web.post("/api/sets", data={"kind": "quiz", "topic": "x", "style": "essay"}).status_code == 400
+
+
+def test_a_written_answer_is_marked_from_text_or_a_photo(setup):
+    web, claude = setup([reply(mixed), reply({"score": 5, "feedback": "You gave F = ma."}), reply({"score": 1, "feedback": "Half right."})])
+    body = make_mixed(web)
+    marked = web.post(f"/api/sets/{body['id']}/mark", data={"index": "1", "answer": "force is mass times acceleration"}).json()
+    # a score over the question's marks comes back down to them
+    assert marked == {"score": 2, "marks": 2, "feedback": "You gave F = ma.", "model_answer": body["items"][1]["model_answer"]}
+    call = claude.beta.messages.calls[1]
+    text = call["messages"][0]["content"][-1]["text"]
+    assert "worth 2 marks" in text and "Mark scheme" in text and "force is mass times acceleration" in text
+
+    photo = web.post(f"/api/sets/{body['id']}/mark", data={"index": "1"}, files={"photo": ("working.png", png_bytes, "image/png")})
+    assert photo.json()["score"] == 1
+    sent = claude.beta.messages.calls[2]["messages"][0]["content"]
+    assert sent[0]["type"] == "image" and "in the photo" in sent[-1]["text"]
+
+
+def test_marking_is_refused_when_it_doesnt_fit(setup):
+    web, _ = setup([reply(mixed)])
+    body = make_mixed(web)
+    # the multiple choice question is marked on the page, not by claude
+    assert web.post(f"/api/sets/{body['id']}/mark", data={"index": "0", "answer": "newton"}).status_code == 400
+    assert web.post(f"/api/sets/{body['id']}/mark", data={"index": "9", "answer": "x"}).status_code == 400
+    assert web.post(f"/api/sets/{body['id']}/mark", data={"index": "1", "answer": "  "}).status_code == 400
+    not_a_photo = web.post(f"/api/sets/{body['id']}/mark", data={"index": "1"}, files={"photo": ("notes.pdf", pdf_bytes, "application/pdf")})
+    assert not_a_photo.status_code == 400
