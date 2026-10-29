@@ -69,3 +69,20 @@ def test_every_attempt_is_kept_and_deleting_the_quiz_clears_them(web):
 
     web.delete(f"/api/sets/{quiz['id']}")
     assert web.get("/api/performance").json()["overall"] is None
+
+
+def test_gpa_counts_each_test_once_at_its_best_attempt():
+    result = summarise([
+        attempt("q1", "maths", 2, 5, 1),     # 40, E
+        attempt("q1", "maths", 4, 5, 2),     # 80, A, the best of q1
+        attempt("q2", "maths", 3, 5, 3),     # 60, C
+        attempt("q3", "science", 7, 10, 4),  # 70, B
+    ])
+    maths = next(s for s in result["subjects"] if s["mode"] == "maths")
+    assert maths["tests"] == 2 and maths["gpa"] == 3.0
+    assert next(s for s in result["subjects"] if s["mode"] == "science")["gpa"] == 3.0
+    assert result["overall"]["gpa"] == 3.0 and result["overall"]["subjects"] == 2
+    q1 = next(q for q in result["quizzes"] if q["id"] == "q1")
+    # the newest attempt comes first in a test's history
+    assert [h["percent"] for h in q1["history"]] == [80, 40]
+    assert {s["grade"]: s["points"] for s in result["scale"]} == {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "E": 0.0, "F": 0.0}

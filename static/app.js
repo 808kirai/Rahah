@@ -3068,7 +3068,9 @@ function sparkline(points) {
     </svg>`;
 }
 
-const stat_sketches = { "Average score": "chart", "Latest test": "pencil", "Tests taken": "checklist", "Best subject": "trophy" };
+const stat_sketches = { "Average score": "chart", "GPA": "target", "Tests taken": "checklist", "Best subject": "trophy" };
+
+const gpa_text = (value) => (value === null || value === undefined ? "–" : value.toFixed(2));
 
 function stat_card(label, value, note, extra = "", small = false) {
     return `<div class="stat-card">
@@ -3104,9 +3106,9 @@ function render_performance_row() {
         return;
     }
     slot.innerHTML = row_html("Your performance", [
-        stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} questions right`, sparkline(state.performance.timeline)),
-        stat_card("Latest test", `${o.latest}%`, delta_html(o.change)),
-        stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`),
+        stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(state.performance.timeline)),
+        stat_card("GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`),
+        stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`),
         `<button class="stat-card more" type="button" data-performance>See all your results ${icons.next}</button>`,
     ].join(""));
 }
@@ -3139,9 +3141,9 @@ function render_performance() {
 
     page.innerHTML = `
         <div class="kpis">
-            ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} questions right`, sparkline(p.timeline))}
-            ${stat_card("Latest test", `${o.latest}%`, delta_html(o.change))}
-            ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`)}
+            ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(p.timeline))}
+            ${stat_card("GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`)}
+            ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`)}
             ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
         </div>
 
@@ -3163,6 +3165,21 @@ function render_performance() {
             </details>
         </section>
 
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>GPA by subject</h3>
+                <p>Each test counts once, at its best attempt. Choose a subject for its tests</p>
+            </div>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Subject</th><th class="num">GPA</th><th class="num">Average</th><th>Grade</th><th class="num">Tests</th></tr></thead>
+                <tbody>${p.subjects.map((s) => `<tr class="pick-row" tabindex="0" role="button" data-subject="${escape_html(s.mode)}" aria-label="${escape_html(mode_name(s.mode))}, GPA ${gpa_text(s.gpa)}">
+                    <td>${escape_html(mode_name(s.mode))}</td><td class="num"><strong>${gpa_text(s.gpa)}</strong></td>
+                    <td class="num">${s.average}%</td><td>${grade_pill(s.grade)}</td><td class="num">${s.tests}</td>
+                </tr>`).join("")}</tbody>
+            </table></div>
+            <p class="scale-note">GPA points: ${p.scale.map((g) => `${g.grade} ${g.points}`).join(" · ")}</p>
+        </section>
+
         <div class="perf-grid">
             <section class="perf-card">
                 <div class="perf-head">
@@ -3170,7 +3187,7 @@ function render_performance() {
                     <p>Average across every attempt</p>
                 </div>
                 <div class="bars">${p.subjects.map((s) => `
-                    <div class="bar-row" tabindex="0" data-tip="${escape_html(mode_name(s.mode))}" data-tip-value="${s.average}%" data-tip-note="Grade ${s.grade} · ${plural(s.attempts, "attempt")}">
+                    <div class="bar-row" tabindex="0" role="button" data-subject="${escape_html(s.mode)}" data-tip="${escape_html(mode_name(s.mode))}" data-tip-value="${s.average}%" data-tip-note="Grade ${s.grade} · GPA ${gpa_text(s.gpa)} · ${plural(s.attempts, "attempt")}">
                         <span class="bar-label">${escape_html(mode_name(s.mode))}</span>
                         <span class="bar-track">
                             <span class="bar" style="--v: ${Math.max(s.average, 1)}"></span>
@@ -3200,11 +3217,11 @@ function render_performance() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Your tests</h3>
-                <p>Most recent first</p>
+                <p>Most recent first. Choose a test for its attempts</p>
             </div>
             <div class="table-wrap"><table>
                 <thead><tr><th>Test</th><th>Subject</th><th class="num">Attempts</th><th class="num">Best</th><th class="num">Latest</th><th>Best grade</th><th></th></tr></thead>
-                <tbody>${p.quizzes.map((q) => `<tr>
+                <tbody>${p.quizzes.map((q) => `<tr class="pick-row" tabindex="0" role="button" data-test="${q.id}" aria-label="${escape_html(q.title)}, best ${q.best}%">
                     <td>${escape_html(q.title)}</td><td>${escape_html(mode_name(q.mode))}</td>
                     <td class="num">${q.attempts}</td><td class="num">${q.best}%</td><td class="num">${q.latest}%</td>
                     <td>${grade_pill(q.grade)}</td>
@@ -3215,6 +3232,94 @@ function render_performance() {
         <div class="chart-tip floating" id="perf-tip" hidden></div>`;
     draw_timeline();
 }
+
+// a box with the details of one test or one subject, opened from the performance page
+
+const detail_sheet = el("detail-sheet");
+
+function detail_stat(label, value) {
+    return `<div class="detail-stat"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function show_test_detail(id) {
+    const q = state.performance?.quizzes.find((item) => item.id === id);
+    if (!q) return;
+    el("detail-title").textContent = q.title;
+    el("detail-body").innerHTML = `
+        <p class="detail-sub">${escape_html(mode_name(q.mode))} · out of ${plural(q.size, "mark")}</p>
+        <div class="detail-stats">
+            ${detail_stat("Best", `${q.best}% ${grade_pill(q.grade)}`)}
+            ${detail_stat("Latest", `${q.latest}%`)}
+            ${detail_stat("Attempts", q.attempts)}
+            ${detail_stat("Last taken", short_date(q.last_taken))}
+        </div>
+        <p class="detail-heading">Attempts, newest first</p>
+        <ul class="detail-list">${(q.history || []).map((h) => `<li>
+            <span>${short_date(h.created)}</span><span class="num">${h.score} / ${h.total}</span><span class="num">${h.percent}%</span>${grade_pill(h.grade)}
+        </li>`).join("")}</ul>
+        <div class="sheet-actions">
+            <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
+            <a class="btn btn-accent" href="#/set/${q.id}" data-detail-close>Retake</a>
+        </div>`;
+    if (!detail_sheet.open) detail_sheet.showModal();
+}
+
+function show_subject_detail(mode) {
+    const s = state.performance?.subjects.find((item) => item.mode === mode);
+    if (!s) return;
+    const tests = state.performance.quizzes.filter((q) => q.mode === mode);
+    el("detail-title").textContent = mode_name(mode);
+    el("detail-body").innerHTML = `
+        <p class="detail-sub">${plural(s.tests, "test")} · ${plural(s.attempts, "attempt")}</p>
+        <div class="detail-stats">
+            ${detail_stat("GPA", gpa_text(s.gpa))}
+            ${detail_stat("Average", `${s.average}% ${grade_pill(s.grade)}`)}
+        </div>
+        <p class="detail-heading">Tests, choose one for its attempts</p>
+        <ul class="detail-list">${tests.map((q) => `<li class="pick-row" tabindex="0" role="button" data-test="${q.id}">
+            <span class="detail-name">${escape_html(q.title)}</span><span class="num">best ${q.best}%</span>${grade_pill(q.grade)}
+        </li>`).join("")}</ul>
+        <div class="sheet-actions">
+            <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
+        </div>`;
+    if (!detail_sheet.open) detail_sheet.showModal();
+}
+
+el("detail-close").addEventListener("click", () => detail_sheet.close());
+
+// a subject or test row opens its box, by click or by enter or space, and a test inside a subject's box swaps the box over
+function pick_detail(target) {
+    const test = target.closest("[data-test]");
+    if (test) {
+        show_test_detail(test.dataset.test);
+        return true;
+    }
+    const subject = target.closest("[data-subject]");
+    if (subject) {
+        show_subject_detail(subject.dataset.subject);
+        return true;
+    }
+    return false;
+}
+
+thread.addEventListener("click", (event) => {
+    if (!el("performance") || event.target.closest("a, button")) return;
+    pick_detail(event.target);
+});
+detail_sheet.addEventListener("click", (event) => {
+    if (event.target.closest("[data-detail-close]")) {
+        detail_sheet.close();
+        return;
+    }
+    pick_detail(event.target);
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const row = event.target.closest?.(".pick-row, .bar-row[data-subject]");
+    if (!row) return;
+    event.preventDefault();
+    pick_detail(row);
+});
 
 // the line chart is drawn at the box's real width, so lines and text never stretch
 function draw_timeline() {

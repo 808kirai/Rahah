@@ -1,8 +1,15 @@
-"""quiz results turned into percentages, grades and summaries for the performance page"""
+"""test results turned into percentages, grades, gpa and summaries for the performance page"""
 
 # the lowest percentage that earns each grade, best first
 grade_scale = [("A", 80), ("B", 70), ("C", 60), ("D", 50), ("E", 40), ("F", 0)]
 timeline_length = 30
+
+# grade points on the usual 4.0 scale, e and f are both below a pass
+grade_points = {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "E": 0.0, "F": 0.0}
+
+
+def gpa(grades: list[str]) -> float | None:
+    return round(sum(grade_points[g] for g in grades) / len(grades), 2) if grades else None
 
 
 def percent(score: int, total: int) -> int:
@@ -17,7 +24,7 @@ def grade_for(value: int) -> str:
 def summarise(attempts: list[dict]) -> dict:
     """attempts are oldest first, each with set_id, title, mode, score, total and created"""
     result = {
-        "scale": [{"grade": g, "min": floor} for g, floor in grade_scale],
+        "scale": [{"grade": g, "min": floor, "points": grade_points[g]} for g, floor in grade_scale],
         "overall": None,
         "timeline": [],
         "subjects": [],
@@ -52,8 +59,16 @@ def summarise(attempts: list[dict]) -> dict:
         q["best"] = max(q["best"], a["percent"])
         q["latest"] = a["percent"]
         q["last_taken"] = a["created"]
+        q.setdefault("history", []).append({k: a[k] for k in ("score", "total", "percent", "grade", "created")})
     for q in quizzes.values():
         q["grade"] = grade_for(q["best"])
+        q["history"].reverse()
+
+    # gpa counts each test once, at its best attempt, so practising a test again never lowers it
+    for s in subjects.values():
+        tests = [q for q in quizzes.values() if q["mode"] == s["mode"]]
+        s["tests"] = len(tests)
+        s["gpa"] = gpa([q["grade"] for q in tests])
 
     correct = sum(a["score"] for a in attempts)
     questions = sum(a["total"] for a in attempts)
@@ -66,6 +81,8 @@ def summarise(attempts: list[dict]) -> dict:
         "correct": correct,
         "average": average,
         "grade": grade_for(average),
+        "gpa": gpa([q["grade"] for q in quizzes.values()]),
+        "subjects": len(subjects),
         "latest": latest["percent"],
         "latest_title": latest["title"],
         "change": latest["percent"] - attempts[-2]["percent"] if len(attempts) > 1 else None,

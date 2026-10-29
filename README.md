@@ -30,7 +30,7 @@ Study tools
 - Tests of 5, 10, 15 or 20 questions, multiple choice, written or a mix, and every attempt is kept
 - Written questions come with marks, a mark scheme and a model answer. Answer by typing, by speaking, which the browser turns into text, or with a photo of your working from the camera or gallery, handy for maths. Rahah marks each answer against the mark scheme, says what earned marks and what was missing, and shows the model answer
 - Multiple choice questions show why the right answer is right
-- A performance page with your average, grades, scores over time, results by subject and a table of every test, plus a summary under Exam on the home page
+- A performance page with your average, your GPA out of 4.0, scores over time, GPA and grades by subject, and a table of every test, plus a summary under Exam on the home page. Choosing a subject opens a box with its tests, and choosing a test opens a box with every attempt and a Retake button
 - A Suggestions tab with ideas of what to study next, picked by Claude from your chats, decks and test scores and grouped by topic
 
 Pages
@@ -117,6 +117,8 @@ The student's own subjects are saved in the database and joined to the built in 
 Reminders and classes are worked out from the student's own calendar dates and times, so they land on the right day wherever the page is opened. A web page can only remind you while it's open, so reminders and the timetable can also be added to a calendar app with the alerts built in. Once Rahah is online, a calendar link that updates by itself and push notifications become possible.
 
 Tests are scored in marks. A multiple choice question is worth one mark and is checked on the page. A written question is worth what its mark scheme says, and each answer is sent to Claude with the question, the mark scheme and the model answer, plus the photo when there is one. Claude replies with a score and feedback as structured JSON, and the score is kept within the question's marks.
+
+GPA counts each test once, at its best attempt, so practising a test again never lowers it. Grade points are A 4, B 3, C 2, D 1, and E and F 0. A subject's GPA is the average over its tests, and the overall GPA is the average over every test.
 
 Suggestions on the Suggestions tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
 
