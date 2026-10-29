@@ -21,6 +21,7 @@ Chat
 - In coding mode Rahah runs code in a sandbox to check fixes and show real output, each run is shown as a card with the code, the output and any charts it made, and Python examples get a Run button
 - Answers about documents show numbered sources with the page and the quoted passage
 - Maths is rendered from LaTeX and code blocks are highlighted with a copy button
+- Diagrams: when a picture helps, like a process, a cycle or a timeline, Rahah draws a small flowchart, timeline or mind map. It's written as Mermaid and drawn on the page as an image in the current theme, the drawing library loads only when an answer has one, and a diagram that can't be drawn shows as its text
 
 Subjects
 

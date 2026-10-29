@@ -1490,6 +1490,42 @@ button.plan-task:focus-visible {
     color: var(--accent-text);
 }
 
+/* diagrams drawn from rahah's mermaid blocks */
+.diagram {
+    margin: 0.9rem 0;
+    padding: 1rem;
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    background: var(--panel-bg);
+    overflow-x: auto;
+}
+
+.diagram-art {
+    display: flex;
+    justify-content: center;
+}
+
+.diagram-art img {
+    max-width: 100%;
+    height: auto;
+    max-height: 520px;
+}
+
+.diagram-wait {
+    color: var(--text-2);
+    font-size: 0.85rem;
+}
+
+.diagram.failed {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+.diagram.failed .diagram-art {
+    display: block;
+}
+
 /* the notes library on the chats and tests page */
 .section-head {
     display: flex;

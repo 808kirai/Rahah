@@ -184,9 +184,83 @@ function fill_runs(container, runs) {
     });
 }
 
+// diagrams, rahah writes them as mermaid and the page draws them
+// the library is big, so it loads only when an answer has a diagram, and each drawing goes in as an
+// image, which can't run anything even if the diagram text was odd
+
+let mermaid_ready = null;
+function load_mermaid() {
+    if (!mermaid_ready) {
+        mermaid_ready = new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js";
+            script.onload = () => resolve(window.mermaid);
+            script.onerror = () => {
+                mermaid_ready = null;
+                reject(new Error("diagrams couldn't load"));
+            };
+            document.head.appendChild(script);
+        });
+    }
+    return mermaid_ready;
+}
+
+function diagram_theme() {
+    const light = document.documentElement.getAttribute("data-theme") === "light"
+        || (!document.documentElement.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: light)").matches);
+    return light
+        ? { primaryColor: "#e3eef8", primaryTextColor: "#0f2233", primaryBorderColor: "#2f7fb8", lineColor: "#4a6378", secondaryColor: "#eef3f8", tertiaryColor: "#f6f9fc", background: "#ffffff", fontFamily: "Inter, sans-serif" }
+        : { primaryColor: "#123049", primaryTextColor: "#e8f1f8", primaryBorderColor: "#3b9edb", lineColor: "#8fb3cc", secondaryColor: "#0f2638", tertiaryColor: "#0b1b29", background: "#0a1622", fontFamily: "Inter, sans-serif" };
+}
+
+let diagram_count = 0;
+async function draw_diagram(figure) {
+    const source = figure.dataset.source;
+    try {
+        const mermaid = await load_mermaid();
+        mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: "strict",
+            theme: "base",
+            themeVariables: diagram_theme(),
+            flowchart: { htmlLabels: false, padding: 12 },
+            themeCSS: ".node rect, .node polygon { rx: 8px; ry: 8px; } .label text, text { font-size: 14px; }",
+        });
+        const { svg } = await mermaid.render(`diagram-${++diagram_count}`, source);
+        const image = new Image();
+        image.alt = "Diagram";
+        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        figure.querySelector(".diagram-art").replaceChildren(image);
+        figure.classList.remove("failed");
+    } catch (error) {
+        // anything that won't draw is shown as its text instead
+        figure.classList.add("failed");
+        figure.querySelector(".diagram-art").innerHTML = `<pre><code>${escape_html(source)}</code></pre>`;
+        document.querySelectorAll("body > [id^='ddiagram-'], body > svg[id^='diagram-']").forEach((n) => n.remove());
+    }
+}
+
+function make_diagrams(container) {
+    container.querySelectorAll("pre code.language-mermaid").forEach((code) => {
+        const figure = document.createElement("figure");
+        figure.className = "diagram";
+        figure.dataset.source = code.textContent.trim();
+        figure.innerHTML = `<div class="diagram-art"><span class="diagram-wait">Drawing the diagram…</span></div>`;
+        code.parentElement.replaceWith(figure);
+        draw_diagram(figure);
+    });
+}
+
+// a theme change redraws them in the new colours
+function redraw_diagrams() {
+    document.querySelectorAll(".diagram:not(.failed)").forEach(draw_diagram);
+}
+
 function decorate_code(container) {
+    make_diagrams(container);
     const can_run = state.code_modes.has(mode_select.value);
     container.querySelectorAll("pre code").forEach((code) => {
+        if (code.closest(".diagram")) return;
         if (window.hljs) hljs.highlightElement(code);
         const actions = document.createElement("div");
         actions.className = "code-actions";
@@ -698,6 +772,7 @@ const reader = { reply: null };
 // what gets read, the words without markdown, citation marks or code, and simple maths said in words
 function speech_text(raw) {
     return String(raw || "")
+        .replace(/```mermaid[\s\S]*?```/g, " (diagram shown on screen) ")
         .replace(/```[\s\S]*?```/g, " (code shown on screen) ")
         .replace(/⟦[^⟧]*⟧/g, "")
         .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, "$1 over $2")
@@ -4606,6 +4681,7 @@ el("theme-toggle").addEventListener("click", () => {
     const apply = () => {
         document.documentElement.setAttribute("data-theme", next);
         sync_theme_label();
+        redraw_diagrams();
     };
     // the browser cross fades the whole page where it can
     if (document.startViewTransition && !calm.matches) document.startViewTransition(apply);
