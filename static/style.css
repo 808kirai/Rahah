@@ -12,9 +12,9 @@
     --accent-soft: rgba(20, 140, 200, 0.14);
     --on-accent: #ffffff;
     /* filled buttons and bubbles, deep enough at every stop for white text */
-    --accent-fill: linear-gradient(135deg, #08699a, #07628f);
-    --accent-fill-hover: linear-gradient(135deg, #0977ad, #0870a2);
-    --glow: rgba(16, 140, 200, 0.22);
+    --accent-fill: linear-gradient(135deg, #08699a, #076694);
+    --accent-fill-hover: linear-gradient(135deg, #0977ad, #0873a8);
+    --glow: rgba(16, 140, 200, 0.15);
     --mauve: #a783a6;
     --mint: #98dea3;
     --mint-text: #98dea3;
@@ -33,14 +33,14 @@
     --card-shadow: 0 0 0 transparent;
     --scroll-thumb: rgba(200, 225, 245, 0.16);
     --scroll-thumb-hover: rgba(200, 225, 245, 0.3);
-    --card-bg: linear-gradient(160deg, #0d1823 0%, #08111a 100%);
+    --card-bg: linear-gradient(160deg, #0c1620 0%, #09121b 100%);
     /* the top of a card, lit from below like the cards in the reference */
-    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.17), transparent 70%), #0f1a26;
+    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.11), transparent 70%), #0f1a26;
     /* the light behind the whole page, a teal wash from the top and a fainter one bottom right */
     --bg-glow:
-        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.23), transparent 70%),
-        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.12), transparent 70%),
-        radial-gradient(ellipse 40% 35% at -5% 55%, rgba(10, 90, 140, 0.07), transparent 70%);
+        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.15), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.08), transparent 70%),
+        radial-gradient(ellipse 40% 35% at -5% 55%, rgba(10, 90, 140, 0.045), transparent 70%);
 
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -61,7 +61,7 @@
     --text-2: #5a6b7b;
     --accent-text: #085c85;
     --accent-soft: rgba(8, 105, 154, 0.08);
-    --glow: rgba(8, 105, 154, 0.15);
+    --glow: rgba(8, 105, 154, 0.1);
     --mint-text: #2f8a4a;
     --record: var(--accent);
     --shadow: rgba(12, 26, 38, 0.16);
@@ -77,11 +77,11 @@
     --card-shadow: 0 1px 3px rgba(12, 26, 38, 0.1), 0 6px 20px rgba(12, 26, 38, 0.12);
     --scroll-thumb: rgba(12, 26, 38, 0.18);
     --scroll-thumb-hover: rgba(12, 26, 38, 0.32);
-    --card-bg: linear-gradient(160deg, #ffffff 0%, #f7fafc 100%);
-    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.09), transparent 70%), #eaf2f7;
+    --card-bg: linear-gradient(160deg, #ffffff 0%, #fafcfd 100%);
+    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.06), transparent 70%), #eaf2f7;
     --bg-glow:
-        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.09), transparent 70%),
-        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.05), transparent 70%);
+        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.06), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.03), transparent 70%);
 }
 
 * {
@@ -726,7 +726,7 @@ button.picker-heading:focus-visible {
 .tile:hover,
 .tile:focus-visible {
     transform: translateY(-4px);
-    background: radial-gradient(120% 90% at 20% 0%, var(--accent-soft), transparent 65%), var(--card-bg);
+    background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--accent-soft) 65%, transparent), transparent 65%), var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--accent-text), 0 16px 36px var(--shadow), 0 0 20px var(--accent-soft);
 }
 
