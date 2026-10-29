@@ -21,6 +21,11 @@
     --record: var(--accent);
     --shadow: rgba(0, 0, 0, 0.5);
     --glass: rgba(10, 18, 27, 0.78);
+    /* the floating tabs and message box, lighter than the page so they stand out from it */
+    --dock-bg: rgba(27, 42, 58, 0.9);
+    --dock-line: rgba(160, 215, 255, 0.18);
+    --dock-line-focus: rgba(160, 215, 255, 0.36);
+    --dock-active: rgba(160, 215, 255, 0.16);
     --code-bg: #070d14;
     /* a hairline that gives cards an edge, and the lift cards get in light mode */
     --line: rgba(140, 200, 255, 0.09);
@@ -61,6 +66,10 @@
     --record: var(--accent);
     --shadow: rgba(12, 26, 38, 0.16);
     --glass: rgba(255, 255, 255, 0.86);
+    --dock-bg: rgba(226, 235, 242, 0.94);
+    --dock-line: rgba(12, 26, 38, 0.14);
+    --dock-line-focus: rgba(12, 26, 38, 0.3);
+    --dock-active: #ffffff;
     --code-bg: #f6f9fb;
     --line: rgba(12, 26, 38, 0.08);
     --line-strong: rgba(12, 26, 38, 0.16);
@@ -2895,10 +2904,10 @@ button.picker-heading:focus-visible {
     gap: 2px;
     padding: 4px;
     border-radius: var(--pill);
-    background: var(--glass);
+    background: var(--dock-bg);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    box-shadow: 0 10px 30px var(--shadow);
+    box-shadow: inset 0 0 0 1px var(--dock-line), 0 10px 30px var(--shadow);
 }
 
 .tab {
@@ -2955,7 +2964,7 @@ button.picker-heading:focus-visible {
 .is-recommendations .tab[data-tab="recommendations"],
 .is-reminders .tab[data-tab="reminders"],
 .is-performance .tab[data-tab="performance"] {
-    background: var(--surface-2);
+    background: var(--dock-active);
     color: var(--text);
 }
 
@@ -2968,17 +2977,31 @@ button.picker-heading:focus-visible {
 .composer-box {
     padding: 4px;
     border-radius: 26px;
-    background: var(--glass);
+    background: var(--dock-bg);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    box-shadow: inset 0 0 0 1px var(--line), 0 10px 30px var(--shadow);
+    box-shadow: inset 0 0 0 1px var(--dock-line), 0 10px 30px var(--shadow);
     transition: box-shadow var(--dur) var(--ease-out);
 }
 
 /* the box is focused whenever a page opens, so its ring only brightens a little and the accent stays for actions */
 .composer-box:focus-within,
 .composer-box.dragging {
-    box-shadow: inset 0 0 0 1px var(--line-strong), 0 10px 30px var(--shadow);
+    box-shadow: inset 0 0 0 1px var(--dock-line-focus), 0 10px 30px var(--shadow);
+}
+
+/* side by side on wider screens the tabs and message box are the same height, contents centred */
+@media (min-width: 721px) {
+    .tabs {
+        height: 50px;
+    }
+
+    .composer-box {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 50px;
+    }
 }
 
 .composer-box.dragging {
@@ -3011,7 +3034,8 @@ button.picker-heading:focus-visible {
     flex: 1;
     min-width: 0;
     max-height: 220px;
-    padding: 0.45rem 0.25rem;
+    /* one line of text is exactly as tall as the 36 pixel buttons beside it */
+    padding: calc((36px - 1.5em) / 2) 0.25rem;
     border: none;
     outline: none;
     resize: none;
@@ -3047,7 +3071,7 @@ button.picker-heading:focus-visible {
 
 /* with nothing to send the button goes quiet grey rather than a faded accent */
 .send-btn:disabled {
-    background: var(--surface-2);
+    background: var(--dock-active);
     color: var(--text-2);
     cursor: default;
 }
