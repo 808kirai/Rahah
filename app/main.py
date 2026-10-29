@@ -1,6 +1,7 @@
 """the rahah web server, run it with uvicorn app.main:create_app --factory"""
 
 import asyncio
+from datetime import date
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from .config import load_settings, settings
 from .modes import custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom
 from .performance import summarise
+from .plans import make_plan, plan_calendar
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
 from .store import store
@@ -64,6 +66,16 @@ class new_conversation_in(BaseModel):
 
 class score_in(BaseModel):
     score: int = Field(ge=0)
+
+
+class plan_in(BaseModel):
+    today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    topics: str = Field(default="", max_length=1000)
+
+
+class plan_day_in(BaseModel):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    done: bool
 
 
 class card_in(BaseModel):
@@ -643,6 +655,48 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         reminder_or_404(reminder_id)
         db.delete_reminder(reminder_id)
         return {"ok": True}
+
+    @app.post("/api/reminders/{reminder_id}/plan")
+    async def plan_reminder(reminder_id: str, body: plan_in):
+        # today comes from the page, since the student's own date is what matters
+        reminder = reminder_or_404(reminder_id)
+        try:
+            today = date.fromisoformat(body.today)
+        except ValueError:
+            raise HTTPException(422, "Pick a real date.")
+        try:
+            days = await make_plan(claude(), cfg, reminder, today, body.topics.strip(), on_usage=log_usage("plan"))
+        except study_error as error:
+            raise HTTPException(422, str(error))
+        except Exception as error:
+            if not is_claude_error(error):
+                raise
+            log.warning("plan failed: %s", error)
+            raise HTTPException(502, friendly_error(error))
+        db.save_plan(reminder_id, {"made": body.today, "topics": body.topics.strip(), "days": days})
+        return reminder_out(db.get_reminder(reminder_id))
+
+    @app.post("/api/reminders/{reminder_id}/plan/day")
+    def plan_day(reminder_id: str, body: plan_day_in):
+        reminder = reminder_or_404(reminder_id)
+        plan = reminder["plan"]
+        day = next((d for d in (plan or {}).get("days", []) if d["date"] == body.date), None)
+        if not day:
+            raise HTTPException(404, "That day isn't in the plan.")
+        day["done"] = body.done
+        db.save_plan(reminder_id, plan)
+        return reminder_out(db.get_reminder(reminder_id))
+
+    @app.get("/api/reminders/{reminder_id}/plan.ics")
+    def plan_ics(reminder_id: str):
+        reminder = reminder_or_404(reminder_id)
+        if not reminder["plan"]:
+            raise HTTPException(404, "There's no plan for this yet.")
+        return Response(
+            plan_calendar(reminder, reminder["plan"]["days"]),
+            media_type="text/calendar; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{safe_filename(reminder["title"])} plan.ics"'},
+        )
 
     @app.get("/api/reminders/calendar.ics")
     def all_reminders_calendar():

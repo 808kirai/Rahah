@@ -41,7 +41,7 @@ Pages
 
 - Home is laid out like a streaming app, with rows for each subject and your saved decks and tests. Each Continue row shows up to 5 chats
 - Chats & Tests lists your saved tests with a New test card, then your chats grouped by day, with search across both. New chat drops down a box with your 5 newest chats
-- Reminders and Timetable splits the page in half. Reminders cover exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, a pop up and a desktop notification while Rahah is open, and a Plan revision button. The weekly timetable lists classes day by day from today, with the class happening now marked
+- Reminders and Timetable splits the page in half. Reminders cover exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, and a pop up and a desktop notification while Rahah is open. An exam, CAT or midterm can get a revision plan: a day by day plan up to the day before, with a focus and a few tasks each day, buttons that open the right tool for each task, days to tick off, and a calendar file. The weekly timetable lists classes day by day from today, with the class happening now marked
 - Calendar files for reminders and for the timetable, so a phone's own calendar reminds you even when Rahah is closed. Each class repeats weekly with an alert 15 minutes before it starts
 - Every card has a small hand drawn sketch of what it's about, which draws itself in once when the card first shows
 
@@ -87,6 +87,7 @@ Project layout
 - `app/study.py` - Flashcards and tests, asked for as structured JSON and checked before saving, and the marking of written answers
 - `app/performance.py` - Test attempts turned into percentages, grades and summaries
 - `app/reminders.py` - Reminder dates, checks and calendar files
+- `app/plans.py` - Revision plans for exams, asked for as structured JSON and checked, and their calendar file
 - `app/timetable.py` - Weekly classes and their repeating calendar file
 - `app/recommend.py` - Suggestions of what to study next, asked for as structured JSON from the study history
 - `app/usage.py` - What each request to Claude used and cost, and the totals for the usage box

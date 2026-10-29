@@ -85,6 +85,7 @@ create table if not exists reminders (
     notes text not null default '',
     done integer not null default 0,
     seen text not null default '[]',
+    plan text not null default '',
     created real not null,
     updated real not null
 );
@@ -146,6 +147,9 @@ class store:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as db:
             db.executescript(schema)
+            columns = {r["name"] for r in db.execute("pragma table_info(reminders)").fetchall()}
+            if "plan" not in columns:
+                db.execute("alter table reminders add column plan text not null default ''")
 
     @contextmanager
     def _connect(self):
@@ -310,7 +314,14 @@ class store:
     # seen holds the dates a reminder was already shown on, so it isn't shown twice in a day
 
     def _reminder(self, row) -> dict:
-        return {**dict(row), "done": bool(row["done"]), "seen": json.loads(row["seen"])}
+        reminder = {**dict(row), "done": bool(row["done"]), "seen": json.loads(row["seen"])}
+        reminder["plan"] = json.loads(row["plan"]) if row["plan"] else None
+        return reminder
+
+    # a revision plan, the days and whether each one is done
+    def save_plan(self, reminder_id: str, plan: dict | None) -> None:
+        with self._connect() as db:
+            db.execute("update reminders set plan = ? where id = ?", (json.dumps(plan) if plan else "", reminder_id))
 
     def list_reminders(self) -> list[dict]:
         with self._connect() as db:

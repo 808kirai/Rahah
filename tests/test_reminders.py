@@ -172,3 +172,61 @@ def test_a_reminder_under_the_students_own_subject(web):
     # removing the subject moves the reminder back to general study, stored as blank
     web.delete(f"/api/subjects/{law}")
     assert web.get("/api/reminders").json()["reminders"][0]["mode"] == ""
+
+
+# revision plans
+
+def test_a_plan_runs_from_today_to_the_day_before_and_at_most_three_weeks():
+    from app.plans import max_days, plan_dates
+    today = date(2026, 11, 1)
+    assert plan_dates(today, date(2026, 11, 4)) == [date(2026, 11, 1), date(2026, 11, 2), date(2026, 11, 3)]
+    assert plan_dates(today, date(2026, 11, 1)) == []
+    far = plan_dates(today, date(2027, 1, 1))
+    # only the last weeks before a far off exam are planned
+    assert len(far) == max_days and far[-1] == date(2026, 12, 31)
+
+
+def plan_web(tmp_path, replies):
+    import json as _json
+    from .fakes import message, text_block
+    claude = fake_client([message([text_block(_json.dumps(r))]) for r in replies])
+    return TestClient(create_app(settings(db_path=tmp_path / "plan.db"), client=claude)), claude
+
+
+def test_a_plan_is_made_checked_saved_and_ticked_off(tmp_path):
+    days = [in_days(i) for i in range(3)]
+    reply = {"days": [
+        {"date": days[0], "focus": "Cells", "tasks": [{"kind": "flashcards", "topic": "Organelles", "minutes": 20},
+                                                     {"kind": "dance", "topic": "dropped, not a task kind", "minutes": 10}]},
+        {"date": days[1], "focus": "Genetics", "tasks": [{"kind": "test", "topic": "Inheritance", "minutes": 500}]},
+        {"date": "1999-01-01", "focus": "dropped, not a planned day", "tasks": [{"kind": "read", "topic": "x", "minutes": 5}]},
+        {"date": days[2], "focus": "Review", "tasks": [{"kind": "rest", "topic": "Early night", "minutes": 30}]},
+    ]}
+    web, claude = plan_web(tmp_path, [reply])
+    made = add(web, due_date=in_days(3)).json()
+    planned = web.post(f"/api/reminders/{made['id']}/plan", json={"today": in_days(0), "topics": "cells and genetics"}).json()
+    plan = planned["plan"]
+    assert [d["date"] for d in plan["days"]] == days and plan["topics"] == "cells and genetics"
+    assert plan["days"][0]["tasks"] == [{"kind": "flashcards", "topic": "Organelles", "minutes": 20}]
+    # minutes stay sensible
+    assert plan["days"][1]["tasks"][0]["minutes"] == 180
+    asked = claude.beta.messages.calls[0]["messages"][0]["content"]
+    assert ", ".join(days) in asked and "cells and genetics" in asked
+
+    ticked = web.post(f"/api/reminders/{made['id']}/plan/day", json={"date": days[1], "done": True}).json()
+    assert [d["done"] for d in ticked["plan"]["days"]] == [False, True, False]
+    assert web.post(f"/api/reminders/{made['id']}/plan/day", json={"date": "2000-01-01", "done": True}).status_code == 404
+
+    calendar = web.get(f"/api/reminders/{made['id']}/plan.ics").text
+    assert calendar.count("BEGIN:VEVENT") == 3 and "SUMMARY:Revise: Cells" in calendar
+    # changing the reminder keeps its plan
+    web.put(f"/api/reminders/{made['id']}", json={"kind": "exam", "title": "Biology paper 2", "due_date": in_days(3), "notes": "hall 2"})
+    assert web.get("/api/reminders").json()["reminders"][0]["plan"]["days"][1]["done"] is True
+
+
+def test_no_plan_when_the_exam_is_today(tmp_path):
+    web, _ = plan_web(tmp_path, [])
+    made = add(web, due_date=in_days(0)).json()
+    refused = web.post(f"/api/reminders/{made['id']}/plan", json={"today": in_days(0)})
+    assert refused.status_code == 422 and "too close" in refused.json()["detail"]
+    assert web.get(f"/api/reminders/{made['id']}/plan.ics").status_code == 404

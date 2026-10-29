@@ -1611,9 +1611,12 @@ function reminder_card(r) {
             <strong title="${escape_html(r.title)}">${escape_html(r.title)}</strong>
             <span>${nice_day(r.due_date)}${r.due_time ? ` · ${escape_html(r.due_time)}` : ""}${subject}</span>
             ${next ? `<span class="reminder-next">${next} · ${every_text(r)}</span>` : ""}
+            ${r.plan && !past ? `<span class="reminder-next">Plan: ${r.plan.days.filter((d) => d.done).length} of ${plural(r.plan.days.length, "day")} done</span>` : ""}
             ${r.notes ? `<span class="reminder-notes" title="${escape_html(r.notes)}">${escape_html(r.notes)}</span>` : ""}
             <div class="reminder-actions">
-                ${past ? "" : `<button class="btn btn-soft btn-small" type="button" data-rem-help="${r.id}">${revision_kinds.includes(r.kind) ? "Plan revision" : "Get help"}</button>`}
+                ${past ? "" : revision_kinds.includes(r.kind)
+                    ? `<button class="btn btn-soft btn-small" type="button" data-rem-plan="${r.id}">${r.plan ? "Revision plan" : "Plan revision"}</button>`
+                    : `<button class="btn btn-soft btn-small" type="button" data-rem-help="${r.id}">Get help</button>`}
                 <span class="spacer"></span>
                 <button class="icon-btn" type="button" data-rem-done="${r.id}" aria-label="${r.done ? "Mark as not done" : "Mark as done"}" title="${r.done ? "Mark as not done" : "Mark as done"}">${r.done ? icons.close : icons.check}</button>
                 <button class="icon-btn" type="button" data-rem-edit="${r.id}" aria-label="Edit ${escape_html(r.title)}" title="Edit">${icons.pencil}</button>
@@ -1732,7 +1735,9 @@ function show_toast(r) {
     toast.innerHTML = `${sketch_html(reminder_sketches[r.kind] || "calendar", "small")}
         <div class="toast-text"><strong>${escape_html(reminder_message(r))}</strong>${r.notes ? `<span>${escape_html(r.notes)}</span>` : ""}</div>
         <div class="toast-actions">
-            <button class="btn btn-accent btn-small" type="button" data-rem-help="${r.id}">${revision_kinds.includes(r.kind) ? "Plan revision" : "Get help"}</button>
+            ${revision_kinds.includes(r.kind)
+                ? `<button class="btn btn-accent btn-small" type="button" data-rem-plan="${r.id}">${r.plan ? "Revision plan" : "Plan revision"}</button>`
+                : `<button class="btn btn-accent btn-small" type="button" data-rem-help="${r.id}">Get help</button>`}
             <button class="icon-btn" type="button" data-toast-close aria-label="Dismiss">${icons.close}</button>
         </div>`;
     box.appendChild(toast);
@@ -1741,7 +1746,7 @@ function show_toast(r) {
 el("toasts").addEventListener("click", (event) => {
     const toast = event.target.closest(".toast");
     if (!toast) return;
-    if (event.target.closest("[data-toast-close]") || event.target.closest("[data-rem-help]")) toast.remove();
+    if (event.target.closest("[data-toast-close], [data-rem-help], [data-rem-plan]")) toast.remove();
 });
 
 function show_reminders() {
@@ -2040,11 +2045,138 @@ el("reminder-form").addEventListener("submit", async (event) => {
     }
 });
 
+// a revision plan in the details box, a short form first, then the days with their tasks
+
+// the same details box the performance page uses
+const plan_sheet = el("detail-sheet");
+const plan_icons = { read: "doc", flashcards: "cards", test: "quiz", practice: "pencil", rest: "check" };
+
+function plan_day_label(iso) {
+    const left = days_left(iso);
+    const day = nice_day(iso);
+    return left === 0 ? `Today · ${day}` : left === 1 ? `Tomorrow · ${day}` : day;
+}
+
+function show_plan(id, remake = false) {
+    const r = state.reminders.find((x) => x.id === id);
+    if (!r) return;
+    el("detail-title").textContent = `Revision plan · ${r.title}`;
+    const sub = `${escape_html(state.reminder_kinds[r.kind] || "Exam")} on ${nice_day(r.due_date)} · ${plural(days_left(r.due_date), "day")} to go`;
+    if (!r.plan || remake) {
+        el("detail-body").innerHTML = `
+            <p class="detail-sub">${sub}</p>
+            <label class="field">
+                <span class="field-label">What does it cover? Optional</span>
+                <textarea class="text-input" id="plan-topics" rows="3" maxlength="1000" placeholder="Like cells, genetics and ecology">${escape_html(r.plan?.topics || "")}</textarea>
+            </label>
+            <p class="sheet-error" id="plan-error" role="alert" hidden></p>
+            <div class="sheet-actions">
+                <button class="btn btn-ghost" type="button" data-plan-ask="${r.id}">Ask Rahah instead</button>
+                <button class="btn btn-accent" type="button" data-plan-make="${r.id}">Make my plan</button>
+            </div>`;
+    } else {
+        const done = r.plan.days.filter((d) => d.done).length;
+        el("detail-body").innerHTML = `
+            <p class="detail-sub">${sub} · ${done} of ${plural(r.plan.days.length, "day")} done</p>
+            <ul class="plan-days">${r.plan.days.map((d) => `
+                <li class="plan-day${d.done ? " done" : ""}${days_left(d.date) === 0 ? " today" : ""}">
+                    <input type="checkbox" class="plan-check" data-plan-day="${d.date}" data-plan-id="${r.id}" aria-label="Done ${escape_html(d.focus)}"${d.done ? " checked" : ""}>
+                    <div class="plan-day-body">
+                        <p class="plan-date">${plan_day_label(d.date)}</p>
+                        <strong>${escape_html(d.focus)}</strong>
+                        <div class="plan-tasks">${d.tasks.map((t) => t.kind === "rest"
+                            ? `<span class="plan-task rest">${icons.check}${escape_html(t.topic)} · ${t.minutes} min</span>`
+                            : `<button class="plan-task" type="button" data-plan-task="${t.kind}" data-plan-topic="${escape_html(t.topic)}" data-plan-id="${r.id}">${icons[plan_icons[t.kind]] || ""}${escape_html(t.topic)} · ${t.minutes} min</button>`).join("")}</div>
+                    </div>
+                </li>`).join("")}
+            </ul>
+            <div class="sheet-actions">
+                <button class="btn btn-ghost" type="button" data-plan-remake="${r.id}">Make a new plan</button>
+                <a class="btn btn-soft" href="/api/reminders/${r.id}/plan.ics" download>${icons.calendar}Add to calendar</a>
+            </div>`;
+    }
+    if (!plan_sheet.open) plan_sheet.showModal();
+}
+
+async function make_revision_plan(id) {
+    const button = el("detail-body").querySelector("[data-plan-make]");
+    const error = el("plan-error");
+    button.disabled = true;
+    button.textContent = "Making your plan…";
+    error.hidden = true;
+    try {
+        const response = await api(`/api/reminders/${id}/plan`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ today: local_today(), topics: el("plan-topics").value }),
+        });
+        const updated = await response.json();
+        state.reminders = state.reminders.map((x) => (x.id === id ? updated : x));
+        render_reminders();
+        render_reminder_row();
+        if (plan_sheet.open) show_plan(id);
+    } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+        button.disabled = false;
+        button.textContent = "Make my plan";
+    }
+}
+
+async function tick_plan_day(id, day, done) {
+    try {
+        const response = await api(`/api/reminders/${id}/plan/day`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: day, done }),
+        });
+        const updated = await response.json();
+        state.reminders = state.reminders.map((x) => (x.id === id ? updated : x));
+        render_reminders();
+        show_plan(id);
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+// a task opens the right tool on its topic, the plan box steps aside for it
+function start_plan_task(id, kind, topic) {
+    const r = state.reminders.find((x) => x.id === id);
+    if (!r) return;
+    const mode = r.mode || "exam";
+    plan_sheet.close();
+    if (kind === "flashcards") open_sheet("flashcards", mode, topic);
+    else if (kind === "test") open_sheet("quiz", mode, topic);
+    else open_sheet("ask", mode, `Help me revise ${topic} for my ${(state.reminder_kinds[r.kind] || "exam").toLowerCase()}, ${r.title}. Teach me the key points, then check my understanding with a few questions.`);
+}
+
+plan_sheet.addEventListener("click", (event) => {
+    const find = (name) => event.target.closest(`[data-${name}]`);
+    if (find("plan-make")) make_revision_plan(find("plan-make").dataset.planMake);
+    else if (find("plan-remake")) show_plan(find("plan-remake").dataset.planRemake, true);
+    else if (find("plan-ask")) {
+        const r = state.reminders.find((x) => x.id === find("plan-ask").dataset.planAsk);
+        plan_sheet.close();
+        if (r) open_sheet("ask", r.mode || "exam", help_text(r));
+    } else if (find("plan-task")) {
+        const task = find("plan-task");
+        start_plan_task(task.dataset.planId, task.dataset.planTask, task.dataset.planTopic);
+    }
+});
+plan_sheet.addEventListener("change", (event) => {
+    const box = event.target.closest("[data-plan-day]");
+    if (box) tick_plan_day(box.dataset.planId, box.dataset.planDay, box.checked);
+});
+
 // buttons on reminder cards, wherever they're drawn
 document.addEventListener("click", async (event) => {
     const find = (name) => event.target.closest(`[data-${name}]`);
     if (find("rem-add")) {
         open_reminder_sheet();
+        return;
+    }
+    if (find("rem-plan")) {
+        show_plan(find("rem-plan").dataset.remPlan);
         return;
     }
     if (find("notify")) {
