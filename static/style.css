@@ -16,6 +16,8 @@
     --accent-fill-hover: linear-gradient(135deg, #0977ad, #0873a8);
     --glow: rgba(16, 140, 200, 0.15);
     --mauve: #a783a6;
+    /* mauve words, a deeper shade in light mode so they stay readable on pale backgrounds */
+    --mauve-text: #a783a6;
     --mint: #98dea3;
     --mint-text: #98dea3;
     --record: var(--accent);
@@ -66,6 +68,7 @@
     --accent-soft: rgba(8, 105, 154, 0.08);
     --glow: rgba(8, 105, 154, 0.1);
     --mint-text: #2f8a4a;
+    --mauve-text: #85527f;
     --record: var(--accent);
     --shadow: rgba(12, 26, 38, 0.16);
     --glass: rgba(255, 255, 255, 0.86);
@@ -2419,7 +2422,7 @@ tr.pick-row:focus-visible {
 }
 
 .box-1 {
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 .box-2,
@@ -2537,7 +2540,7 @@ tr.pick-row:focus-visible {
 }
 
 .option.wrong {
-    border-color: var(--mauve);
+    border-color: var(--mauve-text);
     background: rgba(167, 131, 166, 0.14);
 }
 
@@ -2560,7 +2563,7 @@ tr.pick-row:focus-visible {
 }
 
 .feedback.wrong strong {
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 /* reviewing mistakes after a test, each missed question with the right answer side by side */
@@ -2621,7 +2624,7 @@ tr.pick-row:focus-visible {
 }
 
 .review-answer.wrong > span {
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 .review-answer.right > span {
@@ -2852,7 +2855,7 @@ tr.pick-row:focus-visible {
 }
 
 .delta.down {
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 .kpis {
@@ -3429,7 +3432,7 @@ tr.pick-row:focus-visible {
 
 .run-status.fail {
     background: color-mix(in srgb, var(--mauve) 22%, transparent);
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 .run-status.busy {
@@ -3461,7 +3464,7 @@ tr.pick-row:focus-visible {
 }
 
 .run-output .stderr {
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 .run-files {
@@ -3542,7 +3545,7 @@ tr.pick-row:focus-visible {
 
 .hljs-number,
 .hljs-literal {
-    color: var(--mauve);
+    color: var(--mauve-text);
 }
 
 /* citations */
