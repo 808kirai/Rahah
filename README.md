@@ -30,6 +30,7 @@ Study tools
 - Tests of 5, 10, 15 or 20 questions, multiple choice, written or a mix, and every attempt is kept
 - Written questions come with marks, a mark scheme and a model answer. Answer by typing, by speaking, which the browser turns into text, or with a photo of your working from the camera or gallery, handy for maths. Rahah marks each answer against the mark scheme, says what earned marks and what was missing, and shows the model answer
 - Multiple choice questions show why the right answer is right
+- After a test, Review mistakes lists every question that lost marks with your answer, the right or model answer and why, and Ask Rahah about this opens the Ask sheet with all of it filled in
 - A performance page with your average, your GPA out of 4.0, scores over time, GPA and grades by subject, and a table of every test, plus a summary under Exam on the home page. Choosing a subject opens a box with its tests, and choosing a test opens a box with every attempt and a Retake button
 - A Suggestions tab with ideas of what to study next, picked by Claude from your chats, decks and test scores and grouped by topic
 

@@ -2642,6 +2642,7 @@ function show_set(study_set) {
         score: 0,
         answered: false,
         done: false,
+        results: [], // how each question went, for reviewing mistakes at the end
     };
     thread.innerHTML = '<div class="study" id="study"></div>';
     thread.scrollTop = 0;
@@ -2869,6 +2870,7 @@ async function mark_written() {
         if (state.study !== s || s.index !== at || !el("study")) return;
         s.answered = true;
         s.score += result.score;
+        s.results[at] = { text, photo: Boolean(s.photo), score: result.score, marks: result.marks, feedback: result.feedback };
         // once marked the answer stays as it was sent, and the tools for changing it go away
         el("written-answer").readOnly = true;
         el("study").querySelector(".written-tools").hidden = true;
@@ -2906,6 +2908,7 @@ function answer_option(i) {
     s.answered = true;
     const right = i === q.answer;
     if (right) s.score += 1;
+    s.results[s.index] = { chosen: i, score: right ? 1 : 0, marks: 1 };
     document.querySelectorAll(".option").forEach((button, j) => {
         button.disabled = true;
         if (j === q.answer) button.classList.add("correct");
@@ -2953,13 +2956,15 @@ function render_results() {
     const best = s.set.best_score;
     const note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
     const in_marks = s.set.items.some(is_written);
+    const missed = missed_questions().length;
     el("study").innerHTML = `
         <div class="quiz-results">
             <p class="study-meta">Test complete</p>
             <p class="score"><strong>${s.score}</strong> / ${total}${in_marks ? " marks" : ""}</p>
             <p class="score-note">${note}</p>
             <div class="study-controls">
-                <button class="btn btn-accent" type="button" data-quiz="again">Try again</button>
+                ${missed ? `<button class="btn btn-accent" type="button" data-quiz="review">Review ${plural(missed, "mistake")}</button>` : ""}
+                <button class="btn ${missed ? "btn-soft" : "btn-accent"}" type="button" data-quiz="again">Try again</button>
                 <button class="btn btn-soft" type="button" data-home>Back to home</button>
             </div>
             <div class="study-extra">
@@ -2968,9 +2973,67 @@ function render_results() {
         </div>`;
 }
 
+// the questions that lost marks, in test order
+function missed_questions() {
+    const s = state.study;
+    return s.set.items.map((q, i) => ({ q, i, r: s.results[i] })).filter(({ r }) => r && r.score < r.marks);
+}
+
+function your_answer(q, r) {
+    if (!is_written(q)) return inline_markdown(q.options[r.chosen]);
+    const parts = [];
+    if (r.text) parts.push(escape_html(r.text));
+    if (r.photo) parts.push("<em>A photo of your working</em>");
+    return parts.join("<br>") || "<em>No answer</em>";
+}
+
+// each missed question with the right answer, why, and a way to ask rahah about it
+function render_review() {
+    const s = state.study;
+    const missed = missed_questions();
+    el("study").innerHTML = `
+        <div class="review">
+            <p class="study-meta">Your mistakes, ${missed.length} of ${s.set.items.length} questions</p>
+            ${missed.map(({ q, i, r }) => `
+                <article class="review-item">
+                    <p class="review-head">Question ${i + 1}${is_written(q) ? ` · ${r.score} of ${r.marks} marks` : ""}</p>
+                    <div class="answer review-question">${render_markdown(q.question)}</div>
+                    <div class="review-answers">
+                        <div class="review-answer wrong"><span>Your answer</span><div class="answer">${your_answer(q, r)}</div></div>
+                        <div class="review-answer right"><span>${is_written(q) ? "Model answer" : "Right answer"}</span><div class="answer">${is_written(q) ? render_markdown(q.model_answer) : inline_markdown(q.options[q.answer])}</div></div>
+                    </div>
+                    ${is_written(q) && r.feedback ? `<div class="answer review-why">${render_markdown(r.feedback)}</div>` : ""}
+                    ${!is_written(q) && q.explanation ? `<div class="answer review-why">${render_markdown(q.explanation)}</div>` : ""}
+                    <button class="btn btn-soft btn-small" type="button" data-ask-question="${i}">${icons.chat}Ask Rahah about this</button>
+                </article>`).join("")}
+            <div class="study-controls">
+                <button class="btn btn-soft" type="button" data-quiz="results">Back to your score</button>
+                <button class="btn btn-accent" type="button" data-quiz="again">Try again</button>
+            </div>
+        </div>`;
+    thread.scrollTop = 0;
+}
+
+// a question for rahah with everything she needs, opened in the ask sheet so it can be changed first
+function ask_about_question(i) {
+    const s = state.study;
+    const q = s.set.items[i];
+    const r = s.results[i];
+    if (!q || !r) return;
+    const plain = (text) => String(text || "").trim();
+    let prompt;
+    if (is_written(q)) {
+        const mine = [plain(r.text), r.photo ? "(I also sent a photo of my working.)" : ""].filter(Boolean).join(" ") || "(no answer)";
+        prompt = `I got ${r.score} out of ${r.marks} on this test question. Help me understand what I missed and how to get full marks.\n\nQuestion: ${plain(q.question)}\n\nMy answer: ${mine}\n\nModel answer: ${plain(q.model_answer)}`;
+    } else {
+        prompt = `I got this test question wrong. Help me understand why the right answer is right and where my thinking went wrong.\n\nQuestion: ${plain(q.question)}\n\nOptions: ${q.options.map((o, j) => `${"ABCDEF"[j]}) ${plain(o)}`).join("; ")}\n\nMy answer: ${plain(q.options[r.chosen])}\n\nRight answer: ${plain(q.options[q.answer])}`;
+    }
+    open_sheet("ask", s.set.mode, prompt);
+}
+
 function restart_quiz() {
     const s = state.study;
-    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null });
+    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null, results: [] });
     render_quiz();
 }
 
@@ -3015,6 +3078,13 @@ thread.addEventListener("click", (event) => {
     if (quiz) {
         if (quiz.dataset.quiz === "next") next_question();
         if (quiz.dataset.quiz === "again") restart_quiz();
+        if (quiz.dataset.quiz === "review") render_review();
+        if (quiz.dataset.quiz === "results") render_results();
+        return;
+    }
+    const ask = target.closest("[data-ask-question]");
+    if (ask) {
+        ask_about_question(Number(ask.dataset.askQuestion));
         return;
     }
     if (target.closest("[data-study-delete]")) delete_set(state.study.set);
