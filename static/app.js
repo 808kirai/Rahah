@@ -393,6 +393,40 @@ function show_welcome() {
     thread.scrollTop = 0;
     render_rows();
     sync_view();
+    load_today();
+}
+
+// a short line under the greeting with what's on today, each part a shortcut to it
+
+async function load_today() {
+    const now = new Date();
+    try {
+        const response = await api(`/api/today?today=${local_today()}&weekday=${week_day(now)}`);
+        state.today = await response.json();
+    } catch (error) {
+        return;
+    }
+    render_today();
+}
+
+function render_today() {
+    const box = el("today");
+    const t = state.today;
+    if (!box || !t) return;
+    const chips = [];
+    if (t.cards_due) chips.push(`<button class="today-chip" type="button" data-today-deck="${t.deck.id}">${icons.cards}${plural(t.cards_due, "flashcard")} due</button>`);
+    if (t.exam) {
+        const when = t.exam.days === 0 ? "today" : t.exam.days === 1 ? "tomorrow" : `in ${t.exam.days} days`;
+        chips.push(`<button class="today-chip" type="button" data-today-page="reminders">${icons.calendar}${escape_html(t.exam.title)} ${when}</button>`);
+    }
+    const now = clock_now();
+    const next = t.classes.find((c) => c.end_time > now);
+    if (t.classes.length) {
+        const rest = next ? ` · next ${escape_html(next.title)} at ${next.start_time}` : " · all done";
+        chips.push(`<button class="today-chip" type="button" data-today-page="reminders">${icons.bell}${plural(t.classes.length, "class", "classes")} today${rest}</button>`);
+    }
+    box.innerHTML = chips.join("");
+    box.hidden = !chips.length;
 }
 
 // sending and streaming
@@ -675,6 +709,9 @@ async function retry_answer() {
 }
 
 thread.addEventListener("click", (event) => {
+    const deck = event.target.closest("[data-today-deck]");
+    if (deck) open_set(deck.dataset.todayDeck);
+    if (event.target.closest('[data-today-page="reminders"]')) show_reminders();
     if (event.target.closest("[data-retry]")) retry_answer();
     const action = event.target.closest("[data-answer-action]");
     if (action) study_answer(action.closest(".message"), action.dataset.answerAction);
@@ -3469,8 +3506,8 @@ function short_date(seconds) {
     return new Date(seconds * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-function plural(n, word) {
-    return `${n} ${word}${n === 1 ? "" : "s"}`;
+function plural(n, word, many = `${word}s`) {
+    return `${n} ${n === 1 ? word : many}`;
 }
 
 function delta_html(change) {
@@ -4188,6 +4225,7 @@ async function start() {
         mode_select.innerHTML = '<option value="general">General study</option>';
     }
     render_rows();
+    load_today();
     load_history();
     load_sets();
     load_performance();

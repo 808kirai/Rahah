@@ -225,3 +225,38 @@ def test_a_past_paper_becomes_a_test_of_its_own_questions(setup):
     assert made["items"][0]["marks"] == 12
     text = claude.beta.messages.calls[0]["messages"][0]["content"][-1]["text"]
     assert "past exam paper" in text and "at most 20" in text
+
+
+def test_cards_come_due_after_their_gap_and_the_nudge_counts_them(setup):
+    from datetime import date as _date, timedelta as _td
+    web, _ = setup([reply(cards)])
+    deck = web.post("/api/sets", data={"kind": "flashcards", "topic": "cells"}).json()
+    web.post(f"/api/sets/{deck['id']}/cards", json={"card": 0, "known": False})  # box 1, due after a day
+    web.post(f"/api/sets/{deck['id']}/cards", json={"card": 1, "known": True})   # box 2, due after two days
+    today = _date.today()
+    nudge = web.get("/api/today", params={"today": today.isoformat(), "weekday": today.weekday()}).json()
+    # nothing is due straight after practising
+    assert nudge["cards_due"] == 0 and nudge["deck"] is None and nudge["exam"] is None and nudge["classes"] == []
+    web.post("/api/reminders", json={"kind": "exam", "title": "Biology paper 2", "due_date": (today + _td(days=5)).isoformat()})
+    web.post("/api/timetable", json={"title": "Chemistry", "day": today.weekday(), "start_time": "13:00", "end_time": "14:00"})
+    nudge = web.get("/api/today", params={"today": today.isoformat(), "weekday": today.weekday()}).json()
+    assert nudge["exam"]["title"] == "Biology paper 2" and nudge["exam"]["days"] == 5
+    assert nudge["classes"][0]["title"] == "Chemistry"
+    assert web.get("/api/today", params={"today": "nope", "weekday": 1}).status_code == 422
+
+
+def test_due_cards_follow_the_box_gaps(tmp_path):
+    import time as _time
+    from app.store import store
+    db = store(tmp_path / "due.db")
+    deck = db.add_set("flashcards", "Cells", "science", [{"front": "a", "back": "b"}] * 3)
+    db.rate_card(deck, 0, False)  # box 1
+    db.rate_card(deck, 1, True)   # box 2
+    db.rate_card(deck, 2, True)
+    db.rate_card(deck, 2, True)   # box 3
+    now = _time.time()
+    assert db.due_cards(now) == []
+    # a day later only the box 1 card is due, two days later box 2 joins it, four days later all three
+    assert db.due_cards(now + 86400)[0]["due"] == 1
+    assert db.due_cards(now + 2 * 86400)[0]["due"] == 2
+    assert db.due_cards(now + 4 * 86400)[0] == {"id": deck, "title": "Cells", "due": 3}

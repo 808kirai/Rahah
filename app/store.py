@@ -538,6 +538,23 @@ class store:
             )
         return box
 
+    # cards come due again after 1, 2, 4, 8 or 16 days, the higher the box the longer the gap
+    review_days = {1: 1, 2: 2, 3: 4, 4: 8, 5: 16}
+
+    def due_cards(self, now: float | None = None) -> list[dict]:
+        """each deck with cards due for practice, most due first"""
+        now = now or time.time()
+        with self._connect() as db:
+            rows = db.execute(
+                "select p.set_id, p.box, p.updated, s.title from card_progress p join study_sets s on s.id = p.set_id"
+            ).fetchall()
+        decks: dict[str, dict] = {}
+        for r in rows:
+            if now - r["updated"] >= self.review_days.get(r["box"], 1) * 86400 - 3600:
+                deck = decks.setdefault(r["set_id"], {"id": r["set_id"], "title": r["title"], "due": 0})
+                deck["due"] += 1
+        return sorted(decks.values(), key=lambda d: -d["due"])
+
     def known_cards(self, set_id: str) -> int:
         with self._connect() as db:
             row = db.execute("select count(*) as n from card_progress where set_id = ? and box >= 2", (set_id,)).fetchone()

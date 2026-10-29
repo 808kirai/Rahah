@@ -1050,6 +1050,44 @@ button.picker-heading:focus-visible {
     min-height: 160px;
 }
 
+/* what's on today, under the greeting */
+.today {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.8rem;
+}
+
+.today[hidden],
+.today:empty {
+    display: none;
+}
+
+.today-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--pill);
+    background: var(--glass);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    transition: box-shadow 0.2s;
+}
+
+.today-chip:hover,
+.today-chip:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+
+.today-chip svg {
+    width: 16px;
+    height: 16px;
+    color: var(--accent-text);
+}
+
 /* what rahah searched for, a small line above the answer */
 .searches {
     display: flex;

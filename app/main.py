@@ -233,6 +233,28 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         # each request to claude is logged with what it used and cost, for the usage box and later for limits
         return lambda use: db.add_usage(kind, use, cost_of(use))
 
+    @app.get("/api/today")
+    def today_nudge(today: str, weekday: int):
+        # the page sends its own date and weekday, so the nudge fits the student's day
+        try:
+            day = date.fromisoformat(today)
+        except ValueError:
+            raise HTTPException(422, "Pick a real date.")
+        decks = db.due_cards()
+        exams = [r for r in db.list_reminders() if r["kind"] in ("exam", "cat", "midterm") and not r["done"]]
+        soon = sorted(
+            ({"id": r["id"], "title": r["title"], "days": (date.fromisoformat(r["due_date"]) - day).days} for r in exams),
+            key=lambda r: r["days"],
+        )
+        soon = [r for r in soon if 0 <= r["days"] <= 14]
+        classes = [c for c in db.list_classes() if c["day"] == weekday]
+        return {
+            "cards_due": sum(d["due"] for d in decks),
+            "deck": decks[0] if decks else None,
+            "exam": soon[0] if soon else None,
+            "classes": [{"title": c["title"], "start_time": c["start_time"], "end_time": c["end_time"]} for c in classes],
+        }
+
     @app.get("/api/usage")
     def usage_report():
         now = time.time()
