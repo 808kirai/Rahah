@@ -16,6 +16,7 @@ const state = {
     busy: false,
     conversations: [], // recent chats for the chats page and the continue studying row
     reminders: [], // exams, cats, midterms, assignments and events, soonest first
+    classes: [], // the weekly timetable, monday first
     reminder_kinds: { exam: "Exam", cat: "CAT", midterm: "Midterm", assignment: "Assignment", event: "Event" },
     recs: null, // suggestions for the recommendations page
     recs_loading: false,
@@ -1463,7 +1464,8 @@ function render_reminders() {
     const later = upcoming.filter((r) => days_left(r.due_date) > 7);
     // the most recently finished come first
     const finished = state.reminders.filter((r) => !is_upcoming(r)).reverse();
-    const tools = `<div class="page-tools">
+    const tools = `<h2 class="planner-title">Reminders</h2>
+    <div class="page-tools">
         <p class="page-note">Rahah reminds you while it's open. Add reminders to your calendar to get them on your phone too.</p>
         <div class="tool-buttons">
             ${notification_tools()}
@@ -1566,11 +1568,193 @@ el("toasts").addEventListener("click", (event) => {
 
 function show_reminders() {
     if (state.busy) return;
-    enter_page("#/reminders", "Reminders", '<div class="list-page" id="reminders"></div>');
+    enter_page("#/reminders", "Reminders", `<div class="list-page planner">
+        <section class="planner-col" id="reminders" aria-label="Reminders"></section>
+        <section class="planner-col" id="timetable" aria-label="Timetable"></section>
+    </div>`);
     render_reminders();
+    render_timetable();
     sync_view();
     load_reminders();
+    load_timetable();
 }
+
+// the weekly timetable, classes that repeat every week, listed day by day starting today
+// days run monday 0 to sunday 6, the same as the server
+
+const day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const day_short = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const class_form = { day: 0, editing: null };
+
+function week_day(d = new Date()) {
+    return (d.getDay() + 6) % 7;
+}
+
+function clock_now() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function class_row(c, today) {
+    const now = today && c.start_time <= clock_now() && clock_now() < c.end_time;
+    const about = [c.mode ? mode_name(c.mode) : "", c.place].filter(Boolean).map(escape_html).join(" · ");
+    return `<div class="class-row${now ? " now" : ""}">
+        <div class="class-time"><strong>${c.start_time}</strong><span>${c.end_time}</span></div>
+        <div class="class-info">
+            <strong title="${escape_html(c.title)}">${escape_html(c.title)}</strong>
+            ${about ? `<span>${about}</span>` : ""}
+        </div>
+        ${now ? '<span class="class-now">Now</span>' : ""}
+        <button class="icon-btn" type="button" data-class-edit="${c.id}" aria-label="Edit ${escape_html(c.title)}" title="Edit">${icons.pencil}</button>
+        <button class="icon-btn" type="button" data-class-delete="${c.id}" aria-label="Delete ${escape_html(c.title)}" title="Delete">${icons.trash}</button>
+    </div>`;
+}
+
+function render_timetable() {
+    const box = el("timetable");
+    if (!box) return;
+    const head = `<div class="planner-head">
+        <h2 class="planner-title">Timetable</h2>
+        <div class="tool-buttons">
+            ${state.classes.length ? `<a class="btn btn-soft btn-small" href="/api/timetable/calendar.ics" download title="Every class repeats weekly in your calendar, with an alert 15 minutes before">${icons.calendar}Add to calendar</a>` : ""}
+            <button class="btn btn-accent btn-small" type="button" data-class-add>${icons.plus}Add class</button>
+        </div>
+    </div>`;
+    if (!state.classes.length) {
+        box.innerHTML = head + `<div class="timetable-empty">
+            <strong>No classes yet</strong>
+            Add your weekly classes to see each day at a glance.
+        </div>`;
+        return;
+    }
+    const today = week_day();
+    // today always shows, the other days only when they have classes
+    const days = [0, 1, 2, 3, 4, 5, 6].map((i) => (today + i) % 7).filter((d, i) => i === 0 || state.classes.some((c) => c.day === d));
+    box.innerHTML = head + days.map((d) => {
+        const ahead = (d - today + 7) % 7;
+        const label = ahead === 0 ? `Today · ${day_names[d]}` : ahead === 1 ? `Tomorrow · ${day_names[d]}` : day_names[d];
+        const rows = state.classes.filter((c) => c.day === d).map((c) => class_row(c, ahead === 0)).join("");
+        return `<div class="timetable-day${ahead === 0 ? " today" : ""}">
+            <h3 class="timetable-day-title">${label}</h3>
+            ${rows || '<p class="timetable-free">No classes today</p>'}
+        </div>`;
+    }).join("");
+}
+
+async function load_timetable() {
+    try {
+        const response = await api("/api/timetable");
+        state.classes = (await response.json()).classes;
+    } catch (error) {
+        return;
+    }
+    render_timetable();
+}
+
+// the class under now moves on as the day goes, so the list is redrawn each minute while it's open
+setInterval(() => {
+    if (el("timetable") && document.visibilityState === "visible") render_timetable();
+}, 60 * 1000);
+
+const class_sheet = el("class-sheet");
+
+function render_class_days() {
+    el("class-days").innerHTML = choice_buttons(day_short.map((name, i) => [i, name]), class_form.day, "day");
+}
+
+function open_class_sheet(c = null) {
+    class_form.editing = c ? c.id : null;
+    class_form.day = c ? c.day : week_day();
+    el("class-title").textContent = c ? "Edit class" : "Add a class";
+    el("class-submit").textContent = c ? "Save changes" : "Save class";
+    el("class-name").value = c ? c.title : "";
+    el("class-start").value = c ? c.start_time : "";
+    el("class-end").value = c ? c.end_time : "";
+    el("class-place").value = c ? c.place : "";
+    el("class-mode").innerHTML = mode_options_html();
+    el("class-mode").value = c ? c.mode || "general" : "general";
+    el("class-error").hidden = true;
+    render_class_days();
+    class_sheet.showModal();
+    el("class-name").focus();
+}
+
+el("class-days").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-day]");
+    if (!button) return;
+    class_form.day = Number(button.dataset.day);
+    el("class-days").querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+});
+
+// picking a start fills in an end an hour later, when there isn't one yet
+el("class-start").addEventListener("change", () => {
+    const start = el("class-start").value;
+    if (!start || el("class-end").value) return;
+    const [h, m] = start.split(":").map(Number);
+    const end = Math.min(h * 60 + m + 60, 23 * 60 + 59);
+    el("class-end").value = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+});
+
+el("class-close").addEventListener("click", () => class_sheet.close());
+el("class-cancel").addEventListener("click", () => class_sheet.close());
+
+el("class-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const show_error = (text) => {
+        el("class-error").textContent = text;
+        el("class-error").hidden = false;
+    };
+    const title = el("class-name").value.trim();
+    const start_time = el("class-start").value;
+    const end_time = el("class-end").value;
+    if (!title) return show_error("Name the class, like Biology.");
+    if (!start_time || !end_time) return show_error("Pick when it starts and ends.");
+    if (end_time <= start_time) return show_error("The class has to end after it starts.");
+    const body = {
+        title, day: class_form.day, start_time, end_time, place: el("class-place").value,
+        mode: el("class-mode").value === "general" ? "" : el("class-mode").value,
+    };
+    const editing = class_form.editing;
+    el("class-submit").disabled = true;
+    try {
+        await api(editing ? `/api/timetable/${editing}` : "/api/timetable", {
+            method: editing ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        class_sheet.close();
+        await load_timetable();
+    } catch (error) {
+        show_error(error.message);
+    } finally {
+        el("class-submit").disabled = false;
+    }
+});
+
+document.addEventListener("click", async (event) => {
+    const find = (name) => event.target.closest(`[data-${name}]`);
+    if (find("class-add")) {
+        open_class_sheet();
+        return;
+    }
+    const edit = find("class-edit");
+    if (edit) {
+        const c = state.classes.find((x) => x.id === edit.dataset.classEdit);
+        if (c) open_class_sheet(c);
+        return;
+    }
+    const remove = find("class-delete");
+    if (remove) {
+        const c = state.classes.find((x) => x.id === remove.dataset.classDelete);
+        if (!c || !confirm(`Delete ${c.title} on ${day_names[c.day]}?`)) return;
+        try {
+            await api(`/api/timetable/${c.id}`, { method: "DELETE" });
+        } catch (error) {
+            alert(error.message);
+        }
+        load_timetable();
+    }
+});
 
 // the add and edit sheet
 
@@ -2022,6 +2206,7 @@ make_picker(mode_select, open_setup);
 make_picker(el("sheet-mode"));
 make_picker(setup_mode);
 make_picker(el("reminder-mode"));
+make_picker(el("class-mode"));
 
 function show_sheet_error(text) {
     el("sheet-error").textContent = text;

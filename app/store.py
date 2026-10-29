@@ -88,6 +88,17 @@ create table if not exists reminders (
     created real not null,
     updated real not null
 );
+create table if not exists classes (
+    id text primary key,
+    title text not null,
+    mode text not null default '',
+    day integer not null,
+    start_time text not null,
+    end_time text not null,
+    place text not null default '',
+    created real not null,
+    updated real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -308,6 +319,41 @@ class store:
     def delete_reminder(self, reminder_id: str) -> None:
         with self._connect() as db:
             db.execute("delete from reminders where id = ?", (reminder_id,))
+
+    # the weekly timetable, in order through the week
+
+    def list_classes(self) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute("select * from classes order by day, start_time, created").fetchall()
+        return [dict(r) for r in rows]
+
+    def get_class(self, class_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from classes where id = ?", (class_id,)).fetchone()
+        return dict(row) if row else None
+
+    def save_class(self, fields: dict, class_id: str | None = None) -> str:
+        now = time.time()
+        columns = ("title", "mode", "day", "start_time", "end_time", "place")
+        values = [fields[c] for c in columns]
+        with self._connect() as db:
+            if class_id:
+                db.execute(
+                    f"update classes set {', '.join(f'{c} = ?' for c in columns)}, updated = ? where id = ?",
+                    (*values, now, class_id),
+                )
+                return class_id
+            class_id = uuid.uuid4().hex
+            db.execute(
+                f"insert into classes (id, {', '.join(columns)}, created, updated) "
+                f"values (?, {', '.join('?' for _ in columns)}, ?, ?)",
+                (class_id, *values, now, now),
+            )
+        return class_id
+
+    def delete_class(self, class_id: str) -> None:
+        with self._connect() as db:
+            db.execute("delete from classes where id = ?", (class_id,))
 
     # recommendations, only the latest batch is kept
 

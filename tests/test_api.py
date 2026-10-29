@@ -192,3 +192,55 @@ def test_deleting_a_conversation_removes_it(setup):
     assert len(web.get("/api/conversations").json()["conversations"]) == 1
     web.delete(f"/api/conversations/{conversation_id}")
     assert web.get("/api/conversations").json()["conversations"] == []
+
+
+# the weekly timetable
+
+def a_class(**changes):
+    return {"title": "Biology", "mode": "", "day": 2, "start_time": "08:00", "end_time": "10:00", "place": "Lab 2", **changes}
+
+
+def test_classes_are_saved_edited_and_listed_through_the_week(setup):
+    web, _ = setup()
+    later = web.post("/api/timetable", json=a_class(title="Chemistry", day=4)).json()
+    first = web.post("/api/timetable", json=a_class(title="  Maths  ", day=0, start_time="11:00", end_time="12:30")).json()
+    assert first["title"] == "Maths"
+    listed = web.get("/api/timetable").json()["classes"]
+    assert [c["title"] for c in listed] == ["Maths", "Chemistry"]
+    edited = web.put(f"/api/timetable/{later['id']}", json=a_class(title="Chemistry", day=1, place="")).json()
+    assert edited["day"] == 1 and edited["place"] == ""
+    assert web.delete(f"/api/timetable/{first['id']}").json() == {"ok": True}
+    assert [c["title"] for c in web.get("/api/timetable").json()["classes"]] == ["Chemistry"]
+
+
+def test_bad_classes_are_rejected(setup):
+    web, _ = setup()
+    for bad in (a_class(title="   "), a_class(day=7), a_class(start_time="25:00"), a_class(end_time="07:00"), a_class(mode="astrology")):
+        assert web.post("/api/timetable", json=bad).status_code == 422
+    assert web.delete("/api/timetable/nope").status_code == 404
+    assert web.put("/api/timetable/nope", json=a_class()).status_code == 404
+
+
+def test_the_timetable_calendar_repeats_weekly_with_an_alert(setup):
+    web, _ = setup()
+    assert web.get("/api/timetable/calendar.ics").status_code == 404
+    saved = web.post("/api/timetable", json=a_class(mode="biology" if "biology" in modes else "")).json()
+    for path in ("/api/timetable/calendar.ics", f"/api/timetable/{saved['id']}/calendar.ics"):
+        response = web.get(path)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/calendar")
+        text = response.text
+        assert "RRULE:FREQ=WEEKLY;BYDAY=WE" in text
+        assert "LOCATION:Lab 2" in text
+        assert "TRIGGER:-PT15M" in text
+        assert "T080000" in text and "T100000" in text
+
+
+def test_a_class_starts_on_the_next_matching_weekday():
+    from datetime import date
+
+    from app.timetable import first_day
+    wednesday = date(2026, 10, 28)
+    assert first_day(2, wednesday) == wednesday
+    assert first_day(0, wednesday) == date(2026, 11, 2)
+    assert first_day(3, wednesday) == date(2026, 10, 29)

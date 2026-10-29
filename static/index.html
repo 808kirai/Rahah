@@ -250,6 +250,48 @@
         </form>
     </dialog>
 
+    <dialog class="sheet" id="class-sheet" aria-labelledby="class-title">
+        <form class="sheet-form" id="class-form" novalidate>
+            <div class="sheet-top">
+                <h2 id="class-title">Add a class</h2>
+                <button class="icon-btn" type="button" id="class-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <label class="field">
+                <span class="field-label">Class</span>
+                <input class="text-input" id="class-name" maxlength="80" placeholder="Like Biology" autocomplete="off">
+            </label>
+            <div class="field">
+                <span class="field-label" id="class-day-label">Day</span>
+                <div class="choices" id="class-days" role="group" aria-labelledby="class-day-label"></div>
+            </div>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">Starts</span>
+                    <input class="text-input" type="time" id="class-start">
+                </label>
+                <label class="field">
+                    <span class="field-label">Ends</span>
+                    <input class="text-input" type="time" id="class-end">
+                </label>
+            </div>
+            <div class="field">
+                <span class="field-label">Subject</span>
+                <select class="pill-select" id="class-mode" aria-label="Subject"></select>
+            </div>
+            <label class="field">
+                <span class="field-label">Room, optional</span>
+                <input class="text-input" id="class-place" maxlength="60" placeholder="Like Lab 2" autocomplete="off">
+            </label>
+            <p class="sheet-error" id="class-error" role="alert" hidden></p>
+            <div class="sheet-actions">
+                <button class="btn btn-ghost" type="button" id="class-cancel">Cancel</button>
+                <button class="btn btn-accent" type="submit" id="class-submit">Save class</button>
+            </div>
+        </form>
+    </dialog>
+
     <dialog class="sheet setup" id="setup" aria-labelledby="setup-title">
         <div class="sheet-form">
             <div class="sheet-top">

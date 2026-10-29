@@ -1109,6 +1109,172 @@ button.picker-heading:focus-visible {
 }
 
 /* reminder pop ups, near the top and out of the way of the message box */
+/* the reminders tab, reminders on the left and the weekly timetable on the right, one under the other when narrow */
+.planner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 2rem;
+    align-items: start;
+}
+
+.planner .page-tools {
+    flex-wrap: wrap;
+}
+
+/* the empty message sits close under the buttons here, the timetable is beside or below it */
+.planner .page-empty {
+    margin-top: 2.5rem;
+}
+
+.planner-title {
+    margin: 0.25rem 0 0.6rem;
+    font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.planner-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.planner-head .planner-title {
+    margin: 0.25rem 0;
+}
+
+/* the timetable sits in one card, a short row per class */
+#timetable {
+    padding: 1rem 1.1rem 1.1rem;
+    border-radius: var(--card);
+    background: var(--card-bg);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
+}
+
+.timetable-day {
+    margin-top: 1rem;
+}
+
+.timetable-day-title {
+    margin-bottom: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-2);
+}
+
+.timetable-day.today .timetable-day-title {
+    color: var(--accent-text);
+}
+
+.class-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+    padding: 0.5rem 0.35rem 0.5rem 0.85rem;
+    border-radius: 18px;
+    background: var(--surface-2);
+}
+
+/* the class happening right now gets a lit edge */
+.class-row.now {
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+    box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+
+.class-time {
+    display: flex;
+    flex-direction: column;
+    min-width: 3rem;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+}
+
+.class-time strong {
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.class-time span {
+    font-size: 0.75rem;
+    color: var(--text-2);
+}
+
+.class-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+}
+
+.class-info strong,
+.class-info span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.class-info strong {
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.class-info span {
+    font-size: 0.76rem;
+    color: var(--text-2);
+}
+
+.class-now {
+    flex-shrink: 0;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--pill);
+    background: var(--accent-fill);
+    color: var(--on-accent);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.class-row .icon-btn {
+    width: 34px;
+    height: 34px;
+}
+
+.class-row .icon-btn svg {
+    width: 17px;
+    height: 17px;
+}
+
+.timetable-free {
+    padding: 0.2rem 0.1rem;
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.timetable-empty {
+    padding: 2rem 0.5rem 1.25rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-2);
+}
+
+.timetable-empty strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--text);
+}
+
+@media (max-width: 900px) {
+    .planner {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}
+
 .toasts {
     position: fixed;
     top: 76px;
@@ -3413,7 +3579,8 @@ button.picker-heading:focus-visible {
 /* fingers need bigger targets than a mouse, 44 pixels square */
 @media (pointer: coarse) {
     .chat-card .icon-btn,
-    .reminder-actions .icon-btn {
+    .reminder-actions .icon-btn,
+    .class-row .icon-btn {
         width: 44px;
         height: 44px;
     }

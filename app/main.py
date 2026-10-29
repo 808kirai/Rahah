@@ -18,6 +18,7 @@ from .performance import summarise
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
 from .store import store
+from .timetable import calendar_file as timetable_file, class_in
 from .study import kinds, make_set, max_items, study_error, upload
 from .tutor import display_from_content, history_blocks, mode_note, stream_reply, user_content
 
@@ -481,6 +482,52 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     def reminder_calendar(reminder_id: str):
         reminder = reminder_or_404(reminder_id)
         return calendar_response([reminder], reminder["title"])
+
+    # the weekly timetable
+
+    def class_or_404(class_id: str) -> dict:
+        item = db.get_class(class_id)
+        if not item:
+            raise HTTPException(404, "That class doesn't exist.")
+        return item
+
+    def timetable_response(classes: list[dict], name: str) -> Response:
+        return Response(
+            timetable_file(classes),
+            media_type="text/calendar; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{safe_filename(name)}.ics"'},
+        )
+
+    @app.get("/api/timetable")
+    def list_classes():
+        return {"classes": db.list_classes()}
+
+    @app.post("/api/timetable")
+    def new_class(body: class_in):
+        return db.get_class(db.save_class(body.model_dump()))
+
+    @app.put("/api/timetable/{class_id}")
+    def edit_class(class_id: str, body: class_in):
+        class_or_404(class_id)
+        return db.get_class(db.save_class(body.model_dump(), class_id))
+
+    @app.delete("/api/timetable/{class_id}")
+    def delete_class(class_id: str):
+        class_or_404(class_id)
+        db.delete_class(class_id)
+        return {"ok": True}
+
+    @app.get("/api/timetable/calendar.ics")
+    def timetable_calendar():
+        classes = db.list_classes()
+        if not classes:
+            raise HTTPException(404, "There are no classes to add yet.")
+        return timetable_response(classes, "rahah timetable")
+
+    @app.get("/api/timetable/{class_id}/calendar.ics")
+    def class_calendar(class_id: str):
+        item = class_or_404(class_id)
+        return timetable_response([item], item["title"])
 
     @app.delete("/api/sets/{set_id}")
     def delete_set(set_id: str):
