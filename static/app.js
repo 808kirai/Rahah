@@ -2867,6 +2867,11 @@ function route() {
 }
 
 window.addEventListener("hashchange", route);
+
+// the bar floats over the page, so the page keeps room at its end that matches the bar as it grows and shrinks
+new ResizeObserver(([entry]) => {
+    document.querySelector(".main").style.setProperty("--dock-h", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
+}).observe(el("dock-wrap"));
 document.querySelectorAll(".tabs [data-chats]").forEach((button) => button.addEventListener("click", show_chats));
 document.querySelectorAll(".tabs [data-recommendations]").forEach((button) => button.addEventListener("click", show_recommendations));
 document.querySelectorAll(".tabs [data-reminders]").forEach((button) => button.addEventListener("click", show_reminders));

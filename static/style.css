@@ -257,11 +257,32 @@ svg {
 
 /* layout, the window never scrolls, only the thread inside it does */
 .main {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+}
+
+/* the tabs, message box and disclaimer float over the page like a streaming app's bar,
+   with the page fading out underneath so the pills stay easy to read */
+.dock-wrap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    padding-top: 2.5rem;
+    background: linear-gradient(to top, var(--bg) 15%, color-mix(in srgb, var(--bg) 75%, transparent) 50%, transparent);
+    pointer-events: none;
+}
+
+/* only the pills and text take clicks, the fade lets them through to the page */
+.dock-wrap .tabs,
+.dock-wrap .composer,
+.dock-wrap .disclaimer {
+    pointer-events: auto;
 }
 
 /* three columns so the page title sits in the middle, the sides grow evenly and never overlap it */
@@ -534,6 +555,13 @@ button.picker-heading:focus-visible {
 .is-page .thread,
 .is-study .thread {
     padding: 0 0 1rem;
+}
+
+/* empty room at the end of the page as tall as the floating bar, so the last card or message can scroll above it */
+.thread::after {
+    content: "";
+    display: block;
+    height: var(--dock-h, 8rem);
 }
 
 /* a deck or quiz has nothing to type into, and the subject picker doesn't apply */

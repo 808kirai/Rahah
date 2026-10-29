@@ -67,66 +67,68 @@
             </div>
         </section>
 
-        <div class="dock">
-            <nav class="tabs" aria-label="Main">
-                <button class="tab" type="button" data-home data-tab="home">
-                    <svg viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg>
-                    <span>Home</span>
-                </button>
-                <button class="tab" type="button" data-chats data-tab="chats">
-                    <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
-                    <span>Chats</span>
-                </button>
-                <button class="tab" type="button" data-recommendations data-tab="recommendations">
-                    <svg viewBox="0 0 24 24"><path d="M2.5 3.5h8.5v17H2.5z"/><path d="M4.5 8l1.1 1.1L7.9 7M4.5 12.5l1.1 1.1 2.3-2.1M4.5 17h3.5"/><path d="M15 8.5V2.8M13 4.8l2-2 2 2"/><path d="M18 10.3a3.9 3.9 0 0 0-2.3 7V19h4.6v-1.7a3.9 3.9 0 0 0-2.3-7z"/><path d="M16.4 21.3h3.2M22.7 14.2h1M21.5 11l.8-.8"/></svg>
-                    <span>Suggestions</span>
-                </button>
-                <button class="tab" type="button" data-reminders data-tab="reminders">
-                    <svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
-                    <span>Reminders</span>
-                    <i class="tab-badge" id="reminder-badge" hidden></i>
-                </button>
-                <button class="tab" type="button" data-performance data-tab="performance">
-                    <svg viewBox="0 0 24 24"><path d="M5 20V12M12 20V5M19 20v-8"/></svg>
-                    <span>Performance</span>
-                </button>
-            </nav>
-            <form class="composer" id="composer">
-                <div class="composer-box" id="composer-box">
-                    <div class="attachments" id="attachments"></div>
-                    <div class="composer-row">
-                        <!-- one button for everything that isn't typing: files, photos and voice -->
-                        <div class="input-tools">
-                            <button type="button" class="icon-btn tools-btn" id="attach" aria-haspopup="menu" aria-expanded="false" aria-controls="input-menu" aria-label="Add files, a photo or your voice" title="Add files, a photo or your voice">
-                                <svg class="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-                                <svg class="icon-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
-                            </button>
-                            <div class="input-menu" id="input-menu" role="menu" aria-label="Add to your message" hidden>
-                                <button type="button" class="input-option" role="menuitem" data-input="files">
-                                    <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span>
-                                    <span><strong>Attach files</strong><small>PDFs, notes, code and images</small></span>
+        <div class="dock-wrap" id="dock-wrap">
+            <div class="dock">
+                <nav class="tabs" aria-label="Main">
+                    <button class="tab" type="button" data-home data-tab="home">
+                        <svg viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg>
+                        <span>Home</span>
+                    </button>
+                    <button class="tab" type="button" data-chats data-tab="chats">
+                        <svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
+                        <span>Chats</span>
+                    </button>
+                    <button class="tab" type="button" data-recommendations data-tab="recommendations">
+                        <svg viewBox="0 0 24 24"><path d="M2.5 3.5h8.5v17H2.5z"/><path d="M4.5 8l1.1 1.1L7.9 7M4.5 12.5l1.1 1.1 2.3-2.1M4.5 17h3.5"/><path d="M15 8.5V2.8M13 4.8l2-2 2 2"/><path d="M18 10.3a3.9 3.9 0 0 0-2.3 7V19h4.6v-1.7a3.9 3.9 0 0 0-2.3-7z"/><path d="M16.4 21.3h3.2M22.7 14.2h1M21.5 11l.8-.8"/></svg>
+                        <span>Suggestions</span>
+                    </button>
+                    <button class="tab" type="button" data-reminders data-tab="reminders">
+                        <svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+                        <span>Reminders</span>
+                        <i class="tab-badge" id="reminder-badge" hidden></i>
+                    </button>
+                    <button class="tab" type="button" data-performance data-tab="performance">
+                        <svg viewBox="0 0 24 24"><path d="M5 20V12M12 20V5M19 20v-8"/></svg>
+                        <span>Performance</span>
+                    </button>
+                </nav>
+                <form class="composer" id="composer">
+                    <div class="composer-box" id="composer-box">
+                        <div class="attachments" id="attachments"></div>
+                        <div class="composer-row">
+                            <!-- one button for everything that isn't typing: files, photos and voice -->
+                            <div class="input-tools">
+                                <button type="button" class="icon-btn tools-btn" id="attach" aria-haspopup="menu" aria-expanded="false" aria-controls="input-menu" aria-label="Add files, a photo or your voice" title="Add files, a photo or your voice">
+                                    <svg class="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                                    <svg class="icon-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
                                 </button>
-                                <button type="button" class="input-option" role="menuitem" data-input="photo">
-                                    <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg></span>
-                                    <span><strong>Take or choose a photo</strong><small>Camera, gallery or a screenshot</small></span>
-                                </button>
-                                <button type="button" class="input-option" role="menuitem" data-input="voice" id="voice-option" hidden>
-                                    <span class="opt-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>
-                                    <span><strong>Speak your question</strong><small>Your words appear as you talk</small></span>
-                                </button>
+                                <div class="input-menu" id="input-menu" role="menu" aria-label="Add to your message" hidden>
+                                    <button type="button" class="input-option" role="menuitem" data-input="files">
+                                        <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span>
+                                        <span><strong>Attach files</strong><small>PDFs, notes, code and images</small></span>
+                                    </button>
+                                    <button type="button" class="input-option" role="menuitem" data-input="photo">
+                                        <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg></span>
+                                        <span><strong>Take or choose a photo</strong><small>Camera, gallery or a screenshot</small></span>
+                                    </button>
+                                    <button type="button" class="input-option" role="menuitem" data-input="voice" id="voice-option" hidden>
+                                        <span class="opt-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>
+                                        <span><strong>Speak your question</strong><small>Your words appear as you talk</small></span>
+                                    </button>
+                                </div>
                             </div>
+                            <input type="file" id="file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif,.py,.js,.ts,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.kt,.swift,.r,.sql,.sh,.html,.css,.json,.csv">
+                            <input type="file" id="photo-input" multiple hidden accept="image/*">
+                            <textarea id="input" rows="1" placeholder="Ask anything, or drop a PDF here" aria-label="Message"></textarea>
+                            <button type="submit" class="send-btn" id="send" aria-label="Send" disabled>
+                                <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                            </button>
                         </div>
-                        <input type="file" id="file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif,.py,.js,.ts,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.kt,.swift,.r,.sql,.sh,.html,.css,.json,.csv">
-                        <input type="file" id="photo-input" multiple hidden accept="image/*">
-                        <textarea id="input" rows="1" placeholder="Ask anything, or drop a PDF here" aria-label="Message"></textarea>
-                        <button type="submit" class="send-btn" id="send" aria-label="Send" disabled>
-                            <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                        </button>
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
+            <p class="disclaimer">Rahah can make mistakes. Check important facts against your course material.</p>
         </div>
-        <p class="disclaimer">Rahah can make mistakes. Check important facts against your course material.</p>
     </main>
 
     <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
