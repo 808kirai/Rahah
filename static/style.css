@@ -147,6 +147,13 @@ svg {
     background: var(--scroll-thumb-hover) padding-box;
 }
 
+/* in rounded boxes the bar stops short of the corners so it never pokes out past the curve */
+.sheet::-webkit-scrollbar-track,
+.picker-menu::-webkit-scrollbar-track,
+.face::-webkit-scrollbar-track {
+    margin-block: 22px;
+}
+
 /* firefox has no webkit scrollbar styles, and chrome drops them once these are set, so only firefox gets these */
 @supports (-moz-appearance: none) {
     * {
@@ -846,8 +853,60 @@ button.picker-heading:focus-visible {
     box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.page-tools > .btn:last-child {
+.page-tools > .btn:last-child,
+.page-tools > .new-chat {
     margin-left: auto;
+}
+
+/* the new chat drop down, the same rounded box as the + menu but opening down from the button */
+.new-chat {
+    position: relative;
+}
+
+.new-chat-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 300px;
+    max-width: calc(100vw - 24px);
+    padding: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--surface);
+    box-shadow: 0 18px 50px var(--shadow);
+    animation: picker-in 0.22s var(--ease-out);
+}
+
+.new-chat-menu[hidden] {
+    display: none;
+}
+
+.new-chat-heading {
+    margin: 0.45rem 0.9rem 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-2);
+}
+
+.recent-option {
+    text-decoration: none;
+}
+
+/* long chat titles stop at one line */
+.recent-text {
+    min-width: 0;
+}
+
+.recent-text strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .page-note {

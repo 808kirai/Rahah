@@ -1129,15 +1129,66 @@ function show_chats() {
     enter_page("#/chats", "Chats", `<div class="list-page" id="chats">
         <div class="page-tools">
             <input class="search" id="chat-search" type="search" placeholder="Search your chats" aria-label="Search your chats" hidden>
-            <button class="btn btn-accent btn-small" type="button" data-home>${icons.plus}New chat</button>
+            <div class="new-chat">
+                <button class="btn btn-accent btn-small" type="button" id="new-chat-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-chat-menu">${icons.plus}New chat</button>
+                <div class="new-chat-menu" id="new-chat-menu" role="menu" aria-label="New chat" hidden></div>
+            </div>
         </div>
         <div id="chat-groups"></div>
     </div>`);
     el("chat-search").addEventListener("input", render_chats);
+    el("new-chat-btn").addEventListener("click", () => (el("new-chat-menu").hidden ? open_new_chat_menu() : close_new_chat_menu()));
+    el("new-chat-menu").addEventListener("keydown", new_chat_menu_keys);
     render_chats();
     sync_view();
     load_history();
 }
+
+// the new chat button drops a box down with a fresh chat at the top and the five newest chats under it
+
+function open_new_chat_menu() {
+    const menu = el("new-chat-menu");
+    const recent = state.conversations.slice(0, 5).map((c) => `
+        <a class="input-option recent-option" role="menuitem" href="#/c/${c.id}">
+            <span class="opt-icon">${icons.chat}</span>
+            <span class="recent-text"><strong>${escape_html(c.title)}</strong><small>${escape_html(mode_name(c.mode))} · ${time_ago(c.updated)}</small></span>
+        </a>`).join("");
+    menu.innerHTML = `
+        <button class="input-option" type="button" role="menuitem" data-home>
+            <span class="opt-icon">${icons.plus}</span>
+            <span><strong>Start a new chat</strong><small>A fresh page, any subject</small></span>
+        </button>
+        ${recent ? `<p class="new-chat-heading">Recent</p>${recent}` : ""}`;
+    menu.hidden = false;
+    el("new-chat-btn").setAttribute("aria-expanded", "true");
+    menu.querySelector(".input-option").focus();
+}
+
+function close_new_chat_menu(refocus = false) {
+    const menu = el("new-chat-menu");
+    if (!menu || menu.hidden) return;
+    menu.hidden = true;
+    el("new-chat-btn").setAttribute("aria-expanded", "false");
+    if (refocus) el("new-chat-btn").focus();
+}
+
+function new_chat_menu_keys(event) {
+    const options = [...el("new-chat-menu").querySelectorAll(".input-option")];
+    const at = options.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+        event.preventDefault();
+        close_new_chat_menu(true);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        options[(at + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus();
+    } else if (event.key === "Tab") {
+        close_new_chat_menu();
+    }
+}
+
+document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".new-chat")) close_new_chat_menu();
+});
 
 thread.addEventListener("click", (event) => {
     // home links drawn inside the thread, like the new chat button and quiz results
