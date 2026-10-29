@@ -2505,6 +2505,26 @@ button.plan-task:focus-visible {
     font-weight: 500;
 }
 
+/* the start of a test and its countdown */
+.quiz-start .timer-field {
+    align-items: center;
+    margin: 1.25rem 0 0.5rem;
+}
+
+.quiz-start .choices {
+    justify-content: center;
+}
+
+.quiz-timer {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-text);
+}
+
+.quiz-timer.low {
+    color: var(--mauve-text);
+    font-weight: 700;
+}
+
 /* after a card is flipped, say how it went */
 .rate-row {
     display: flex;

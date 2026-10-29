@@ -2812,6 +2812,9 @@ function show_set(study_set) {
         progress: { ...(study_set.progress || {}) }, // each card's box, 1 still learning up to 5 mastered
         session: { known: 0, learning: 0 },
         deck_done: false,
+        started: false, // a test opens on a start screen with an optional timer
+        deadline: null,
+        time_up: false,
     };
     if (study_set.kind === "flashcards") state.study.order = practice_order(study_set.items, state.study.progress);
     thread.innerHTML = '<div class="study" id="study"></div>';
@@ -2988,6 +2991,10 @@ function render_quiz() {
         render_results();
         return;
     }
+    if (!s.started) {
+        render_quiz_start();
+        return;
+    }
     const q = s.set.items[s.index];
     if (is_written(q)) {
         render_written(q, total);
@@ -2996,7 +3003,7 @@ function render_quiz() {
     el("study").innerHTML = `
         <div class="quiz">
             <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
-            <p class="study-meta">Question ${s.index + 1} of ${total}</p>
+            <p class="study-meta">Question ${s.index + 1} of ${total}${timer_html()}</p>
             <div class="quiz-question answer">${render_markdown(q.question)}</div>
             <div class="quiz-options">${q.options.map((option, i) => `
                 <button class="option" type="button" data-option="${i}">
@@ -3008,6 +3015,75 @@ function render_quiz() {
         </div>`;
 }
 
+// before a test, how long it is and whether to time it, like sitting the real exam
+
+const timer_choices = [[0, "No timer"], [10, "10 min"], [20, "20 min"], [30, "30 min"], [45, "45 min"], [60, "60 min"]];
+
+function render_quiz_start() {
+    const s = state.study;
+    const total = s.set.items.length;
+    const marks = s.set.items.reduce((sum, q) => sum + question_marks(q), 0);
+    const best = s.set.best_score;
+    s.minutes = s.minutes || 0;
+    el("study").innerHTML = `
+        <div class="quiz-results quiz-start">
+            <p class="study-meta">Ready when you are</p>
+            <p class="score"><strong>${total}</strong> question${total === 1 ? "" : "s"}</p>
+            <p class="score-note">${marks} mark${marks === 1 ? "" : "s"}${best !== null && best !== undefined ? ` · your best is ${best} out of ${marks}` : ""}</p>
+            <div class="field timer-field">
+                <span class="field-label" id="timer-label">Timer</span>
+                <div class="choices" role="group" aria-labelledby="timer-label">${choice_buttons(timer_choices, s.minutes, "minutes")}</div>
+            </div>
+            <div class="study-controls">
+                <button class="btn btn-accent" type="button" data-quiz="start">Start the test</button>
+            </div>
+        </div>`;
+}
+
+function start_quiz() {
+    const s = state.study;
+    s.started = true;
+    s.deadline = s.minutes ? Date.now() + s.minutes * 60000 : null;
+    clearInterval(s.ticker);
+    if (s.deadline) s.ticker = setInterval(() => tick_timer(s), 1000);
+    render_quiz();
+}
+
+function time_left(s) {
+    return Math.max(0, Math.ceil((s.deadline - Date.now()) / 1000));
+}
+
+function clock_text(seconds) {
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function timer_html() {
+    const s = state.study;
+    if (!s.deadline || s.done) return "";
+    const left = time_left(s);
+    return ` · <span class="quiz-timer${left <= 60 ? " low" : ""}" id="quiz-timer">${clock_text(left)} left</span>`;
+}
+
+// the clock counts down on the page, and the test ends itself when it runs out
+function tick_timer(s) {
+    if (state.study !== s || s.done || !el("study")) {
+        clearInterval(s.ticker);
+        return;
+    }
+    const left = time_left(s);
+    const shown = el("quiz-timer");
+    if (shown) {
+        shown.textContent = `${clock_text(left)} left`;
+        shown.classList.toggle("low", left <= 60);
+    }
+    if (left <= 0) {
+        clearInterval(s.ticker);
+        s.time_up = true;
+        stop_answer_voice();
+        finish_quiz();
+    }
+}
+
 // a written answer, typed, spoken or a photo of the working, then marked by rahah against the mark scheme
 
 function render_written(q, total) {
@@ -3016,7 +3092,7 @@ function render_written(q, total) {
     el("study").innerHTML = `
         <div class="quiz">
             <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
-            <p class="study-meta">Question ${s.index + 1} of ${total} · ${q.marks} mark${q.marks === 1 ? "" : "s"}</p>
+            <p class="study-meta">Question ${s.index + 1} of ${total} · ${q.marks} mark${q.marks === 1 ? "" : "s"}${timer_html()}</p>
             <div class="quiz-question answer">${render_markdown(q.question)}</div>
             <div class="written">
                 <textarea class="text-input written-answer" id="written-answer" rows="5" maxlength="5000" placeholder="Write your answer, say it, or add a photo of your working" aria-label="Your answer"></textarea>
@@ -3189,7 +3265,14 @@ async function next_question() {
         render_quiz();
         return;
     }
+    finish_quiz();
+}
+
+async function finish_quiz() {
+    const s = state.study;
+    if (s.done) return;
     s.done = true;
+    clearInterval(s.ticker);
     render_results();
     try {
         const response = await api(`/api/sets/${s.set.id}/score`, {
@@ -3208,7 +3291,8 @@ function render_results() {
     const s = state.study;
     const total = s.set.items.reduce((sum, q) => sum + question_marks(q), 0);
     const best = s.set.best_score;
-    const note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
+    let note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
+    if (s.time_up) note = `Time's up. ${note}`;
     const in_marks = s.set.items.some(is_written);
     const missed = missed_questions().length;
     el("study").innerHTML = `
@@ -3230,10 +3314,13 @@ function render_results() {
 // the questions that lost marks, in test order
 function missed_questions() {
     const s = state.study;
-    return s.set.items.map((q, i) => ({ q, i, r: s.results[i] })).filter(({ r }) => r && r.score < r.marks);
+    return s.set.items
+        .map((q, i) => ({ q, i, r: s.results[i] || (s.time_up ? { score: 0, marks: question_marks(q), unanswered: true } : null) }))
+        .filter(({ r }) => r && r.score < r.marks);
 }
 
 function your_answer(q, r) {
+    if (r.unanswered) return "<em>No answer, time ran out</em>";
     if (!is_written(q)) return inline_markdown(q.options[r.chosen]);
     const parts = [];
     if (r.text) parts.push(escape_html(r.text));
@@ -3276,7 +3363,9 @@ function ask_about_question(i) {
     if (!q || !r) return;
     const plain = (text) => String(text || "").trim();
     let prompt;
-    if (is_written(q)) {
+    if (r.unanswered) {
+        prompt = `I ran out of time before answering this test question. Help me answer it and understand the topic.\n\nQuestion: ${plain(q.question)}${is_written(q) ? `\n\nModel answer: ${plain(q.model_answer)}` : `\n\nOptions: ${q.options.map((o, j) => `${"ABCDEF"[j]}) ${plain(o)}`).join("; ")}\n\nRight answer: ${plain(q.options[q.answer])}`}`;
+    } else if (is_written(q)) {
         const mine = [plain(r.text), r.photo ? "(I also sent a photo of my working.)" : ""].filter(Boolean).join(" ") || "(no answer)";
         prompt = `I got ${r.score} out of ${r.marks} on this test question. Help me understand what I missed and how to get full marks.\n\nQuestion: ${plain(q.question)}\n\nMy answer: ${mine}\n\nModel answer: ${plain(q.model_answer)}`;
     } else {
@@ -3287,7 +3376,8 @@ function ask_about_question(i) {
 
 function restart_quiz() {
     const s = state.study;
-    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null, results: [] });
+    clearInterval(s.ticker);
+    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null, results: [], started: false, deadline: null, time_up: false });
     render_quiz();
 }
 
@@ -3336,7 +3426,14 @@ thread.addEventListener("click", (event) => {
         if (quiz.dataset.quiz === "next") next_question();
         if (quiz.dataset.quiz === "again") restart_quiz();
         if (quiz.dataset.quiz === "review") render_review();
+        if (quiz.dataset.quiz === "start") start_quiz();
         if (quiz.dataset.quiz === "results") render_results();
+        return;
+    }
+    const minutes = target.closest("[data-minutes]");
+    if (minutes) {
+        state.study.minutes = Number(minutes.dataset.minutes);
+        minutes.parentElement.querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === minutes)));
         return;
     }
     const ask = target.closest("[data-ask-question]");
@@ -3361,7 +3458,7 @@ document.addEventListener("keydown", (event) => {
             event.preventDefault();
             flip_card();
         }
-    } else if (/^[1-6]$/.test(event.key)) {
+    } else if (s.started && /^[1-6]$/.test(event.key)) {
         answer_option(Number(event.key) - 1);
     }
 });
