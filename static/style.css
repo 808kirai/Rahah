@@ -54,6 +54,8 @@
     --dur: 0.4s;
     --gutter: 2rem;
     --pill: 999px;
+    /* the chat column, three quarters of the screen on wide screens and never under 760px */
+    --chat-w: max(760px, 75vw);
     --card: 18px;
 }
 
@@ -680,7 +682,7 @@ button.picker-heading:focus-visible {
 }
 
 .thread > .message {
-    max-width: 760px;
+    max-width: var(--chat-w);
     margin-left: auto;
     margin-right: auto;
 }
@@ -4284,7 +4286,7 @@ button.plan-task:focus-visible {
     justify-content: center;
     gap: 0.6rem;
     width: 100%;
-    max-width: 920px;
+    max-width: max(920px, var(--chat-w));
     margin: 0 auto;
     padding: 0.5rem 1.5rem 0;
 }
@@ -4361,7 +4363,7 @@ button.plan-task:focus-visible {
 .composer {
     flex: 1;
     min-width: 0;
-    max-width: 760px;
+    max-width: var(--chat-w);
 }
 
 .composer-box {
