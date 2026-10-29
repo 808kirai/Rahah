@@ -1536,6 +1536,110 @@ button.plan-task:focus-visible {
     display: block;
 }
 
+/* the weekly report on performance */
+.week-tiles {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.week-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    background: var(--card-bg);
+    min-width: 0;
+}
+
+.week-tile > span:first-child {
+    color: var(--text-2);
+    font-size: 0.78rem;
+}
+
+.week-tile strong {
+    font-size: 1.35rem;
+    font-weight: 700;
+}
+
+.week-tile small {
+    color: var(--text-2);
+    font-size: 0.75rem;
+}
+
+.week-tile small.up {
+    color: var(--accent-text);
+}
+
+.week-tile small.down {
+    color: var(--mauve-text);
+}
+
+.week-days {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.15rem;
+}
+
+.week-days i {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-style: normal;
+    font-size: 0.62rem;
+    color: var(--text-2);
+    border: 1px solid var(--panel-line);
+}
+
+.week-days i.on {
+    color: #fff;
+    background: var(--accent);
+    border-color: transparent;
+}
+
+.week-focus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.week-focus p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.week-focus strong {
+    color: var(--text);
+}
+
+.week-focus .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .week-tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .week-tiles > :last-child {
+        grid-column: span 2;
+    }
+
+    .week-focus {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
 /* a quiet line under the top bar while there's no internet */
 .net-status {
     position: fixed;

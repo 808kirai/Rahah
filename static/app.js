@@ -4347,6 +4347,65 @@ function show_performance() {
     sync_view();
     load_performance();
     load_usage();
+    load_week();
+}
+
+// the weekly report, the last seven days next to the seven before, worked out on the server for free
+
+async function load_week() {
+    try {
+        const offset = -new Date().getTimezoneOffset();
+        state.week = await (await api(`/api/report?offset=${offset}`)).json();
+    } catch (error) {
+        return;
+    }
+    render_week();
+}
+
+function week_change(now, before, unit = "") {
+    if (now === null || now === undefined) return "";
+    if (before === null || before === undefined) return before === null && now !== null ? "No tests last week" : "";
+    const diff = now - before;
+    if (!diff) return "Same as last week";
+    return `${diff > 0 ? "+" : "−"}${Math.abs(diff)}${unit} on last week`;
+}
+
+function render_week() {
+    const slot = el("week-slot");
+    const w = state.week;
+    if (!slot || !w) return;
+    const t = w.this;
+    const l = w.last;
+    const tile = (label, value, note, up) => `<div class="week-tile">
+        <span>${label}</span>
+        <strong>${value}</strong>
+        <small class="${up === true ? "up" : up === false ? "down" : ""}">${note}</small>
+    </div>`;
+    const trend = (a, b) => (a === null || b === null || a === b ? null : a > b);
+    const day_names = w.days.map((d) => new Date(`${d.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "narrow" }));
+    const focus = w.focus;
+    const focus_label = focus.action === "flashcards" ? "Make flashcards" : "Make a test";
+    slot.innerHTML = `<section class="perf-card week-card">
+        <div class="perf-head">
+            <h3>This week</h3>
+            <p>The last seven days next to the seven before${w.streak > 1 ? ` · a ${w.streak}-day streak` : ""}</p>
+        </div>
+        <div class="week-tiles">
+            ${tile("Tests taken", t.tests, week_change(t.tests, l.tests), trend(t.tests, l.tests))}
+            ${tile("Average", t.average === null ? "–" : `${t.average}%`, t.average === null ? "No tests yet" : week_change(t.average, l.average, " points"), trend(t.average, l.average))}
+            ${tile("Cards practised", t.cards, t.mastered ? `${t.mastered} mastered` : week_change(t.cards, l.cards), trend(t.cards, l.cards))}
+            ${tile("Questions asked", t.questions, week_change(t.questions, l.questions), trend(t.questions, l.questions))}
+            <div class="week-tile">
+                <span>Study days</span>
+                <strong>${t.days} of 7</strong>
+                <span class="week-days" aria-label="${w.days.filter((d) => d.active).length} of the last 7 days">${w.days.map((d, i) => `<i class="${d.active ? "on" : ""}" title="${d.date}">${day_names[i]}</i>`).join("")}</span>
+            </div>
+        </div>
+        <div class="week-focus">
+            <p>${w.best ? `Strongest: <strong>${escape_html(w.best.name)}</strong> ${w.best.average}%. ` : ""}${w.weakest ? `Needs work: <strong>${escape_html(w.weakest.name)}</strong> ${w.weakest.average}%. ` : ""}${escape_html(focus.text)}</p>
+            <button class="btn btn-soft btn-small" type="button" data-tool="${focus.action}" data-mode="${escape_html(focus.mode || "exam")}">${focus.action === "flashcards" ? icons.cards : icons.quiz}${focus_label}</button>
+        </div>
+    </section>`;
 }
 
 // what rahah has cost on this api key, today, this week and in all, with what caching saved
@@ -4415,7 +4474,9 @@ function render_performance() {
             Take a test to see your scores and grades here.
             <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a test</button></div>
         </div>
+        <div id="week-slot"></div>
         <div id="usage-slot"></div>`;
+        render_week();
         render_usage();
         return;
     }
@@ -4431,6 +4492,8 @@ function render_performance() {
             ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`)}
             ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
         </div>
+
+        <div id="week-slot"></div>
 
         <section class="perf-card">
             <div class="perf-head">

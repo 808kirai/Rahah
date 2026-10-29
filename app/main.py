@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import anthropic
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from .config import load_settings, settings
 from .modes import custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom
 from .performance import summarise
+from .report import weekly_report
 from .plans import make_plan, plan_calendar
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
@@ -696,6 +697,13 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     @app.get("/api/performance")
     def performance():
         return summarise(db.quiz_attempts())
+
+    @app.get("/api/report")
+    def report(offset: int = Query(0, ge=-14 * 60, le=14 * 60)):
+        # the last seven days next to the seven before, on the student's clock
+        now = time.time()
+        since = now - 16 * 86400
+        return weekly_report(db.quiz_attempts(), db.card_activity(since), db.question_times(since), now, offset)
 
     def study_history() -> tuple[list[dict], list[dict], dict, list[dict]]:
         deadlines = [r for r in db.list_reminders() if is_upcoming(r)][:10]

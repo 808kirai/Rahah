@@ -86,3 +86,45 @@ def test_gpa_counts_each_test_once_at_its_best_attempt():
     # the newest attempt comes first in a test's history
     assert [h["percent"] for h in q1["history"]] == [80, 40]
     assert {s["grade"]: s["points"] for s in result["scale"]} == {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "E": 0.0, "F": 0.0}
+
+
+def test_the_weekly_report_compares_this_week_with_last():
+    from app.report import weekly_report
+    day = 86400
+    now = 1_800_000_000.0  # a fixed moment, 08:00 utc
+    attempts = [
+        {"mode": "science", "score": 8, "total": 10, "created": now - 1 * day},
+        {"mode": "humanities", "score": 4, "total": 10, "created": now - 2 * day},
+        {"mode": "science", "score": 5, "total": 10, "created": now - 9 * day},
+    ]
+    cards = [{"mode": "science", "box": 5, "updated": now - 3600}, {"mode": "science", "box": 2, "updated": now - 3 * day}]
+    questions = [now - 600, now - 1 * day, now - 10 * day]
+    r = weekly_report(attempts, cards, questions, now)
+
+    assert r["this"] == {"tests": 2, "average": 60, "cards": 2, "mastered": 1, "questions": 2, "days": 4}
+    assert r["last"]["tests"] == 1 and r["last"]["average"] == 50 and r["last"]["days"] == 2
+    assert r["streak"] == 4  # today, yesterday, two days ago and three days ago
+    assert [d["active"] for d in r["days"]] == [False, False, False, True, True, True, True]
+    assert r["best"]["mode"] == "science" and r["best"]["average"] == 80
+    assert r["weakest"]["mode"] == "humanities" and r["focus"]["mode"] == "humanities"
+
+
+def test_the_report_counts_days_on_the_students_clock():
+    from app.report import weekly_report
+    midnight = 1_800_000_000.0 - 1_800_000_000 % 86400  # midnight utc
+    now = midnight + 30 * 60  # 00:30 utc
+    late = midnight - 15 * 60  # 23:45 utc the day before
+    r_utc = weekly_report([], [], [late], now, 0)
+    r_east = weekly_report([], [], [late], now, 180)  # three hours ahead, both fall on the same local day
+    assert [d["active"] for d in r_utc["days"]][-2:] == [True, False]
+    assert [d["active"] for d in r_east["days"]][-2:] == [False, True]
+    assert r_utc["focus"]["action"] == "quiz"
+
+
+def test_the_report_endpoint(web):
+
+    quiz = web.post("/api/sets", data={"kind": "quiz", "topic": "capitals", "mode": "humanities"}).json()
+    web.post(f"/api/sets/{quiz['id']}/score", json={"score": 2})
+    r = web.get("/api/report?offset=180").json()
+    assert r["this"]["tests"] == 1 and r["streak"] == 1 and r["days"][-1]["active"]
+    assert web.get("/api/report?offset=99999").status_code == 422

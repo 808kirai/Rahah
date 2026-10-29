@@ -36,6 +36,7 @@ const kept_api = [
     /^\/api\/timetable$/,
     /^\/api\/today$/,
     /^\/api\/performance$/,
+    /^\/api\/report$/,
 ];
 
 // libraries from these sites have their version in the address, so a saved copy never goes out of date
@@ -89,7 +90,7 @@ self.addEventListener("fetch", (event) => {
     } else if (url.origin === self.location.origin && url.pathname.startsWith("/static/")) {
         event.respondWith(network_first(request, shell_cache, url.pathname));
     } else if (url.origin === self.location.origin && kept_api.some((pattern) => pattern.test(url.pathname))) {
-        // today's nudge asks with the date, the last one saved is close enough offline
+        // today's nudge and the weekly report ask with the date, the last one saved is close enough offline
         event.respondWith(network_first(request, data_cache, url.pathname + url.search, true));
     } else if (library_hosts.includes(url.hostname)) {
         event.respondWith(library(request));

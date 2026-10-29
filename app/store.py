@@ -705,6 +705,21 @@ class store:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def card_activity(self, since: float) -> list[dict]:
+        # cards rated since then, each once at its latest rating, with its box and subject
+        with self._connect() as db:
+            rows = db.execute(
+                "select c.box, c.updated, s.mode from card_progress c join study_sets s on s.id = c.set_id where c.updated >= ?",
+                (since,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def question_times(self, since: float) -> list[float]:
+        # when each chat answer was asked for, from the usage log
+        with self._connect() as db:
+            rows = db.execute("select created from usage where kind = 'chat' and created >= ?", (since,)).fetchall()
+        return [r["created"] for r in rows]
+
     def delete_set(self, set_id: str) -> None:
         with self._connect() as db:
             db.execute("delete from study_sets where id = ?", (set_id,))
