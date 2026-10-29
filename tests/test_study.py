@@ -301,3 +301,11 @@ def test_a_note_nothing_else_uses_is_removed_from_claude_too(setup):
     assert web.post("/api/notes", data={"mode": "nope"}, files={"file": ("a.txt", b"x", "text/plain")}).status_code == 400
     web.delete(f"/api/notes/{note['id']}")
     assert claude.files.deleted == [note["id"]]
+
+
+def test_a_set_can_be_made_in_another_language(setup):
+    web, claude = setup([reply(cards)])
+    made = web.post("/api/sets", data={"kind": "flashcards", "topic": "cells", "language": "French"})
+    assert made.status_code == 200
+    assert "in French" in claude.beta.messages.calls[0]["messages"][0]["content"][-1]["text"]
+    assert web.post("/api/sets", data={"kind": "flashcards", "topic": "cells", "language": "Elvish"}).status_code == 400

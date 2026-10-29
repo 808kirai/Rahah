@@ -25,7 +25,7 @@ from .store import store
 from .timetable import calendar_file as timetable_file, class_in
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
-from .tutor import display_from_content, history_blocks, stream_reply, turn_note, user_content
+from .tutor import answer_languages, display_from_content, history_blocks, language_note, low_data_note, stream_reply, turn_note, user_content
 
 log = logging.getLogger("rahah")
 static_dir = Path(__file__).resolve().parent.parent / "static"
@@ -112,11 +112,22 @@ class message_in(BaseModel):
     file_ids: list[str] = Field(default_factory=list, max_length=10)
     note_ids: list[str] = Field(default_factory=list, max_length=10)
     hints: bool = False
+    language: str = ""
+    low_data: bool = False
 
 
 class retry_in(BaseModel):
     mode: str = default_mode
     hints: bool = False
+    language: str = ""
+    low_data: bool = False
+
+
+def settings_notes(body) -> tuple:
+    # the student's answer language and low-data mode, checked and turned into notes for this turn
+    if body.language and body.language not in answer_languages:
+        raise HTTPException(400, "Pick an answer language from the list.")
+    return (language_note(body.language), low_data_note if body.low_data else "")
 
 
 def friendly_error(error: Exception) -> str:
@@ -303,7 +314,10 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
     @app.get("/api/modes")
     def list_modes():
-        return {"modes": public_modes(), "groups": groups, "menu_groups": menu_groups, "default": default_mode}
+        return {
+            "modes": public_modes(), "groups": groups, "menu_groups": menu_groups, "default": default_mode,
+            "languages": answer_languages,
+        }
 
     @app.get("/api/conversations")
     def list_conversations():
@@ -421,7 +435,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             "file_ids": [f.id for f in files if f.conversation_id],
         }]
         changed = not history or conversation["mode"] != body.mode
-        note = turn_note(body.mode if changed else None, hints=body.hints)
+        note = turn_note(body.mode if changed else None, hints=body.hints, extra=settings_notes(body))
         if note:
             rows.append(note)
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
@@ -437,7 +451,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(400, "There's no answer to try again yet.")
         messages = db.api_messages(conversation_id)
         rows = []
-        note = turn_note(body.mode if conversation["mode"] != body.mode else None, hints=body.hints)
+        note = turn_note(body.mode if conversation["mode"] != body.mode else None, hints=body.hints, extra=settings_notes(body))
         if note:
             rows.append(note)
             messages.append(note)
@@ -562,6 +576,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         style: str = Form("choice"),
         files: list[UploadFile] | None = File(None),
         note_ids: list[str] | None = Form(None),
+        language: str = Form(""),
     ):
         if kind not in kinds:
             raise HTTPException(400, "Unknown kind of study set.")
@@ -569,6 +584,8 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(400, "Pick multiple choice, written, mixed or past paper.")
         if mode not in modes:
             raise HTTPException(400, "Unknown subject.")
+        if language and language not in answer_languages:
+            raise HTTPException(400, "Pick an answer language from the list.")
         topic = topic.strip()
         if len(topic) > 2000:
             raise HTTPException(400, "Keep the topic under 2000 characters.")
@@ -598,7 +615,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
         count = max(1, min(count, max_items))
         try:
-            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(kind))
+            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(kind), language=language)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:

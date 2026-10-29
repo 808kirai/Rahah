@@ -1526,6 +1526,28 @@ button.plan-task:focus-visible {
     display: block;
 }
 
+.diagram.waiting {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+.diagram.waiting .diagram-art {
+    display: block;
+}
+
+/* settings */
+.field-hint {
+    margin: 0 0 0.5rem;
+    color: var(--text-2);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+#settings-langs {
+    flex-wrap: wrap;
+}
+
 /* the notes library on the chats and tests page */
 .section-head {
     display: flex;

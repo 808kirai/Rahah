@@ -85,6 +85,31 @@ hint_note = (
 )
 
 
+# languages a student can ask answers in, each with the code the device's voice uses to read it aloud
+answer_languages = {
+    "English": "en-US", "Kiswahili": "sw-KE", "French": "fr-FR", "Spanish": "es-ES", "Portuguese": "pt-BR",
+    "Arabic": "ar-SA", "Amharic": "am-ET", "Somali": "so-SO", "Hindi": "hi-IN", "Chinese": "zh-CN",
+    "German": "de-DE", "Japanese": "ja-JP", "Turkish": "tr-TR", "Russian": "ru-RU", "Indonesian": "id-ID",
+    "Yoruba": "yo-NG", "Hausa": "ha-NG", "Zulu": "zu-ZA",
+}
+
+
+def language_note(language: str) -> str:
+    if not language:
+        return ""
+    return (
+        f"Write your answer in {language}, whatever language the question or the notes are in. Keep formulas, "
+        "code and standard symbols as they are, and when a key subject term is usually learned in English, give "
+        "the English term in brackets the first time it appears."
+    )
+
+
+low_data_note = (
+    "The student is in low-data mode, on a slow or costly connection. Keep this answer short, the key point "
+    "and one example at most, leave out diagrams, and don't search the web unless they ask you to."
+)
+
+
 def turn_note(mode: str | None = None, hints: bool = False, extra: tuple = ()) -> dict | None:
     """one system note for this turn, the subject when it changes plus the student's settings, or None"""
     parts = [modes[mode]["instruction"]] if mode else []

@@ -59,6 +59,10 @@ Look and feel
 - Faint see through cards and boxes, with a soft shadow in light mode
 - The tabs and message box float over the page with a fade underneath, like a streaming app
 - Popups close with a click outside them
+- Settings, the gear at the top, kept on the device:
+  - Answer language, from 18 including Kiswahili, Arabic, French, Amharic, Somali, Hindi and Chinese. Rahah answers and makes tests and decks in it, gives the English term in brackets for key subject words, and Listen reads in that language
+  - Low-data mode for slow or costly connections: shorter answers, no web searches unless asked, smaller photos, no downloaded font, and diagrams shown as text with a Draw button
+  - Chips above the message box show what's on, and each one turns off with a tap
 - Rahah can be installed as an app. On Android, Chrome offers Install app or Add to Home screen, on iPhone it's Share then Add to Home Screen, and on a computer Chrome and Edge show an install button in the address bar. It then opens full screen with its own icon, keeps clear of the notch and home bar, and shows a friendly page when there's no internet
 - On phones the whole app is a size smaller, so it reads like a small copy of the website, with two chats per row and a full width message box above the tabs
 

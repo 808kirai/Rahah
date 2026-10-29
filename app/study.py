@@ -149,7 +149,7 @@ def source_blocks(uploads: list[upload]) -> list[dict]:
     return blocks
 
 
-def request_text(kind: str, topic: str, count: int, mode: str, has_notes: bool, style: str = "choice") -> str:
+def request_text(kind: str, topic: str, count: int, mode: str, has_notes: bool, style: str = "choice", language: str = "") -> str:
     ask = styles[style] if kind == "quiz" else kinds[kind]["ask"]
     parts = [modes[mode]["instruction"], ask.format(count=count)]
     if topic and has_notes:
@@ -159,6 +159,8 @@ def request_text(kind: str, topic: str, count: int, mode: str, has_notes: bool, 
     else:
         parts.append("Use the attached notes.")
     parts.append("Give the set a short title of a few words.")
+    if language:
+        parts.append(f"Write the whole set, title included, in {language}. Keep formulas and symbols as they are.")
     return "\n\n".join(parts)
 
 
@@ -231,10 +233,10 @@ def clean_quiz(data: dict, count: int) -> list[dict]:
 
 async def make_set(
     client, cfg: settings, kind: str, topic: str, count: int, mode: str, uploads: list[upload], style: str = "choice",
-    on_usage=None,
+    on_usage=None, language: str = "",
 ) -> dict:
     """asks claude for a set and returns its title and checked items"""
-    text = request_text(kind, topic, count, mode, bool(uploads), style)
+    text = request_text(kind, topic, count, mode, bool(uploads), style, language)
     content = source_blocks(uploads) + [{"type": "text", "text": text}]
     async with client.beta.messages.stream(
         model=cfg.model,

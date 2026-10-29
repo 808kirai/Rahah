@@ -14,6 +14,8 @@ const state = {
     default_mode: "general",
     pending: [], // files attached to the next message, each {key, id, name, kind, status}, notes from the library marked note
     notes: [], // the notes library, files kept by subject
+    settings: { language: "", low_data: false }, // answer language, blank to match the question, and low-data mode
+    languages: {}, // answer languages from the server, each with its voice code
     busy: false,
     conversations: [], // recent chats for the chats page and the continue studying row
     reminders: [], // exams, cats, midterms, assignments and events, soonest first
@@ -245,15 +247,30 @@ function make_diagrams(container) {
         const figure = document.createElement("figure");
         figure.className = "diagram";
         figure.dataset.source = code.textContent.trim();
-        figure.innerHTML = `<div class="diagram-art"><span class="diagram-wait">Drawing the diagram…</span></div>`;
         code.parentElement.replaceWith(figure);
+        if (state.settings.low_data && !window.mermaid) {
+            figure.classList.add("waiting");
+            figure.innerHTML = `<div class="diagram-art"><pre><code>${escape_html(figure.dataset.source)}</code></pre></div>
+                <button class="btn btn-ghost btn-small" type="button" data-draw-diagram>Draw this diagram</button>`;
+            return;
+        }
+        figure.innerHTML = `<div class="diagram-art"><span class="diagram-wait">Drawing the diagram…</span></div>`;
         draw_diagram(figure);
     });
 }
 
+thread.addEventListener("click", (event) => {
+    const draw = event.target.closest("[data-draw-diagram]");
+    if (!draw) return;
+    const figure = draw.closest(".diagram");
+    draw.remove();
+    figure.classList.remove("waiting");
+    draw_diagram(figure);
+});
+
 // a theme change redraws them in the new colours
 function redraw_diagrams() {
-    document.querySelectorAll(".diagram:not(.failed)").forEach(draw_diagram);
+    document.querySelectorAll(".diagram:not(.failed):not(.waiting)").forEach(draw_diagram);
 }
 
 function decorate_code(container) {
@@ -721,6 +738,7 @@ async function send_message(text) {
                     file_ids: sent_files.filter((f) => !f.note).map((f) => f.id),
                     note_ids: sent_files.filter((f) => f.note).map((f) => f.id),
                     hints: Boolean(state.hints),
+                    ...settings_body(),
                 }),
                 signal,
             });
@@ -916,7 +934,7 @@ async function retry_answer() {
         await run_answer(reply, (signal) => api(`/api/conversations/${conversation_id}/retry`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mode: mode_select.value, hints: Boolean(state.hints) }),
+            body: JSON.stringify({ mode: mode_select.value, hints: Boolean(state.hints), ...settings_body() }),
             signal,
         }), () => {}, retry_answer);
     } finally {
@@ -1004,7 +1022,10 @@ composer_box.addEventListener("drop", (event) => {
 
 // photos, from the camera, the gallery or pasted in, shrunk first so they upload quickly
 // claude reads images up to about this many pixels on the long side, so nothing is lost
-const photo_edge = 1600;
+// low-data mode sends smaller photos, still clear enough for handwriting
+const photo_edge_full = 1600;
+const photo_edge_low = 1024;
+const photo_edge_now = () => (state.settings.low_data ? photo_edge_low : photo_edge_full);
 
 function photo_name() {
     const now = new Date();
@@ -1013,11 +1034,12 @@ function photo_name() {
 }
 
 function canvas_to_file(canvas, name) {
-    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob ? new File([blob], name, { type: "image/jpeg" }) : null), "image/jpeg", 0.9));
+    const quality = state.settings.low_data ? 0.75 : 0.9;
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob ? new File([blob], name, { type: "image/jpeg" }) : null), "image/jpeg", quality));
 }
 
 function draw_scaled(source, width, height) {
-    const scale = Math.min(1, photo_edge / Math.max(width, height));
+    const scale = Math.min(1, photo_edge_now() / Math.max(width, height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(height * scale);
@@ -1030,7 +1052,7 @@ async function shrink_photo(file) {
     if (!/^image\/(jpeg|png|webp)$/.test(file.type) || !window.createImageBitmap) return file;
     try {
         const bitmap = await createImageBitmap(file);
-        const big = Math.max(bitmap.width, bitmap.height) > photo_edge || file.size > 4 * 1024 * 1024;
+        const big = Math.max(bitmap.width, bitmap.height) > photo_edge_now() || file.size > (state.settings.low_data ? 1 : 4) * 1024 * 1024;
         if (!big) return file;
         const canvas = draw_scaled(bitmap, bitmap.width, bitmap.height);
         const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
@@ -1063,13 +1085,78 @@ function set_hint_mode(on) {
     } catch (e) {}
     el("hints-option").setAttribute("aria-checked", String(on));
     el("hints-option").classList.toggle("on", on);
-    el("composer-chips").innerHTML = on
-        ? `<span class="composer-chip">Hint mode<button type="button" data-hints-off aria-label="Turn hint mode off" title="Turn off">${icons.close}</button></span>`
-        : "";
+    render_composer_chips();
+}
+
+function render_composer_chips() {
+    const chip = (label, off, name) => `<span class="composer-chip">${label}<button type="button" ${off} aria-label="Turn ${name} off" title="Turn off">${icons.close}</button></span>`;
+    el("composer-chips").innerHTML = [
+        state.hints ? chip("Hint mode", "data-hints-off", "hint mode") : "",
+        state.settings.language ? chip(`In ${escape_html(state.settings.language)}`, "data-lang-off", "the answer language") : "",
+        state.settings.low_data ? chip("Low data", "data-low-data-off", "low-data mode") : "",
+    ].join("");
 }
 
 el("composer-chips").addEventListener("click", (event) => {
     if (event.target.closest("[data-hints-off]")) set_hint_mode(false);
+    if (event.target.closest("[data-lang-off]")) save_settings({ language: "" });
+    if (event.target.closest("[data-low-data-off]")) save_settings({ low_data: false });
+});
+
+// settings, kept on this device
+
+function settings_body() {
+    return { language: state.settings.language, low_data: state.settings.low_data };
+}
+
+function load_settings() {
+    try {
+        const saved = JSON.parse(localStorage.getItem("rahah-settings") || "{}");
+        state.settings = { language: typeof saved.language === "string" ? saved.language : "", low_data: Boolean(saved.low_data) };
+    } catch (e) {}
+    apply_settings();
+}
+
+function save_settings(change) {
+    state.settings = { ...state.settings, ...change };
+    try {
+        localStorage.setItem("rahah-settings", JSON.stringify(state.settings));
+    } catch (e) {}
+    apply_settings();
+}
+
+function apply_settings() {
+    // a language the server no longer offers falls back to matching the question
+    if (state.settings.language && Object.keys(state.languages).length && !state.languages[state.settings.language]) {
+        state.settings.language = "";
+    }
+    state.answer_lang_code = state.languages[state.settings.language] || "";
+    render_composer_chips();
+    render_settings();
+}
+
+function render_settings() {
+    const langs = [["", "Match my question"], ...Object.keys(state.languages).map((name) => [name, name])];
+    el("settings-langs").innerHTML = langs.map(([value, label]) =>
+        `<button class="choice" type="button" data-lang="${escape_html(value)}" aria-pressed="${value === state.settings.language}">${escape_html(label)}</button>`).join("");
+    el("settings-data").querySelectorAll("[data-low-data]").forEach((b) =>
+        b.setAttribute("aria-pressed", String((b.dataset.lowData === "1") === state.settings.low_data)));
+}
+
+const settings_sheet = el("settings-sheet");
+el("settings-btn").addEventListener("click", () => {
+    render_settings();
+    settings_sheet.showModal();
+});
+el("settings-close").addEventListener("click", () => settings_sheet.close());
+el("settings-done").addEventListener("click", () => settings_sheet.close());
+el("settings-langs").addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-lang]");
+    if (pick) save_settings({ language: pick.dataset.lang });
+});
+el("settings-data").addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-low-data]");
+    if (pick) save_settings({ low_data: pick.dataset.lowData === "1" });
 });
 
 // voice typing, the browser turns speech into words in the message box and rahah reads the words
@@ -3295,6 +3382,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
     form.append("count", String(sheet_state.pick));
     form.append("mode", mode);
     if (sheet_state.tool === "quiz") form.append("style", sheet_state.style);
+    if (state.settings.language) form.append("language", state.settings.language);
     sheet_state.files.forEach((file) => form.append("files", file));
     sheet_state.notes.forEach((note) => form.append("note_ids", note.id));
     show_sheet_error("");
@@ -4738,8 +4826,9 @@ async function start() {
     } catch (e) {}
     try {
         const response = await api("/api/modes");
-        const { modes, groups, menu_groups, default: default_mode } = await response.json();
+        const { modes, groups, menu_groups, default: default_mode, languages } = await response.json();
         state.default_mode = default_mode;
+        if (languages) state.languages = languages;
         if (groups) state.groups = groups;
         if (menu_groups) state.menu_groups = menu_groups;
         apply_modes(modes, false);
@@ -4747,6 +4836,7 @@ async function start() {
     } catch (error) {
         mode_select.innerHTML = '<option value="general">General study</option>';
     }
+    load_settings();
     render_rows();
     load_today();
     load_history();

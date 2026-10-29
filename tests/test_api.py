@@ -435,3 +435,24 @@ def test_search_looks_inside_every_chat(setup):
     # a percent sign is searched for as itself, not as a wildcard
     assert [r["id"] for r in web.get("/api/search", params={"q": "100%"}).json()["results"]] == [third]
     assert web.get("/api/search", params={"q": "x"}).json()["results"] == []
+
+
+def test_answer_language_and_low_data_go_in_as_a_note_for_that_turn(setup):
+    web, claude = setup([message([text_block("Maji huhamia.")]), message([text_block("Short.")])])
+    assert "Kiswahili" in web.get("/api/modes").json()["languages"]
+    conversation_id = new_chat(web)
+    sent = web.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"text": "what is osmosis?", "mode": "general", "language": "Kiswahili", "low_data": True},
+    )
+    assert sent.status_code == 200
+    notes = [m["content"] for m in claude.beta.messages.calls[0]["messages"] if m["role"] == "system"]
+    assert any("in Kiswahili" in n and "low-data mode" in n for n in notes)
+
+    # the next turn without them carries neither
+    ask(web, conversation_id, "and diffusion?")
+    later = claude.beta.messages.calls[1]["messages"]
+    assert not any("low-data" in str(m["content"]) for m in later[2:])
+
+    bad = web.post(f"/api/conversations/{conversation_id}/messages", json={"text": "hi", "language": "Klingon"})
+    assert bad.status_code == 400
