@@ -51,6 +51,7 @@ const icons = {
     chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+    speaker: '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
     camera: '<svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg>',
     mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>',
     retry: '<svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5v4h4"/></svg>',
@@ -666,10 +667,72 @@ function add_answer_actions(reply) {
     row = document.createElement("div");
     row.className = "answer-actions";
     row.innerHTML = `
+        ${can_speak ? `<button class="btn btn-ghost btn-small" type="button" data-answer-action="listen">${icons.speaker}Listen</button>` : ""}
         <button class="btn btn-ghost btn-small" type="button" data-answer-action="quiz">${icons.quiz}Test me</button>
         <button class="btn btn-ghost btn-small" type="button" data-answer-action="flashcards">${icons.cards}Flashcards</button>`;
     reply.appendChild(row);
     return row;
+}
+
+// reading an answer aloud with the device's own voice, free and offline
+const can_speak = "speechSynthesis" in window;
+const reader = { reply: null };
+
+// what gets read, the words without markdown, citation marks or code, and simple maths said in words
+function speech_text(raw) {
+    return String(raw || "")
+        .replace(/```[\s\S]*?```/g, " (code shown on screen) ")
+        .replace(/⟦[^⟧]*⟧/g, "")
+        .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, "$1 over $2")
+        .replace(/\^\{?2\}?/g, " squared").replace(/\^\{?3\}?/g, " cubed").replace(/\^\{([^{}]*)\}/g, " to the power $1")
+        .replace(/\\(times|cdot)/g, " times ").replace(/\\div/g, " divided by ").replace(/\\sqrt\{([^{}]*)\}/g, "the square root of $1")
+        .replace(/\\[()\[\]]/g, " ").replace(/\\[a-zA-Z]+/g, " ").replace(/[{}]/g, "")
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+        .replace(/[*_#>`|]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function set_listen_label(reply, on) {
+    const button = reply?.querySelector('[data-answer-action="listen"]');
+    if (button) button.innerHTML = on ? `${icons.stop}Stop` : `${icons.speaker}Listen`;
+}
+
+function stop_reading() {
+    if (!can_speak) return;
+    speechSynthesis.cancel();
+    set_listen_label(reader.reply, false);
+    reader.reply = null;
+}
+
+// long answers are read a sentence at a time, since some browsers stop a long single reading early
+function speak(text, on_done = () => {}) {
+    const parts = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
+    parts.forEach((part, i) => {
+        const line = new SpeechSynthesisUtterance(part.trim());
+        line.lang = state.answer_lang_code || navigator.language || "en-US";
+        if (i === parts.length - 1) line.onend = on_done;
+        speechSynthesis.speak(line);
+    });
+}
+
+function read_aloud(reply) {
+    if (!can_speak || !reply) return;
+    if (reader.reply === reply) {
+        stop_reading();
+        return;
+    }
+    stop_reading();
+    const text = speech_text(reply.raw_text);
+    if (!text) return;
+    reader.reply = reply;
+    set_listen_label(reply, true);
+    speak(text, () => {
+        if (reader.reply === reply) {
+            set_listen_label(reply, false);
+            reader.reply = null;
+        }
+    });
 }
 
 // a test or deck from one answer, the answer goes in as notes so nothing is cut short
@@ -714,7 +777,8 @@ thread.addEventListener("click", (event) => {
     if (event.target.closest('[data-today-page="reminders"]')) show_reminders();
     if (event.target.closest("[data-retry]")) retry_answer();
     const action = event.target.closest("[data-answer-action]");
-    if (action) study_answer(action.closest(".message"), action.dataset.answerAction);
+    if (action && action.dataset.answerAction === "listen") read_aloud(action.closest(".message"));
+    else if (action) study_answer(action.closest(".message"), action.dataset.answerAction);
 });
 
 // attachments
@@ -1277,6 +1341,7 @@ thread.addEventListener("click", (event) => {
 
 // leaving a chat for one of the pages starts the next question fresh
 function enter_page(hash, name, html) {
+    stop_reading();
     state.conversation_id = null;
     state.pending = [];
     render_attachments();
@@ -4000,6 +4065,7 @@ async function load_history() {
 
 async function open_conversation(conversation_id) {
     if (state.busy) return;
+    stop_reading();
     try {
         const response = await api(`/api/conversations/${conversation_id}`);
         const conversation = await response.json();
@@ -4034,6 +4100,7 @@ async function open_conversation(conversation_id) {
 
 function start_new_chat() {
     if (state.busy) return;
+    stop_reading();
     state.conversation_id = null;
     state.pending = [];
     render_attachments();
