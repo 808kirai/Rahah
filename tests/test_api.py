@@ -456,3 +456,11 @@ def test_answer_language_and_low_data_go_in_as_a_note_for_that_turn(setup):
 
     bad = web.post(f"/api/conversations/{conversation_id}/messages", json={"text": "hi", "language": "Klingon"})
     assert bad.status_code == 400
+
+
+def test_a_voice_chat_turn_asks_for_a_spoken_answer(setup):
+    web, claude = setup([message([text_block("Water moves in.")])])
+    conversation_id = new_chat(web)
+    web.post(f"/api/conversations/{conversation_id}/messages", json={"text": "what is osmosis?", "voice": True})
+    notes = [m["content"] for m in claude.beta.messages.calls[0]["messages"] if m["role"] == "system"]
+    assert any("talking to you by voice" in n for n in notes)

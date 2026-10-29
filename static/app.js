@@ -738,6 +738,7 @@ async function send_message(text) {
                     file_ids: sent_files.filter((f) => !f.note).map((f) => f.id),
                     note_ids: sent_files.filter((f) => f.note).map((f) => f.id),
                     hints: Boolean(state.hints),
+                    voice: talk.on,
                     ...settings_body(),
                 }),
                 signal,
@@ -813,6 +814,7 @@ function stop_reading() {
     speechSynthesis.cancel();
     set_listen_label(reader.reply, false);
     reader.reply = null;
+    if (talk.on && talk.phase === "speaking") listen_turn();
 }
 
 // long answers are read a sentence at a time, since some browsers stop a long single reading early
@@ -826,7 +828,7 @@ function speak(text, on_done = () => {}) {
     });
 }
 
-function read_aloud(reply) {
+function read_aloud(reply, after = () => {}) {
     if (!can_speak || !reply) return;
     if (reader.reply === reply) {
         stop_reading();
@@ -834,16 +836,103 @@ function read_aloud(reply) {
     }
     stop_reading();
     const text = speech_text(reply.raw_text);
-    if (!text) return;
+    if (!text) return after();
     reader.reply = reply;
     set_listen_label(reply, true);
     speak(text, () => {
         if (reader.reply === reply) {
             set_listen_label(reply, false);
             reader.reply = null;
+            after();
         }
     });
 }
+
+// voice chat, rahah listens, answers, reads the answer aloud, then listens again until it's ended
+// a few quiet turns in a row end it too, so the microphone isn't left on
+
+const talk = { on: false, phase: "", rec: null, quiet: 0 };
+const talk_phases = { listening: "Listening", thinking: "Thinking", speaking: "Speaking" };
+
+function set_talk_phase(phase) {
+    talk.phase = phase;
+    render_composer_chips();
+}
+
+function start_talk() {
+    if (state.busy) return;
+    stop_voice(true);
+    stop_reading();
+    talk.on = true;
+    talk.quiet = 0;
+    listen_turn();
+}
+
+function stop_talk(reason = "") {
+    talk.on = false;
+    talk.phase = "";
+    const rec = talk.rec;
+    talk.rec = null;
+    if (rec) rec.abort();
+    stop_reading();
+    render_composer_chips();
+    if (reason) composer_hint(reason);
+}
+
+function listen_turn() {
+    const Engine = speech_engine();
+    if (!talk.on || !Engine) return;
+    const rec = new Engine();
+    // in a voice chat the student speaks the language rahah answers in
+    rec.lang = state.answer_lang_code || navigator.language || "en-US";
+    rec.continuous = false;
+    rec.interimResults = true;
+    let heard = "";
+    let error = "";
+    rec.onresult = (event) => {
+        if (talk.rec !== rec) return;
+        heard = [...event.results].map((r) => r[0].transcript).join(" ").trim();
+        input.value = heard;
+        resize_input();
+    };
+    rec.onerror = (event) => {
+        error = event.error;
+    };
+    rec.onend = async () => {
+        if (talk.rec !== rec) return;
+        talk.rec = null;
+        if (!talk.on) return;
+        if (voice_errors[error]) return stop_talk(voice_errors[error]);
+        if (!heard) {
+            talk.quiet += 1;
+            if (talk.quiet >= 3) return stop_talk("Voice chat ended, Rahah didn't hear anything.");
+            return listen_turn();
+        }
+        talk.quiet = 0;
+        set_talk_phase("thinking");
+        await send_message(heard);
+        if (!talk.on) return;
+        const replies = thread.querySelectorAll(".message.assistant.answered");
+        const reply = replies[replies.length - 1];
+        if (!reply) return listen_turn();
+        // reading starts before the phase changes, since starting a reading first stops any other
+        read_aloud(reply, () => talk.on && listen_turn());
+        if (talk.on && talk.phase === "thinking" && reader.reply === reply) set_talk_phase("speaking");
+    };
+    talk.rec = rec;
+    try {
+        rec.start();
+        set_talk_phase("listening");
+    } catch (e) {
+        talk.rec = null;
+        stop_talk("Voice chat couldn't start. Try again.");
+    }
+}
+
+// leaving the chat ends a voice chat
+window.addEventListener("hashchange", () => {
+    if (talk.on) stop_talk();
+});
 
 // thumbs up or down, the same one again clears it
 async function rate_answer(reply, rating) {
@@ -1094,6 +1183,7 @@ function render_composer_chips() {
         state.hints ? chip("Hint mode", "data-hints-off", "hint mode") : "",
         state.settings.language ? chip(`In ${escape_html(state.settings.language)}`, "data-lang-off", "the answer language") : "",
         state.settings.low_data ? chip("Low data", "data-low-data-off", "low-data mode") : "",
+        talk.on ? `<span class="composer-chip talk-chip"><span class="talk-dot" aria-hidden="true"></span>Voice chat · ${talk_phases[talk.phase] || "On"}<button type="button" data-talk-off aria-label="End voice chat" title="End">${icons.close}</button></span>` : "",
     ].join("");
 }
 
@@ -1101,6 +1191,7 @@ el("composer-chips").addEventListener("click", (event) => {
     if (event.target.closest("[data-hints-off]")) set_hint_mode(false);
     if (event.target.closest("[data-lang-off]")) save_settings({ language: "" });
     if (event.target.closest("[data-low-data-off]")) save_settings({ low_data: false });
+    if (event.target.closest("[data-talk-off]")) stop_talk();
 });
 
 // settings, kept on this device
@@ -1167,6 +1258,7 @@ const input_menu = el("input-menu");
 const speech_engine = () => window.SpeechRecognition || window.webkitSpeechRecognition;
 const voice = { rec: null, base: "", heard: "", error: "" };
 el("voice-option").hidden = !speech_engine();
+el("talk-option").hidden = !(speech_engine() && can_speak);
 
 const voice_errors = {
     "not-allowed": "Rahah isn't allowed to use the microphone. Allow it in the browser's site settings.",
@@ -1269,7 +1361,8 @@ function open_input_menu() {
 }
 
 tools_btn.addEventListener("click", () => {
-    if (voice.rec) stop_voice();
+    if (talk.on) stop_talk();
+    else if (voice.rec) stop_voice();
     else if (input_menu.hidden) open_input_menu();
     else close_input_menu();
 });
@@ -1282,6 +1375,7 @@ input_menu.addEventListener("click", (event) => {
     else if (option.dataset.input === "photo") open_camera();
     else if (option.dataset.input === "hints") set_hint_mode(!state.hints);
     else if (option.dataset.input === "notes") show_notes_picker();
+    else if (option.dataset.input === "talk") start_talk();
     else start_voice();
 });
 

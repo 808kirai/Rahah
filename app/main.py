@@ -25,7 +25,10 @@ from .store import store
 from .timetable import calendar_file as timetable_file, class_in
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
-from .tutor import answer_languages, display_from_content, history_blocks, language_note, low_data_note, stream_reply, turn_note, user_content
+from .tutor import (
+    answer_languages, display_from_content, history_blocks, language_note, low_data_note, stream_reply, turn_note,
+    user_content, voice_note,
+)
 
 log = logging.getLogger("rahah")
 static_dir = Path(__file__).resolve().parent.parent / "static"
@@ -114,6 +117,7 @@ class message_in(BaseModel):
     hints: bool = False
     language: str = ""
     low_data: bool = False
+    voice: bool = False
 
 
 class retry_in(BaseModel):
@@ -127,7 +131,8 @@ def settings_notes(body) -> tuple:
     # the student's answer language and low-data mode, checked and turned into notes for this turn
     if body.language and body.language not in answer_languages:
         raise HTTPException(400, "Pick an answer language from the list.")
-    return (language_note(body.language), low_data_note if body.low_data else "")
+    voice = getattr(body, "voice", False)
+    return (language_note(body.language), low_data_note if body.low_data else "", voice_note if voice else "")
 
 
 def friendly_error(error: Exception) -> str:

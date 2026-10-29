@@ -110,6 +110,13 @@ low_data_note = (
 )
 
 
+voice_note = (
+    "The student is talking to you by voice and will hear this answer read aloud. Answer in a few short "
+    "spoken sentences, like a tutor talking, with no headings, lists, tables, code or diagrams, and say maths "
+    "in words, like x squared plus two. End with a short question when it helps keep the conversation going."
+)
+
+
 def turn_note(mode: str | None = None, hints: bool = False, extra: tuple = ()) -> dict | None:
     """one system note for this turn, the subject when it changes plus the student's settings, or None"""
     parts = [modes[mode]["instruction"]] if mode else []

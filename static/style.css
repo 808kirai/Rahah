@@ -1536,6 +1536,28 @@ button.plan-task:focus-visible {
     display: block;
 }
 
+/* voice chat, a soft pulse while it's on */
+.talk-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-text);
+    animation: talk-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes talk-pulse {
+    50% {
+        opacity: 0.3;
+        transform: scale(0.7);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .talk-dot {
+        animation: none;
+    }
+}
+
 /* settings */
 .field-hint {
     margin: 0 0 0.5rem;

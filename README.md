@@ -17,6 +17,7 @@ Chat
 - Hint mode, in the + menu, has Rahah guide with hints and questions one step at a time instead of giving the answer, until you ask for it after having a go
 - Upload PDF, TXT, MD, image and code files and ask questions about them
 - Take a photo with the camera, choose one from the gallery or paste a screenshot, for example of a homework question, and large photos are shrunk before they upload
+- Talk with Rahah, in the + menu, is a hands-free voice chat: speak, Rahah answers in a few spoken sentences and reads them aloud, then listens again. It shows Listening, Thinking or Speaking above the message box, stopping the reading hands the turn back, and it ends with a tap, on leaving the chat, or after three quiet turns
 - Speak a question with the mic, the browser turns it into text in the message box as you talk, in Chrome, Edge and Safari. Claude can't hear audio, so only the words are sent
 - In coding mode Rahah runs code in a sandbox to check fixes and show real output, each run is shown as a card with the code, the output and any charts it made, and Python examples get a Run button
 - Answers about documents show numbered sources with the page and the quoted passage
