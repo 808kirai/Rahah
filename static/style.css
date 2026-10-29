@@ -606,9 +606,10 @@ button.picker-heading:focus-visible {
 .row-track {
     display: flex;
     gap: 0.75rem;
-    /* extra room underneath so card shadows aren't cut off by the scrolling row, pulled back with the margin so spacing stays the same */
-    padding: 0.7rem var(--gutter) 1.75rem;
-    margin-bottom: -0.75rem;
+    /* the scrolling row clips anything outside it, so it gets room for the full hover shadow above and below,
+       pulled back with negative margins so the spacing stays the same */
+    padding: 1.6rem var(--gutter) 3.75rem;
+    margin: -0.9rem 0 -2.75rem;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scroll-padding: 0 var(--gutter);
