@@ -4045,6 +4045,21 @@ tr.pick-row:focus-visible {
         padding-top: max(0.75rem, env(safe-area-inset-top));
     }
 
+    /* in a chat the title follows the back arrow on the left, so a long one has room and stops with dots */
+    body:not(.is-page) .nav {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 0.35rem;
+    }
+
+    body:not(.is-page) .nav-title {
+        text-align: left;
+        font-size: 1.05rem;
+    }
+
+    body:not(.is-page) .mode-picker .picker-btn {
+        max-width: 132px;
+    }
+
     .brand {
         font-size: 1.45rem;
     }
