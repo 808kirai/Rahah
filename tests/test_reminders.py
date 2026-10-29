@@ -99,3 +99,76 @@ def test_suggestions_know_about_deadlines_coming_up():
     deadline = {"id": "r1", "kind": "midterm", "title": "Cell biology", "mode": "science", "due_date": in_days(3), "updated": 1}
     text = describe_history([], [], {}, [deadline])
     assert "Midterm [Science] Cell biology" in text and "in 3 days" in text
+
+
+def test_only_reminders_still_to_come_are_upcoming():
+    from app.reminders import is_upcoming
+    today = date(2026, 11, 1)
+    base = {"done": False, "due_date": "2026-11-01"}
+    assert is_upcoming(base, today)
+    assert is_upcoming({**base, "due_date": "2026-11-05"}, today)
+    assert not is_upcoming({**base, "due_date": "2026-10-31"}, today)
+    assert not is_upcoming({**base, "done": True}, today)
+
+
+def test_done_reminders_leave_the_full_calendar(web):
+    first = add(web).json()
+    add(web, title="Chemistry paper 1", due_date=in_days(5))
+    web.post(f"/api/reminders/{first['id']}/done", json={"done": True})
+    every = web.get("/api/reminders/calendar.ics").text
+    assert every.count("BEGIN:VEVENT") == 1 and "Chemistry paper 1" in every
+    # once everything is done there is nothing left to add
+    second = [r for r in web.get("/api/reminders").json()["reminders"] if not r["done"]][0]
+    web.post(f"/api/reminders/{second['id']}/done", json={"done": True})
+    assert web.get("/api/reminders/calendar.ics").status_code == 404
+    # marking it not done brings it back
+    web.post(f"/api/reminders/{second['id']}/done", json={"done": False})
+    assert web.get("/api/reminders/calendar.ics").status_code == 200
+
+
+def test_missing_reminders_and_bad_bodies_are_refused(web):
+    body = {"kind": "exam", "title": "x", "due_date": in_days(1)}
+    assert web.put("/api/reminders/nope", json=body).status_code == 404
+    assert web.post("/api/reminders/nope/done", json={"done": True}).status_code == 404
+    assert web.get("/api/reminders/nope/calendar.ics").status_code == 404
+    made = add(web).json()
+    assert web.post(f"/api/reminders/{made['id']}/seen", json={"day": "tomorrow"}).status_code == 422
+    assert add(web, title="x" * 121).status_code == 422
+    assert add(web, notes="x" * 1001).status_code == 422
+    assert add(web, lead_days=181).status_code == 422
+    assert add(web, every_days=31).status_code == 422
+
+
+def test_alerts_say_how_far_off_the_event_is():
+    from app.reminders import alert_message
+    r = {"kind": "cat", "title": "Maths CAT"}
+    assert alert_message(r, 0) == "CAT: Maths CAT is today"
+    assert alert_message(r, 1) == "CAT: Maths CAT is tomorrow"
+    assert alert_message(r, 9) == "CAT: Maths CAT is in 9 days"
+    text = calendar_file([{
+        "id": "r1", "kind": "cat", "title": "Maths CAT", "mode": "", "due_date": "2026-11-20",
+        "due_time": "", "every_days": 7, "lead_days": 7, "notes": "",
+    }])
+    assert "DESCRIPTION:CAT: Maths CAT is in 7 days" in text and "is tomorrow" in text and "is today" in text
+    # with no subject and no notes the event itself has no description
+    event = text.split("BEGIN:VALARM")[0]
+    assert "DESCRIPTION" not in event
+
+
+def test_the_days_a_reminder_was_shown_are_capped(web):
+    made = add(web).json()
+    for n in range(65):
+        seen = web.post(f"/api/reminders/{made['id']}/seen", json={"day": f"2026-{1 + n // 28:02d}-{1 + n % 28:02d}"}).json()["seen"]
+    # only the latest 60 days are kept, so the list never grows without end
+    assert len(seen) == 60 and seen[-1] == "2026-03-09"
+
+
+def test_a_reminder_under_the_students_own_subject(web):
+    law = web.post("/api/subjects", json={"name": "Law of torts"}).json()["id"]
+    made = add(web, mode=law, title="Torts exam").json()
+    assert made["mode"] == law
+    text = web.get(f"/api/reminders/{made['id']}/calendar.ics").text
+    assert "DESCRIPTION:Law of torts" in text
+    # removing the subject moves the reminder back to general study, stored as blank
+    web.delete(f"/api/subjects/{law}")
+    assert web.get("/api/reminders").json()["reminders"][0]["mode"] == ""
