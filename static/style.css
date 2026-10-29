@@ -732,7 +732,7 @@ button.picker-heading:focus-visible {
 .tile:focus-visible {
     transform: translateY(-4px);
     background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--accent-soft) 65%, transparent), transparent 65%), var(--card-bg);
-    box-shadow: inset 0 0 0 1px var(--accent-text), 0 16px 36px var(--shadow), 0 0 20px var(--accent-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 55%, transparent), 0 16px 36px var(--shadow), 0 0 12px color-mix(in srgb, var(--accent-soft) 60%, transparent);
 }
 
 .tile strong {
@@ -774,7 +774,33 @@ button.picker-heading:focus-visible {
 .chat-card:hover,
 .chat-card:focus-within {
     transform: translateY(-4px);
-    box-shadow: inset 0 0 0 1px var(--accent-text), 0 16px 36px var(--shadow), 0 0 20px var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--panel-line), 0 16px 36px var(--shadow);
+}
+
+/* on hover only the bottom strip lights up, a glowing line along its sides and base like a basin,
+   brightest at the bottom and fading out up the sides */
+.chat-card-info {
+    position: relative;
+}
+
+.chat-card-info::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid color-mix(in srgb, var(--accent-text) 60%, transparent);
+    border-top: none;
+    border-radius: 0 0 var(--card) var(--card);
+    -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
+    mask-image: linear-gradient(to top, #000 45%, transparent);
+    filter: drop-shadow(0 1px 3px var(--glow));
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s var(--ease-out);
+}
+
+.chat-card:hover .chat-card-info::after,
+.chat-card:focus-within .chat-card-info::after {
+    opacity: 1;
 }
 
 /* the top of a chat, deck or reminder card sits one step lighter with a blue glow at its base,
