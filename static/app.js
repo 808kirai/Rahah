@@ -919,13 +919,14 @@ function mode_name(mode) {
     return state.mode_names[mode] || "General study";
 }
 
-function time_ago(seconds) {
+// short is for the small line on cards, like 19h ago instead of 19 hours ago
+function time_ago(seconds, short = false) {
     const gap = Math.max(0, Date.now() / 1000 - seconds);
     if (gap < 60) return "just now";
-    const steps = [[31536000, "year"], [2592000, "month"], [604800, "week"], [86400, "day"], [3600, "hour"], [60, "minute"]];
-    const [size, unit] = steps.find(([size]) => gap >= size);
+    const steps = [[31536000, "year", "y"], [2592000, "month", "mo"], [604800, "week", "w"], [86400, "day", "d"], [3600, "hour", "h"], [60, "minute", "m"]];
+    const [size, unit, letter] = steps.find(([size]) => gap >= size);
     const n = Math.floor(gap / size);
-    return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+    return short ? `${n}${letter} ago` : `${n} ${unit}${n === 1 ? "" : "s"} ago`;
 }
 
 function prompt_tile(item) {
@@ -952,7 +953,7 @@ function chat_card(c) {
         <div class="chat-card-info">
             <div class="chat-card-text">
                 <strong title="${escape_html(c.title)}">${escape_html(c.title)}</strong>
-                <span>${escape_html(mode_name(c.mode))} · ${time_ago(c.updated)}</span>
+                <span class="card-meta"><span class="meta-what">${escape_html(mode_name(c.mode))}</span><span class="meta-when"> · ${time_ago(c.updated, true)}</span></span>
             </div>
             <button class="icon-btn" type="button" data-remove="${c.id}" aria-label="Delete ${escape_html(c.title)}">${icons.trash}</button>
         </div>
@@ -1795,7 +1796,7 @@ function set_card(s) {
         <div class="chat-card-info">
             <div class="chat-card-text">
                 <strong title="${escape_html(s.title)}">${escape_html(s.title)}</strong>
-                <span>${set_detail(s)} · ${time_ago(s.updated)}</span>
+                <span class="card-meta"><span class="meta-what">${set_detail(s)}</span><span class="meta-when"> · ${time_ago(s.updated, true)}</span></span>
             </div>
             <button class="icon-btn" type="button" data-remove-set="${s.id}" aria-label="Delete ${escape_html(s.title)}">${icons.trash}</button>
         </div>

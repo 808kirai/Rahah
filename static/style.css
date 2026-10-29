@@ -844,6 +844,22 @@ button.picker-heading:focus-visible {
     color: var(--text-2);
 }
 
+/* the subject line stays on one line, and when it's tight the subject shortens so the time always shows */
+.card-meta {
+    display: flex;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.card-meta .meta-what {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-meta .meta-when {
+    flex-shrink: 0;
+}
+
 .chat-card .icon-btn {
     width: 34px;
     height: 34px;
@@ -3205,8 +3221,55 @@ button.picker-heading:focus-visible {
 
 /* phones and small tablets */
 @media (max-width: 720px) {
+    /* phones get the whole app a size smaller, so it reads like a small copy of the website
+       nearly every size is in rem, so one base size scales text and spacing together */
     :root {
         --gutter: 16px;
+        font-size: 87.5%;
+    }
+
+    /* the few fixed size pieces shrink to match */
+    .tile {
+        width: 165px;
+    }
+
+    .chat-card {
+        width: 165px;
+    }
+
+    .row-track .reminder-card {
+        width: 240px;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+    }
+
+    .card-grid.reminder-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sketch {
+        top: 0.6rem;
+        right: 0.65rem;
+        width: 40px;
+        height: 40px;
+    }
+
+    .play {
+        width: 40px;
+        height: 40px;
+    }
+
+    .play svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* small print still needs to be readable */
+    .disclaimer {
+        font-size: 11px;
     }
 
     .sheet {
@@ -3331,8 +3394,19 @@ button.picker-heading:focus-visible {
     }
 
     .tile .sketch {
-        width: 44px;
-        height: 44px;
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* iphones zoom the page into any text box under 16 pixels, so typing spots keep 16 there */
+@supports (-webkit-touch-callout: none) {
+    @media (max-width: 720px) {
+        input,
+        textarea,
+        select {
+            font-size: 16px !important;
+        }
     }
 }
 
