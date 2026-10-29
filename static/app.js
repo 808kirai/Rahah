@@ -552,7 +552,11 @@ async function run_answer(reply, request, on_fail, again) {
     } finally {
         state.answer_controller = null;
     }
-    if (saved) reply.classList.add("answered");
+    if (saved) {
+        reply.classList.add("answered");
+        reply.raw_text = raw;
+        add_answer_actions(reply);
+    }
     return saved;
 }
 
@@ -612,15 +616,35 @@ async function send_message(text) {
 
 // try again sits under the latest answer only, and asks for a fresh answer to the same question
 function offer_retry() {
-    thread.querySelectorAll(".retry-row").forEach((row) => row.remove());
+    thread.querySelectorAll("[data-retry]").forEach((button) => button.remove());
     if (current_view() !== "chat" || !state.conversation_id) return;
     const messages = thread.querySelectorAll(".message");
     const last = messages[messages.length - 1];
     if (!last || !last.classList.contains("answered")) return;
-    const row = document.createElement("div");
-    row.className = "retry-row";
-    row.innerHTML = `<button class="btn btn-ghost btn-small" type="button" data-retry>${icons.retry}Try again</button>`;
-    last.appendChild(row);
+    const row = add_answer_actions(last);
+    row.insertAdjacentHTML("afterbegin", `<button class="btn btn-ghost btn-small" type="button" data-retry>${icons.retry}Try again</button>`);
+}
+
+// under each answer, ways to keep studying it
+function add_answer_actions(reply) {
+    let row = reply.querySelector(".answer-actions");
+    if (row) return row;
+    row = document.createElement("div");
+    row.className = "answer-actions";
+    row.innerHTML = `
+        <button class="btn btn-ghost btn-small" type="button" data-answer-action="quiz">${icons.quiz}Test me</button>
+        <button class="btn btn-ghost btn-small" type="button" data-answer-action="flashcards">${icons.cards}Flashcards</button>`;
+    reply.appendChild(row);
+    return row;
+}
+
+// a test or deck from one answer, the answer goes in as notes so nothing is cut short
+function study_answer(reply, tool) {
+    const text = String(reply.raw_text || "").replace(/⟦[^⟧]*⟧/g, "").trim();
+    if (!text) return;
+    open_sheet(tool, mode_select.value || state.default_mode, "", { pick: 5 });
+    sheet_state.files = [new File([text], "rahah-answer.txt", { type: "text/plain" })];
+    render_sheet_files();
 }
 
 async function retry_answer() {
@@ -631,7 +655,7 @@ async function retry_answer() {
     state.busy = true;
     // the old answer clears and the thinking label comes back while the new one is written
     reply.classList.remove("answered");
-    reply.querySelectorAll(".notice, .retry-row, .sources, .searches").forEach((part) => part.remove());
+    reply.querySelectorAll(".notice, .answer-actions, .sources, .searches").forEach((part) => part.remove());
     show_thinking(reply.querySelector(".answer"));
     update_send_button();
     const conversation_id = state.conversation_id;
@@ -652,6 +676,8 @@ async function retry_answer() {
 
 thread.addEventListener("click", (event) => {
     if (event.target.closest("[data-retry]")) retry_answer();
+    const action = event.target.closest("[data-answer-action]");
+    if (action) study_answer(action.closest(".message"), action.dataset.answerAction);
 });
 
 // attachments
@@ -2456,11 +2482,11 @@ function set_sheet_busy(busy) {
     el("sheet-note").hidden = !busy;
 }
 
-function open_sheet(tool, mode, topic = "") {
+function open_sheet(tool, mode, topic = "", options = {}) {
     const copy = sheet_copy[tool];
     sheet_state.tool = tool;
     sheet_state.files = [];
-    sheet_state.pick = copy.pick;
+    sheet_state.pick = copy.choices.some(([v]) => v === options.pick) ? options.pick : copy.pick;
     sheet_state.opened += 1;
     el("sheet-title").textContent = copy.title;
     el("sheet-topic-label").textContent = copy.field || "Topic";
@@ -2472,7 +2498,7 @@ function open_sheet(tool, mode, topic = "") {
     el("sheet-mode").value = mode || mode_select.value || state.default_mode;
     el("sheet-choice-label").textContent = copy.label;
     el("sheet-choices").innerHTML = copy.choices.map(([value, label]) =>
-        `<button class="choice" type="button" data-choice="${value}" aria-pressed="${value === copy.pick}">${label}</button>`).join("");
+        `<button class="choice" type="button" data-choice="${value}" aria-pressed="${value === sheet_state.pick}">${label}</button>`).join("");
     // tests can be multiple choice, written answers marked by rahah, or a mix
     sheet_state.style = "choice";
     el("sheet-style-field").hidden = tool !== "quiz";
@@ -3719,6 +3745,8 @@ async function open_conversation(conversation_id) {
             render_searches(reply, m.searches);
             if (m.stopped) add_notice(reply, "You stopped this answer.");
             reply.classList.add("answered");
+            reply.raw_text = m.text;
+            add_answer_actions(reply);
         });
         sync_view();
         set_title(conversation.title);

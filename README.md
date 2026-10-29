@@ -10,6 +10,7 @@ Chat
 
 - Answers stream in as they are written, and a stop button ends an answer early. What arrived so far is kept, marked as stopped
 - Try again under the latest answer asks for a fresh one to the same question, and an answer that failed has its own Try again
+- Every answer has Test me and Flashcards, which open the test or deck sheet with that answer attached as notes, so a chat turns into practice in one tap
 - Rahah searches the web when a question needs current or very specific facts, shows what it searched for, and links each web source
 - Upload PDF, TXT, MD, image and code files and ask questions about them
 - Take a photo with the camera, choose one from the gallery or paste a screenshot, for example of a homework question, and large photos are shrunk before they upload

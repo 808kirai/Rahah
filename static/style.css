@@ -1078,13 +1078,16 @@ button.picker-heading:focus-visible {
     color: var(--accent-text);
 }
 
-/* try again under the latest answer, and beside an error */
-.retry-row {
+/* a row of small actions under each answer, try again on the latest one */
+.answer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.25rem;
     margin-top: 0.6rem;
     margin-left: -0.6rem;
 }
 
-.retry-row .btn svg,
+.answer-actions .btn svg,
 .notice-retry .btn svg {
     width: 16px;
     height: 16px;
