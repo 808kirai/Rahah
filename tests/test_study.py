@@ -260,3 +260,44 @@ def test_due_cards_follow_the_box_gaps(tmp_path):
     assert db.due_cards(now + 86400)[0]["due"] == 1
     assert db.due_cards(now + 2 * 86400)[0]["due"] == 2
     assert db.due_cards(now + 4 * 86400)[0] == {"id": deck, "title": "Cells", "due": 3}
+
+
+def test_notes_are_kept_by_subject_and_used_in_chats_and_sets(setup):
+    web, claude = setup([reply(cards), message([text_block("Water moves.")])])
+    saved = web.post("/api/notes", data={"mode": "science"}, files={"file": ("cells.pdf", pdf_bytes, "application/pdf")})
+    assert saved.status_code == 200
+    note = saved.json()
+    assert note["mode"] == "science" and note["kind"] == "document" and note["name"] == "cells.pdf"
+    assert [n["id"] for n in web.get("/api/notes").json()["notes"]] == [note["id"]]
+
+    # a set made from a note points at the file kept with claude, nothing is uploaded again
+    made = web.post("/api/sets", data={"kind": "flashcards", "note_ids": [note["id"]]})
+    assert made.status_code == 200
+    blocks = claude.beta.messages.calls[0]["messages"][0]["content"]
+    assert blocks[0] == {"type": "document", "source": {"type": "file", "file_id": note["id"]}, "title": "cells.pdf"}
+    assert len(claude.files.uploads) == 1
+
+    # the same note in a chat, and it can be used again after
+    chat = web.post("/api/conversations", json={"mode": "science"}).json()["id"]
+    sent = web.post(f"/api/conversations/{chat}/messages", json={"text": "explain", "mode": "science", "note_ids": [note["id"]]})
+    assert sent.status_code == 200
+    content = next(m for m in claude.beta.messages.calls[1]["messages"] if m["role"] == "user")["content"]
+    assert content[0]["source"] == {"type": "file", "file_id": note["id"]} and content[0]["citations"] == {"enabled": True}
+    shown = web.get(f"/api/conversations/{chat}").json()["messages"][0]
+    assert shown["files"] == [{"name": "cells.pdf", "kind": "document"}]
+
+    # a removed note can't be used, and the copy with claude stays while a chat still points at it
+    assert web.delete(f"/api/notes/{note['id']}").status_code == 200
+    assert claude.files.deleted == []
+    assert web.get("/api/notes").json()["notes"] == []
+    gone = web.post("/api/sets", data={"kind": "flashcards", "note_ids": [note["id"]]})
+    assert gone.status_code == 400 and "removed" in gone.json()["detail"]
+    assert web.delete(f"/api/notes/{note['id']}").status_code == 404
+
+
+def test_a_note_nothing_else_uses_is_removed_from_claude_too(setup):
+    web, claude = setup()
+    note = web.post("/api/notes", data={"mode": "maths"}, files={"file": ("sums.txt", b"1 + 1 = 2", "text/plain")}).json()
+    assert web.post("/api/notes", data={"mode": "nope"}, files={"file": ("a.txt", b"x", "text/plain")}).status_code == 400
+    web.delete(f"/api/notes/{note['id']}")
+    assert claude.files.deleted == [note["id"]]

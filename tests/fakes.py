@@ -153,6 +153,7 @@ class fake_download:
 class fake_files:
     def __init__(self):
         self.uploads = []
+        self.deleted = []
         # files that code runs made, by id, each (filename, mime type)
         self.made = {}
 
@@ -166,6 +167,9 @@ class fake_files:
 
     async def download(self, file_id):
         return fake_download(f"bytes of {file_id}".encode())
+
+    async def delete(self, file_id):
+        self.deleted.append(file_id)
 
 
 class fake_client:

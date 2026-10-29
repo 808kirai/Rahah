@@ -122,14 +122,21 @@ class upload:
     name: str
     media_type: str
     kind: str
-    data: bytes
+    data: bytes = b""
+    file_id: str = ""  # a note from the library, already kept with claude
 
 
 def source_blocks(uploads: list[upload]) -> list[dict]:
     # notes are sent inline, since a set is made once and never replayed
     blocks = []
     for u in uploads:
-        if u.media_type == "text/plain":
+        if u.file_id:
+            block_type = "document" if u.kind == "document" else "image"
+            block = {"type": block_type, "source": {"type": "file", "file_id": u.file_id}}
+            if block_type == "document":
+                block["title"] = u.name
+            blocks.append(block)
+        elif u.media_type == "text/plain":
             source = {"type": "text", "media_type": "text/plain", "data": u.data.decode("utf-8")}
             blocks.append({"type": "document", "source": source, "title": u.name})
         else:

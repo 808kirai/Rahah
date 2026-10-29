@@ -56,6 +56,7 @@ magic_bytes = {
 
 # notes for a study set are sent inline, which counts against claude's request size
 max_set_files = 5
+max_notes = 200
 max_set_mb = 20
 max_photo_mb = 10
 
@@ -109,6 +110,7 @@ class message_in(BaseModel):
     text: str = Field(min_length=1, max_length=20000)
     mode: str = default_mode
     file_ids: list[str] = Field(default_factory=list, max_length=10)
+    note_ids: list[str] = Field(default_factory=list, max_length=10)
     hints: bool = False
 
 
@@ -353,6 +355,48 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         db.add_file(uploaded.id, conversation_id, name, kind, media_type, len(data))
         return {"id": uploaded.id, "name": name, "kind": kind, "size": len(data)}
 
+    @app.get("/api/notes")
+    def list_notes():
+        return {"notes": db.list_notes()}
+
+    @app.post("/api/notes")
+    async def add_note(mode: str = Form(default_mode), file: UploadFile = File(...)):
+        # a file kept in the notes library under a subject, uploaded to claude once
+        if mode not in modes:
+            raise HTTPException(400, "Unknown subject.")
+        if db.count_notes() >= max_notes:
+            raise HTTPException(400, f"Your notes can hold up to {max_notes} files. Remove some first.")
+        limit = cfg.max_upload_mb * 1024 * 1024
+        data = await file.read(limit + 1)
+        if len(data) > limit:
+            raise HTTPException(413, f"Files can be up to {cfg.max_upload_mb} MB.")
+        if not data:
+            raise HTTPException(400, "That file is empty.")
+        name = Path(file.filename or "file").name[:120]
+        media_type, kind = sniff_upload(name, data)
+        try:
+            uploaded = await claude().files.upload(file=(name, data, media_type))
+        except Exception as error:
+            if not is_claude_error(error):
+                raise
+            log.warning("note upload failed: %s", error)
+            raise HTTPException(502, friendly_error(error))
+        return db.add_note(uploaded.id, mode, name, kind, media_type, len(data))
+
+    @app.delete("/api/notes/{note_id}")
+    async def delete_note(note_id: str):
+        if not db.delete_note(note_id):
+            raise HTTPException(404, "That note doesn't exist.")
+        # chats that used the note still point at it, so the copy with claude goes only when nothing else does
+        if not db.file_in_history(note_id):
+            try:
+                await claude().files.delete(note_id)
+            except Exception as error:
+                if not is_claude_error(error):
+                    raise
+                log.warning("couldn't remove note %s from claude: %s", note_id, error)
+        return {"ok": True}
+
     @app.post("/api/conversations/{conversation_id}/messages")
     def send_message(conversation_id: str, body: message_in):
         conversation = conversation_or_404(conversation_id)
@@ -364,13 +408,17 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         files = db.get_files(conversation_id, body.file_ids)
         if len(files) != len(set(body.file_ids)) or any(f.used for f in files):
             raise HTTPException(400, "One of the attached files is missing or already sent. Attach it again.")
+        notes = db.note_files(body.note_ids)
+        if len(notes) != len(set(body.note_ids)):
+            raise HTTPException(400, "One of those notes was removed from your notes.")
+        files = files + notes
 
         history = db.api_messages(conversation_id)
         rows = [{
             "role": "user",
             "content": user_content(text, files),
             "display": {"text": text, "files": [{"name": f.name, "kind": f.kind} for f in files]},
-            "file_ids": [f.id for f in files],
+            "file_ids": [f.id for f in files if f.conversation_id],
         }]
         changed = not history or conversation["mode"] != body.mode
         note = turn_note(body.mode if changed else None, hints=body.hints)
@@ -513,6 +561,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         mode: str = Form(default_mode),
         style: str = Form("choice"),
         files: list[UploadFile] | None = File(None),
+        note_ids: list[str] | None = Form(None),
     ):
         if kind not in kinds:
             raise HTTPException(400, "Unknown kind of study set.")
@@ -524,11 +573,14 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if len(topic) > 2000:
             raise HTTPException(400, "Keep the topic under 2000 characters.")
         files = files or []
-        if len(files) > max_set_files:
+        notes = db.note_files(note_ids or [])
+        if len(notes) != len(set(note_ids or [])):
+            raise HTTPException(400, "One of those notes was removed from your notes.")
+        if len(files) + len(notes) > max_set_files:
             raise HTTPException(400, f"Add up to {max_set_files} files.")
-        if not topic and not files:
+        if not topic and not files and not notes:
             raise HTTPException(400, "Write a topic or add some notes first.")
-        if style == "paper" and not files:
+        if style == "paper" and not files and not notes:
             raise HTTPException(400, "Attach the past paper under Notes first.")
 
         uploads, total = [], 0
@@ -542,6 +594,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             name = Path(f.filename or "file").name[:120]
             media_type, file_kind = sniff_upload(name, data)
             uploads.append(upload(name, media_type, file_kind, data))
+        uploads += [upload(n.name, n.media_type, n.kind, file_id=n.id) for n in notes]
 
         count = max(1, min(count, max_items))
         try:

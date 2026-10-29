@@ -125,6 +125,15 @@ create table if not exists card_progress (
     updated real not null,
     primary key (set_id, card)
 );
+create table if not exists notes (
+    id text primary key,
+    mode text not null,
+    name text not null,
+    kind text not null,
+    media_type text not null,
+    size integer not null,
+    created real not null
+);
 create table if not exists feedback (
     message_id integer primary key references messages(id) on delete cascade,
     rating integer not null,
@@ -497,6 +506,48 @@ class store:
             db.execute("update study_sets set mode = 'general' where mode = ?", (subject_id,))
             db.execute("update reminders set mode = '' where mode = ?", (subject_id,))
             db.execute("update classes set mode = '' where mode = ?", (subject_id,))
+            db.execute("update notes set mode = 'general' where mode = ?", (subject_id,))
+
+    # the notes library, files kept with claude once and used again in any chat or set
+
+    def add_note(self, note_id: str, mode: str, name: str, kind: str, media_type: str, size: int) -> dict:
+        with self._connect() as db:
+            db.execute(
+                "insert into notes (id, mode, name, kind, media_type, size, created) values (?, ?, ?, ?, ?, ?, ?)",
+                (note_id, mode, name, kind, media_type, size, time.time()),
+            )
+        return self.get_note(note_id)
+
+    def get_note(self, note_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from notes where id = ?", (note_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_notes(self) -> list[dict]:
+        with self._connect() as db:
+            return [dict(r) for r in db.execute("select * from notes order by created desc")]
+
+    def count_notes(self) -> int:
+        with self._connect() as db:
+            return db.execute("select count(*) from notes").fetchone()[0]
+
+    def note_files(self, note_ids: list[str]) -> list[stored_file]:
+        # notes in the same shape as chat files, so they go to claude the same way, in the order picked
+        by_id = {n["id"]: n for n in self.list_notes()}
+        return [
+            stored_file(id=n["id"], conversation_id="", name=n["name"], kind=n["kind"],
+                        media_type=n["media_type"], size=n["size"], used=False)
+            for i in dict.fromkeys(note_ids)
+            if (n := by_id.get(i))
+        ]
+
+    def file_in_history(self, file_id: str) -> bool:
+        with self._connect() as db:
+            return db.execute("select 1 from messages where content like ? limit 1", (f'%"{file_id}"%',)).fetchone() is not None
+
+    def delete_note(self, note_id: str) -> bool:
+        with self._connect() as db:
+            return db.execute("delete from notes where id = ?", (note_id,)).rowcount > 0
 
     # the weekly timetable, in order through the week
 

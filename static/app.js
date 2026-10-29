@@ -12,7 +12,8 @@ const composer_box = el("composer-box");
 const state = {
     conversation_id: null,
     default_mode: "general",
-    pending: [], // files attached to the next message, each {key, id, name, kind, status}
+    pending: [], // files attached to the next message, each {key, id, name, kind, status}, notes from the library marked note
+    notes: [], // the notes library, files kept by subject
     busy: false,
     conversations: [], // recent chats for the chats page and the continue studying row
     reminders: [], // exams, cats, midterms, assignments and events, soonest first
@@ -640,7 +641,13 @@ async function send_message(text) {
             return api(`/api/conversations/${conversation_id}/messages`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text, mode: mode_select.value, file_ids: sent_files.map((f) => f.id), hints: Boolean(state.hints) }),
+                body: JSON.stringify({
+                    text,
+                    mode: mode_select.value,
+                    file_ids: sent_files.filter((f) => !f.note).map((f) => f.id),
+                    note_ids: sent_files.filter((f) => f.note).map((f) => f.id),
+                    hints: Boolean(state.hints),
+                }),
                 signal,
             });
         }, give_back, again);
@@ -1112,6 +1119,7 @@ input_menu.addEventListener("click", (event) => {
     if (option.dataset.input === "files") file_input.click();
     else if (option.dataset.input === "photo") open_camera();
     else if (option.dataset.input === "hints") set_hint_mode(!state.hints);
+    else if (option.dataset.input === "notes") show_notes_picker();
     else start_voice();
 });
 
@@ -1499,9 +1507,160 @@ function render_chats() {
     }
     // while searching, the found list covers chats, titles included
     const searching = words.length >= 2;
-    list.innerHTML = found_html(words) + tests_html + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
+    list.innerHTML = found_html(words) + tests_html + notes_html(words) + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
     if (words.length >= 2 && state.found_words !== words) search_chats(words);
 }
+
+// the notes library, grouped by subject, each note ready to ask about, test on, make cards from or summarise
+
+function size_text(bytes) {
+    return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function notes_html(words) {
+    const notes = state.notes.filter((n) => !words || n.name.toLowerCase().includes(words));
+    const head = `<div class="section-head"><h2 class="section-title">Notes</h2>
+        <button class="btn btn-soft btn-small" type="button" data-notes-add>${icons.plus}Add notes</button></div>`;
+    if (!state.notes.length) {
+        return head + '<p class="page-note">Keep class notes, slides and past papers here by subject, then use them in any chat, test or deck.</p>';
+    }
+    if (!notes.length) return head + '<p class="page-note">No notes match that search.</p>';
+    const groups = new Map();
+    notes.forEach((n) => {
+        if (!groups.has(n.mode)) groups.set(n.mode, []);
+        groups.get(n.mode).push(n);
+    });
+    const row = (n) => `<li class="note-row">
+        <span class="note-icon">${n.kind === "image" ? icons.image : icons.doc}</span>
+        <span class="note-text"><strong>${escape_html(n.name)}</strong><small>${size_text(n.size)} · ${time_ago(n.created, true)}</small></span>
+        <span class="note-actions">
+            <button class="btn btn-ghost btn-small" type="button" data-note-use="ask" data-note="${n.id}">${icons.chat}Ask</button>
+            <button class="btn btn-ghost btn-small" type="button" data-note-use="quiz" data-note="${n.id}">${icons.quiz}Test</button>
+            <button class="btn btn-ghost btn-small" type="button" data-note-use="flashcards" data-note="${n.id}">${icons.cards}Cards</button>
+            <button class="btn btn-ghost btn-small" type="button" data-note-use="summary" data-note="${n.id}">${icons.summary}Summary</button>
+            <button class="icon-btn" type="button" data-note-remove="${n.id}" aria-label="Remove ${escape_html(n.name)}" title="Remove">${icons.trash}</button>
+        </span>
+    </li>`;
+    return head + [...groups].map(([mode, items]) => `
+        <h3 class="group-title">${escape_html(mode_name(mode))}</h3>
+        <ul class="note-list">${items.map(row).join("")}</ul>`).join("");
+}
+
+async function load_notes() {
+    try {
+        state.notes = (await (await api("/api/notes")).json()).notes;
+    } catch (error) {
+        state.notes = state.notes || [];
+        return;
+    }
+    el("notes-option").hidden = !state.notes.length;
+    render_chats();
+}
+
+// adding notes, each file uploads once and shows how it went
+const notes_sheet = el("notes-sheet");
+
+function open_notes_sheet(mode) {
+    el("notes-mode").innerHTML = mode_options_html();
+    el("notes-mode").value = mode || mode_select.value || state.default_mode;
+    el("notes-progress").innerHTML = "";
+    el("notes-error").hidden = true;
+    notes_sheet.showModal();
+    el("notes-choose").focus();
+}
+
+el("notes-choose").addEventListener("click", () => el("notes-file-input").click());
+el("notes-close").addEventListener("click", () => notes_sheet.close());
+el("notes-cancel").addEventListener("click", () => notes_sheet.close());
+el("notes-file-input").addEventListener("change", async () => {
+    const files = [...el("notes-file-input").files];
+    el("notes-file-input").value = "";
+    const mode = el("notes-mode").value;
+    const progress = el("notes-progress");
+    let failed = 0;
+    for (const file of files) {
+        const pill = document.createElement("span");
+        pill.className = "file-pill";
+        pill.innerHTML = `${/\.(png|jpe?g|webp|gif)$/i.test(file.name) ? icons.image : icons.doc}<span>${escape_html(file.name)} · uploading</span>`;
+        progress.appendChild(pill);
+        const form = new FormData();
+        form.append("mode", mode);
+        form.append("file", file);
+        try {
+            await api("/api/notes", { method: "POST", body: form });
+            pill.querySelector("span").textContent = `${file.name} · saved`;
+        } catch (error) {
+            failed += 1;
+            pill.classList.add("failed");
+            pill.querySelector("span").textContent = `${file.name} · ${error.message}`;
+        }
+    }
+    await load_notes();
+    // everything saved closes the box, anything that failed stays on show with its reason
+    if (!failed && notes_sheet.open) notes_sheet.close();
+});
+
+async function remove_note(id) {
+    const note = state.notes.find((n) => n.id === id);
+    if (!note || !confirm(`Remove ${note.name} from your notes? Chats that used it keep their answers.`)) return;
+    try {
+        await api(`/api/notes/${id}`, { method: "DELETE" });
+    } catch (error) {
+        return;
+    }
+    load_notes();
+}
+
+thread.addEventListener("click", (event) => {
+    if (event.target.closest("[data-notes-add]")) open_notes_sheet();
+    const remove = event.target.closest("[data-note-remove]");
+    if (remove) remove_note(remove.dataset.noteRemove);
+    const use = event.target.closest("[data-note-use]");
+    if (use) {
+        const note = state.notes.find((n) => n.id === use.dataset.note);
+        if (note) open_sheet(use.dataset.noteUse, note.mode, "", { notes: [note] });
+    }
+});
+
+// from the + menu, a note goes into the message box like an attached file
+function show_notes_picker() {
+    const here = mode_select.value;
+    const notes = [...state.notes].sort((a, b) => (b.mode === here) - (a.mode === here));
+    el("detail-title").textContent = "Your notes";
+    el("detail-body").innerHTML = `
+        <p class="detail-sub">Choose notes to ask about. They're added to your message.</p>
+        <ul class="detail-list">${notes.map((n) => `<li class="pick-row" tabindex="0" role="button" data-attach-note="${n.id}">
+            <span class="detail-name">${escape_html(n.name)}</span><span>${escape_html(mode_name(n.mode))}</span>
+        </li>`).join("")}</ul>
+        <div class="sheet-actions">
+            <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
+        </div>`;
+    if (!detail_sheet.open) detail_sheet.showModal();
+}
+
+function attach_note(id) {
+    const note = state.notes.find((n) => n.id === id);
+    if (!note) return;
+    if (!state.pending.some((f) => f.note && f.id === id)) {
+        state.pending.push({ key: ++file_key, id: note.id, name: note.name, kind: note.kind, status: "ready", note: true });
+        render_attachments();
+        update_send_button();
+    }
+    detail_sheet.close();
+    input.focus();
+}
+
+el("detail-sheet").addEventListener("click", (event) => {
+    const row = event.target.closest("[data-attach-note]");
+    if (row) attach_note(row.dataset.attachNote);
+});
+el("detail-sheet").addEventListener("keydown", (event) => {
+    const row = event.target.closest("[data-attach-note]");
+    if (row && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        attach_note(row.dataset.attachNote);
+    }
+});
 
 // words found inside any chat, older ones too, each with the bit that matched
 function found_html(words) {
@@ -2503,7 +2662,7 @@ const sheet_copy = {
 };
 
 const sheet = el("sheet");
-const sheet_state = { tool: "flashcards", files: [], pick: 10, style: "choice", opened: 0 };
+const sheet_state = { tool: "flashcards", files: [], notes: [], pick: 10, style: "choice", opened: 0 };
 const test_styles = [["choice", "Multiple choice"], ["written", "Written"], ["mixed", "Mixed"], ["paper", "Past paper"]];
 
 const tool_sketches = { summary: "notes", flashcards: "cards", quiz: "checklist" };
@@ -2831,6 +2990,7 @@ make_picker(el("sheet-mode"));
 make_picker(setup_mode);
 make_picker(el("reminder-mode"));
 make_picker(el("class-mode"));
+make_picker(el("notes-mode"));
 
 function show_sheet_error(text) {
     el("sheet-error").textContent = text;
@@ -2841,8 +3001,42 @@ function render_sheet_files() {
     el("sheet-files").innerHTML = sheet_state.files.map((file, i) => `
         <span class="file-pill">${/\.(png|jpe?g|webp|gif)$/i.test(file.name) ? icons.image : icons.doc}<span>${escape_html(file.name)}</span>
             <button type="button" data-sheet-remove="${i}" aria-label="Remove ${escape_html(file.name)}">${icons.close}</button>
+        </span>`).join("") + sheet_state.notes.map((note) => `
+        <span class="file-pill note-pill">${note.kind === "image" ? icons.image : icons.doc}<span>${escape_html(note.name)}</span>
+            <button type="button" data-sheet-unnote="${note.id}" aria-label="Remove ${escape_html(note.name)}">${icons.close}</button>
         </span>`).join("");
+    el("sheet-from-notes").hidden = !state.notes.length;
+    const list = el("sheet-note-list");
+    if (!list.hidden) {
+        const mode = el("sheet-mode").value;
+        const notes = [...state.notes].sort((a, b) => (b.mode === mode) - (a.mode === mode));
+        list.innerHTML = notes.map((n) => {
+            const on = sheet_state.notes.some((p) => p.id === n.id);
+            return `<button class="choice" type="button" data-sheet-note="${n.id}" aria-pressed="${on}">${escape_html(n.name)}</button>`;
+        }).join("");
+    }
 }
+
+// files and notes together, at most five
+const sheet_count = () => sheet_state.files.length + sheet_state.notes.length;
+
+el("sheet-from-notes").addEventListener("click", () => {
+    const list = el("sheet-note-list");
+    list.hidden = !list.hidden;
+    el("sheet-from-notes").setAttribute("aria-expanded", String(!list.hidden));
+    render_sheet_files();
+});
+el("sheet-note-list").addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-sheet-note]");
+    if (!pick) return;
+    const id = pick.dataset.sheetNote;
+    if (sheet_state.notes.some((n) => n.id === id)) {
+        sheet_state.notes = sheet_state.notes.filter((n) => n.id !== id);
+    } else if (sheet_count() < 5) {
+        sheet_state.notes.push(state.notes.find((n) => n.id === id));
+    }
+    render_sheet_files();
+});
 
 function set_sheet_busy(busy) {
     const copy = sheet_copy[sheet_state.tool];
@@ -2856,6 +3050,9 @@ function open_sheet(tool, mode, topic = "", options = {}) {
     const copy = sheet_copy[tool];
     sheet_state.tool = tool;
     sheet_state.files = [];
+    sheet_state.notes = options.notes || [];
+    el("sheet-note-list").hidden = true;
+    el("sheet-from-notes").setAttribute("aria-expanded", "false");
     sheet_state.pick = copy.choices.some(([v]) => v === options.pick) ? options.pick : copy.pick;
     sheet_state.opened += 1;
     el("sheet-title").textContent = copy.title;
@@ -2901,11 +3098,16 @@ el("sheet-styles").addEventListener("click", (event) => {
 
 el("sheet-attach").addEventListener("click", () => el("sheet-file-input").click());
 el("sheet-file-input").addEventListener("change", () => {
-    sheet_state.files = [...sheet_state.files, ...el("sheet-file-input").files].slice(0, 5);
+    sheet_state.files = [...sheet_state.files, ...el("sheet-file-input").files].slice(0, 5 - sheet_state.notes.length);
     el("sheet-file-input").value = "";
     render_sheet_files();
 });
 el("sheet-files").addEventListener("click", (event) => {
+    const unnote = event.target.closest("[data-sheet-unnote]");
+    if (unnote) {
+        sheet_state.notes = sheet_state.notes.filter((n) => n.id !== unnote.dataset.sheetUnnote);
+        render_sheet_files();
+    }
     const remove = event.target.closest("[data-sheet-remove]");
     if (!remove) return;
     sheet_state.files.splice(Number(remove.dataset.sheetRemove), 1);
@@ -2915,9 +3117,20 @@ el("sheet-close").addEventListener("click", () => sheet.close());
 el("sheet-cancel").addEventListener("click", () => sheet.close());
 
 // a question from the sheet goes into the open chat, or starts one from the home page
+function pend_notes(notes) {
+    notes.forEach((note) => {
+        if (!state.pending.some((f) => f.note && f.id === note.id)) {
+            state.pending.push({ key: ++file_key, id: note.id, name: note.name, kind: note.kind, status: "ready", note: true });
+        }
+    });
+    render_attachments();
+}
+
 async function run_ask(question, mode) {
     const files = [...sheet_state.files];
+    const notes = [...sheet_state.notes];
     sheet.close();
+    pend_notes(notes);
     mode_select.value = mode;
     sync_placeholder();
     if (files.length) {
@@ -2941,7 +3154,8 @@ el("sheet-topic").addEventListener("keydown", (event) => {
 
 async function run_summary(topic, mode) {
     const files = [...sheet_state.files];
-    const what = files.length
+    const notes = [...sheet_state.notes];
+    const what = files.length || notes.length
         ? (topic ? `Summarise the attached notes, focusing on ${topic}.` : "Summarise the attached notes.")
         : `Summarise ${topic}.`;
     const how = sheet_state.pick === "detailed"
@@ -2952,6 +3166,7 @@ async function run_summary(topic, mode) {
     start_new_chat();
     mode_select.value = mode;
     sync_placeholder();
+    pend_notes(notes);
     if (files.length) {
         await upload_files(files);
         // a failed upload stays in the composer with its reason, and the request waits there
@@ -2981,11 +3196,11 @@ el("sheet-form").addEventListener("submit", async (event) => {
         run_ask(topic, mode);
         return;
     }
-    if (!topic && !sheet_state.files.length) {
+    if (!topic && !sheet_count()) {
         show_sheet_error("Write a topic or add some notes first.");
         return;
     }
-    if (sheet_state.tool === "quiz" && sheet_state.style === "paper" && !sheet_state.files.length) {
+    if (sheet_state.tool === "quiz" && sheet_state.style === "paper" && !sheet_count()) {
         show_sheet_error("Attach the past paper under Notes first.");
         return;
     }
@@ -3006,6 +3221,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
     form.append("mode", mode);
     if (sheet_state.tool === "quiz") form.append("style", sheet_state.style);
     sheet_state.files.forEach((file) => form.append("files", file));
+    sheet_state.notes.forEach((note) => form.append("note_ids", note.id));
     show_sheet_error("");
     set_sheet_busy(true);
     try {
@@ -4459,6 +4675,7 @@ async function start() {
     load_today();
     load_history();
     load_sets();
+    load_notes();
     load_performance();
     load_reminders();
     route();

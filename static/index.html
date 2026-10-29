@@ -118,6 +118,10 @@
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg></span>
                                         <span><strong>Take or choose a photo</strong><small>Camera, gallery or a screenshot</small></span>
                                     </button>
+                                    <button type="button" class="input-option" role="menuitem" data-input="notes" id="notes-option" hidden>
+                                        <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg></span>
+                                        <span><strong>From your notes</strong><small>Files you kept for each subject</small></span>
+                                    </button>
                                     <button type="button" class="input-option" role="menuitemcheckbox" aria-checked="false" data-input="hints" id="hints-option">
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></span>
                                         <span><strong>Hint mode</strong><small>Hints and questions instead of full answers</small></span>
@@ -162,7 +166,12 @@
                         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                         Add notes
                     </button>
+                    <button class="btn btn-ghost btn-small" type="button" id="sheet-from-notes" aria-expanded="false" aria-controls="sheet-note-list" hidden>
+                        <svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg>
+                        From your notes
+                    </button>
                 </div>
+                <div class="note-choices" id="sheet-note-list" hidden></div>
                 <input type="file" id="sheet-file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif">
             </div>
             <div class="field-row">
@@ -267,6 +276,29 @@
 
     <!-- what gets printed, filled just before printing and hidden the rest of the time -->
     <div id="print-area" aria-hidden="true"></div>
+
+    <dialog class="sheet" id="notes-sheet" aria-labelledby="notes-title">
+        <div class="sheet-form">
+            <div class="sheet-top">
+                <h2 id="notes-title">Add to your notes</h2>
+                <button class="icon-btn" type="button" id="notes-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <p class="detail-sub">Keep class notes, slides and past papers by subject, then use them in any chat, test or deck without uploading them again.</p>
+            <div class="field">
+                <span class="field-label">Subject</span>
+                <select class="pill-select" id="notes-mode" aria-label="Subject"></select>
+            </div>
+            <div class="sheet-files" id="notes-progress"></div>
+            <input type="file" id="notes-file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif">
+            <p class="sheet-error" id="notes-error" role="alert" hidden></p>
+            <div class="sheet-actions">
+                <button class="btn btn-ghost" type="button" id="notes-cancel">Close</button>
+                <button class="btn btn-accent" type="button" id="notes-choose">Choose files</button>
+            </div>
+        </div>
+    </dialog>
 
     <dialog class="sheet detail-sheet" id="detail-sheet" aria-labelledby="detail-title">
         <div class="sheet-form">
