@@ -45,7 +45,7 @@ Pages
 
 - Under the greeting on Home, a short line shows what's on today: flashcards due for practice, the next exam in the coming two weeks, and today's classes, each a shortcut. Cards come due again after 1, 2, 4, 8 or 16 days as they move up a box
 - Home is laid out like a streaming app, with rows for each subject and your saved decks and tests. Each Continue row shows up to 5 chats
-- Chats & Tests lists your saved tests with a New test card, then your chats grouped by day, with search across both. New chat drops down a box with your 5 newest chats
+- Chats & Tests lists your saved tests with a New test card, then your chats grouped by day. Search looks inside every message of every chat, older ones too, and shows where the words were found. New chat drops down a box with your 5 newest chats
 - Reminders and Timetable splits the page in half. Reminders cover exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, and a pop up and a desktop notification while Rahah is open. An exam, CAT or midterm can get a revision plan: a day by day plan up to the day before, with a focus and a few tasks each day, buttons that open the right tool for each task, days to tick off, and a calendar file. The weekly timetable lists classes day by day from today, with the class happening now marked
 - Calendar files for reminders and for the timetable, so a phone's own calendar reminds you even when Rahah is closed. Each class repeats weekly with an alert 15 minutes before it starts
 - Every card has a small hand drawn sketch of what it's about, which draws itself in once when the card first shows

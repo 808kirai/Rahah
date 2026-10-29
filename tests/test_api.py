@@ -416,3 +416,22 @@ def test_answers_can_be_rated_and_unhelpful_ones_are_listed(setup):
     web.post(f"/api/messages/{new_answer['id']}/rating", json={"rating": 1})
     web.post(f"/api/messages/{new_answer['id']}/rating", json={"rating": 0})
     assert web.get("/api/feedback").json() == {"up": 0, "down": 0, "unhelpful": []}
+
+
+def test_search_looks_inside_every_chat(setup):
+    replies = [message([text_block(t)]) for t in ("Mitochondria make ATP by respiration.", "Plants photosynthesise.", "100% of it")]
+    web, _ = setup(replies)
+    first = new_chat(web)
+    ask(web, first, "what makes energy in cells")
+    second = new_chat(web)
+    ask(web, second, "how do plants feed")
+    third = new_chat(web)
+    ask(web, third, "what share is it")
+    found = web.get("/api/search", params={"q": "ATP"}).json()["results"]
+    assert [r["id"] for r in found] == [first]
+    assert "make ATP" in found[0]["snippet"]
+    # titles count too, and case doesn't matter
+    assert [r["id"] for r in web.get("/api/search", params={"q": "PLANTS"}).json()["results"]] == [second]
+    # a percent sign is searched for as itself, not as a wildcard
+    assert [r["id"] for r in web.get("/api/search", params={"q": "100%"}).json()["results"]] == [third]
+    assert web.get("/api/search", params={"q": "x"}).json()["results"] == []

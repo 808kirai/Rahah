@@ -1447,7 +1447,47 @@ function render_chats() {
             <h3 class="group-title">${name}</h3>
             <div class="card-grid">${items.map(chat_card).join("")}</div>`).join("");
     }
-    list.innerHTML = tests_html + `<h2 class="section-title">Chats</h2>` + chats_html;
+    // while searching, the found list covers chats, titles included
+    const searching = words.length >= 2;
+    list.innerHTML = found_html(words) + tests_html + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
+    if (words.length >= 2 && state.found_words !== words) search_chats(words);
+}
+
+// words found inside any chat, older ones too, each with the bit that matched
+function found_html(words) {
+    if (words.length < 2) return "";
+    if (state.found_words !== words || !state.found) return '<p class="page-note">Searching inside your chats…</p>';
+    if (!state.found.length) return '<p class="page-note">Nothing inside your chats matches that.</p>';
+    const mark = (text) => {
+        const safe = escape_html(text);
+        const at = safe.toLowerCase().indexOf(escape_html(words).toLowerCase());
+        if (at < 0) return safe;
+        const len = escape_html(words).length;
+        return `${safe.slice(0, at)}<mark>${safe.slice(at, at + len)}</mark>${safe.slice(at + len)}`;
+    };
+    return `<h2 class="section-title">Found in your chats</h2>
+        <ul class="found-list">${state.found.map((r) => `<li><a href="#/c/${r.id}">
+            <strong>${mark(r.title)}</strong>
+            <span class="found-snippet">${mark(r.snippet)}</span>
+            <span class="found-meta">${escape_html(mode_name(r.mode))} · ${time_ago(r.updated, true)}</span>
+        </a></li>`).join("")}</ul>`;
+}
+
+let search_timer = 0;
+function search_chats(words) {
+    clearTimeout(search_timer);
+    state.found_words = words;
+    state.found = null;
+    search_timer = setTimeout(async () => {
+        try {
+            const results = (await (await api(`/api/search?q=${encodeURIComponent(words)}`)).json()).results;
+            if (state.found_words !== words) return;
+            state.found = results;
+        } catch (error) {
+            state.found = [];
+        }
+        if (el("chat-groups")) render_chats();
+    }, 250);
 }
 
 function show_chats() {

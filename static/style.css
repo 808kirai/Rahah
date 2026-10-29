@@ -1447,6 +1447,49 @@ button.plan-task:focus-visible {
     margin-block: 10px;
 }
 
+/* search results from inside chats */
+.found-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.4rem 0 0.5rem;
+    list-style: none;
+}
+
+.found-list a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.7rem 0.95rem;
+    border-radius: 14px;
+    background: var(--card-bg);
+    box-shadow: inset 0 0 0 1px var(--panel-line), var(--card-shadow);
+    color: inherit;
+    text-decoration: none;
+}
+
+.found-list a:hover,
+.found-list a:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+
+.found-snippet {
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.found-meta {
+    font-size: 0.72rem;
+    color: var(--text-2);
+}
+
+.found-list mark {
+    padding: 0 0.1rem;
+    border-radius: 3px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+}
+
 /* the big headings that split a page into parts, like tests and chats */
 .section-title {
     margin: 1.1rem 0 0.2rem;

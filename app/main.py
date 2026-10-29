@@ -313,6 +313,14 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(400, "Unknown subject.")
         return {"id": db.new_conversation(body.mode)}
 
+    @app.get("/api/search")
+    def search_chats(q: str = ""):
+        # every chat is searched, not only the newest ones the list shows
+        words = " ".join(q.split())[:100]
+        if len(words) < 2:
+            return {"results": []}
+        return {"results": db.search_chats(words)}
+
     @app.get("/api/conversations/{conversation_id}")
     def get_conversation(conversation_id: str):
         conversation = conversation_or_404(conversation_id)

@@ -192,6 +192,29 @@ class store:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def search_chats(self, words: str, limit: int = 20) -> list[dict]:
+        """chats whose title or messages contain the words, newest first, each with a snippet around the match"""
+        # ! marks a percent or underscore the student typed, so they're searched for as themselves
+        like = "%" + words.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+        with self._connect() as db:
+            rows = db.execute(
+                "select c.id, c.title, c.mode, c.updated, "
+                "(select m.display from messages m where m.conversation_id = c.id and m.display like ? escape '!' "
+                "order by m.id limit 1) as hit "
+                "from conversations c where c.title != '' and (c.title like ? escape '!' or exists ("
+                "select 1 from messages m where m.conversation_id = c.id and m.display like ? escape '!')) "
+                "order by c.updated desc limit ?",
+                (like, like, like, limit),
+            ).fetchall()
+        found = []
+        for r in rows:
+            text = json.loads(r["hit"])["text"] if r["hit"] else r["title"]
+            at = text.lower().find(words.lower())
+            start = max(0, at - 50) if at >= 0 else 0
+            snippet = ("…" if start else "") + " ".join(text[start:start + 140].split()) + ("…" if len(text) > start + 140 else "")
+            found.append({"id": r["id"], "title": r["title"], "mode": r["mode"], "updated": r["updated"], "snippet": snippet})
+        return found
+
     def delete_conversation(self, conversation_id: str) -> None:
         with self._connect() as db:
             db.execute("delete from conversations where id = ?", (conversation_id,))
