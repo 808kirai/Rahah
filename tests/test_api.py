@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.modes import modes
 
-from .fakes import fake_client, message, page_citation, text_block, thinking_block
+from .fakes import fake_client, message, page_citation, search_block, search_result, stopped_stream, text_block, thinking_block, web_citation
 
 pdf_bytes = b"%PDF-1.4 fake pdf for tests"
 
@@ -286,3 +286,54 @@ def test_removing_a_custom_subject_moves_its_things_to_general(setup):
     assert web.post("/api/conversations", json={"mode": law}).status_code == 400
     assert web.delete(f"/api/subjects/{law}").status_code == 404
     assert web.delete("/api/subjects/maths").status_code == 404
+
+
+# web search, try again and stop
+
+def test_web_search_is_shown_cited_and_kept(setup):
+    url = "https://www.example.org/news/rates"
+    reply = message([
+        search_block("bank rate october 2026"),
+        search_result(url, "Rates news"),
+        text_block("The rate is 3%.", citations=[web_citation("rate is 3%", url, "Rates news")]),
+    ])
+    web, claude = setup([reply])
+    chat = new_chat(web)
+    events = ask(web, chat, "what is the bank rate now")
+    assert {"t": "search", "v": "bank rate october 2026"} in events
+    done = events[-1]["v"]
+    assert done["searches"] == ["bank rate october 2026"]
+    assert done["sources"][0]["url"] == url and done["sources"][0]["where"] == "example.org"
+    # the search results go back to claude next turn, so the answer stays grounded
+    saved = web.get(f"/api/conversations/{chat}").json()["messages"]
+    assert saved[-1]["searches"] == ["bank rate october 2026"]
+    assert claude.beta.messages.calls[0]["tools"][0]["name"] == "web_search"
+
+
+def test_try_again_replaces_the_last_answer(setup):
+    web, claude = setup([message([text_block("first answer")]), message([text_block("second answer")])])
+    chat = new_chat(web)
+    ask(web, chat, "explain osmosis")
+    response = web.post(f"/api/conversations/{chat}/retry", json={"mode": "general"})
+    events = read_events(response)
+    assert events[-1]["t"] == "done" and events[-1]["v"]["text"] == "second answer"
+    shown = web.get(f"/api/conversations/{chat}").json()["messages"]
+    assert [m["role"] for m in shown] == ["user", "assistant"]
+    assert shown[1]["text"] == "second answer"
+    # the second request was sent the question again, without the first answer
+    resent = claude.beta.messages.calls[1]["messages"]
+    assert resent[-1]["role"] != "assistant"
+    empty = new_chat(web)
+    assert web.post(f"/api/conversations/{empty}/retry", json={"mode": "general"}).status_code == 400
+
+
+def test_a_stopped_answer_keeps_the_question_and_what_arrived(setup):
+    web, _ = setup([stopped_stream("Osmosis is the movement of")])
+    chat = new_chat(web)
+    try:
+        web.post(f"/api/conversations/{chat}/messages", json={"text": "what is osmosis", "mode": "general", "file_ids": []})
+    except BaseException:
+        pass
+    shown = web.get(f"/api/conversations/{chat}").json()["messages"]
+    assert [m["role"] for m in shown] == ["user", "assistant"]
+    assert shown[1]["stopped"] and shown[1]["text"] == "Osmosis is the movement of"

@@ -86,6 +86,10 @@ class message_in(BaseModel):
     file_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
+class retry_in(BaseModel):
+    mode: str = default_mode
+
+
 def friendly_error(error: Exception) -> str:
     # most specific first, since these classes inherit from each other
     if isinstance(error, anthropic.AuthenticationError):
@@ -265,10 +269,27 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if not history or conversation["mode"] != body.mode:
             rows.append(mode_note(body.mode))
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
+        return answer_response(conversation_id, messages, rows, body.mode, text[:60])
 
+    @app.post("/api/conversations/{conversation_id}/retry")
+    def retry_answer(conversation_id: str, body: retry_in):
+        # the last answer is dropped and asked for again, the question stays as it was
+        conversation = conversation_or_404(conversation_id)
+        if body.mode not in modes:
+            raise HTTPException(400, "Unknown subject.")
+        if not db.drop_last_answer(conversation_id):
+            raise HTTPException(400, "There's no answer to try again yet.")
+        messages = db.api_messages(conversation_id)
+        rows = []
+        if conversation["mode"] != body.mode:
+            rows.append(mode_note(body.mode))
+            messages.append(mode_note(body.mode))
+        return answer_response(conversation_id, messages, rows, body.mode, "")
+
+    def answer_response(conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str):
         # once code has run in a chat the tool stays on, since the history holds its runs
         sandbox = db.get_container(conversation_id)
-        code = runs_code(body.mode) or sandbox is not None
+        code = runs_code(mode) or sandbox is not None
         container = sandbox["container_id"] if sandbox and sandbox["expires"] > time.time() + container_margin else None
         outputs = db.get_outputs(conversation_id)
 
@@ -284,22 +305,39 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 outputs[file_id] = {"id": file_id, "name": name, "type": media_type}
             return outputs[file_id]
 
+        def save_stopped(partial: str, searches: list[str]) -> None:
+            # the student stopped the answer, so the question and what arrived so far are kept, marked stopped
+            text = partial.strip()
+            content = [{"type": "text", "text": text or "(The student stopped this answer before it began.)"}]
+            display = {"text": text, "sources": [], "runs": [], "searches": searches, "stopped": True}
+            db.add_turn(conversation_id, rows + [{"role": "assistant", "content": content, "display": display}], mode, title)
+
         async def events():
-            final = None
+            final, ended, partial, searches = None, False, "", []
             try:
                 async for event in stream_reply(claude(), cfg, messages, code=code, container=container):
                     if event["t"] == "final":
                         final = event["v"]
                         continue
-                    if event["t"] == "run_done":
+                    if event["t"] == "text":
+                        partial += event["v"]
+                    elif event["t"] == "search":
+                        searches.append(event["v"])
+                    elif event["t"] == "run_done":
                         event["v"]["files"] = [await describe_output(f) for f in event["v"].get("files", [])]
                     yield sse(event)
             except Exception as error:
+                ended = True
                 if not is_claude_error(error):
                     raise
                 log.warning("claude request failed: %s", error)
                 yield sse({"t": "error", "v": friendly_error(error)})
                 return
+            finally:
+                # the page going away mid answer cancels this generator, that's the stop button
+                if not ended and final is None:
+                    save_stopped(partial, searches)
+            ended = True
 
             # a refused turn is not saved, so the student can rephrase and carry on
             if final.stop_reason == "refusal":
@@ -307,10 +345,10 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 return
             display = display_from_content(final.content, outputs)
             if not display["text"].strip():
-                yield sse({"t": "error", "v": "Claude returned an empty answer. Try asking again."})
+                yield sse({"t": "error", "v": "Rahah returned an empty answer. Try asking again."})
                 return
             rows.append({"role": "assistant", "content": history_blocks(final.content), "display": display})
-            db.add_turn(conversation_id, rows, body.mode, title=text[:60])
+            db.add_turn(conversation_id, rows, mode, title=title)
             if final.container:
                 db.set_container(conversation_id, final.container, final.container_expires.timestamp())
             truncated = final.stop_reason in ("max_tokens", "pause_turn")

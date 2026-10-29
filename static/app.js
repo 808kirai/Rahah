@@ -50,6 +50,9 @@ const icons = {
     check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+    retry: '<svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5v4h4"/></svg>',
+    stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/></svg>',
     bell: '<svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2.2H4.4z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>',
     pencil: '<svg viewBox="0 0 24 24"><path d="M5 19l1-4L16 5l3 3L9 18z"/><path d="M14 7l3 3"/></svg>',
     calendar: '<svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>',
@@ -221,11 +224,31 @@ function render_sources(message_el, sources) {
         box.className = "sources";
         message_el.appendChild(box);
     }
+    // only plain web links are drawn, so a source can never carry a script link
+    const link = (s) => s.url && /^https?:\/\//i.test(s.url)
+        ? `<a class="source-link" href="${escape_html(s.url)}" target="_blank" rel="noopener noreferrer">Open the page</a>`
+        : "";
     box.innerHTML = '<p class="sources-title">Sources</p>' + sources.map((s) => `
         <details class="source" data-n="${s.n}">
             <summary><span class="n">${s.n}</span><span>${escape_html(s.title)}${s.where ? ` <span class="where">· ${escape_html(s.where)}</span>` : ""}</span></summary>
             ${s.quote ? `<blockquote>${escape_html(s.quote)}</blockquote>` : ""}
+            ${link(s)}
         </details>`).join("");
+}
+
+// a short line above an answer saying what rahah looked up on the web
+function render_searches(message_el, searches) {
+    let line = message_el.querySelector(".searches");
+    if (!searches || !searches.length) {
+        if (line) line.remove();
+        return;
+    }
+    if (!line) {
+        line = document.createElement("p");
+        line.className = "searches";
+        message_el.querySelector(".answer").before(line);
+    }
+    line.innerHTML = `${icons.search}<span>Searched the web for ${searches.map((q) => `<q>${escape_html(q)}</q>`).join(", ")}</span>`;
 }
 
 thread.addEventListener("click", (event) => {
@@ -298,6 +321,12 @@ function rotate_thinking(label, words) {
     }, thinking_every);
 }
 
+function show_thinking(answer) {
+    const words = three_thinking_words();
+    answer.innerHTML = `<span class="thinking"><span class="spark" aria-hidden="true">✻</span><span class="thinking-word">${escape_html(words[0])}</span></span>`;
+    rotate_thinking(answer.querySelector(".thinking-word"), words);
+}
+
 function add_assistant_message(text = null, sources = [], runs = []) {
     leave_home();
     const message_el = document.createElement("div");
@@ -305,9 +334,7 @@ function add_assistant_message(text = null, sources = [], runs = []) {
     message_el.innerHTML = '<p class="label"><span class="logo" aria-hidden="true"></span>Rahah</p><div class="answer"></div>';
     const answer = message_el.querySelector(".answer");
     if (text === null) {
-        const words = three_thinking_words();
-        answer.innerHTML = `<span class="thinking"><span class="spark" aria-hidden="true">✻</span><span class="thinking-word">${escape_html(words[0])}</span></span>`;
-        rotate_thinking(answer.querySelector(".thinking-word"), words);
+        show_thinking(answer);
     } else {
         answer.innerHTML = render_markdown(text);
         fill_runs(answer, runs);
@@ -368,10 +395,28 @@ function show_welcome() {
 
 // sending and streaming
 
+const send_icon = send_btn.innerHTML;
+
 function update_send_button() {
+    const stoppable = Boolean(state.answer_controller);
+    send_btn.classList.toggle("stop", stoppable);
+    send_btn.innerHTML = stoppable ? icons.stop : send_icon;
+    send_btn.setAttribute("aria-label", stoppable ? "Stop the answer" : "Send");
+    send_btn.title = stoppable ? "Stop" : "";
+    if (stoppable) {
+        send_btn.disabled = false;
+        return;
+    }
     const uploading = state.pending.some((f) => f.status === "uploading");
     send_btn.disabled = state.busy || uploading || !input.value.trim();
 }
+
+// pressing stop cuts the connection, and the server keeps what had arrived, marked stopped
+send_btn.addEventListener("click", (event) => {
+    if (!state.answer_controller) return;
+    event.preventDefault();
+    state.answer_controller.abort();
+});
 
 async function ensure_conversation() {
     if (state.conversation_id) return state.conversation_id;
@@ -405,29 +450,15 @@ async function read_events(response, on_event) {
     }
 }
 
-async function send_message(text) {
-    text = text.trim();
-    const ready = state.pending.filter((f) => f.status === "ready");
-    if (!text || state.busy) return;
-    // a question that was spoken is sent as it is, and listening stops so nothing lands in the cleared box
-    stop_voice(true);
-    state.busy = true;
-    update_send_button();
-
-    const sent_files = [...ready];
-    input.value = "";
-    resize_input();
-    state.pending = state.pending.filter((f) => f.status !== "ready");
-    render_attachments();
-
-    add_user_message(text, sent_files);
-    const reply = add_assistant_message();
+// streams one answer into a reply on the page, for a new question and for try again
+// request is handed the abort signal, on_fail runs when nothing was saved, and again is what the notice's
+// try again button does then
+async function run_answer(reply, request, on_fail, again) {
     const answer = reply.querySelector(".answer");
-    scroll_to_bottom();
-
     let raw = "";
     let sources = [];
     let runs = [];
+    let searches = [];
     let frame = 0;
     let finished = false;
     let saved = false;
@@ -439,26 +470,38 @@ async function send_message(text) {
         fill_runs(answer, runs);
         decorate_code(answer);
         render_sources(reply, sources);
+        render_searches(reply, searches);
         if (stick) scroll_to_bottom();
     };
     const schedule_paint = () => {
         if (!frame) frame = requestAnimationFrame(paint);
     };
-    const give_back = () => {
-        // a failed turn isn't saved, so hand the question and files back for another try
-        if (!input.value.trim()) input.value = text;
-        state.pending = [...sent_files, ...state.pending];
-        render_attachments();
-        resize_input();
+    const fail = (text) => {
+        if (frame) cancelAnimationFrame(frame);
+        answer.innerHTML = "";
+        render_sources(reply, []);
+        render_searches(reply, []);
+        const note = document.createElement("div");
+        note.className = "notice notice-retry";
+        note.innerHTML = `<span>${escape_html(text)}</span>`;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn btn-ghost btn-small";
+        button.innerHTML = `${icons.retry}Try again`;
+        button.addEventListener("click", () => {
+            if (!state.busy) again();
+        });
+        note.appendChild(button);
+        reply.appendChild(note);
+        on_fail();
+        finished = true;
     };
 
+    const controller = new AbortController();
+    state.answer_controller = controller;
+    update_send_button();
     try {
-        const conversation_id = await ensure_conversation();
-        const response = await api(`/api/conversations/${conversation_id}/messages`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text, mode: mode_select.value, file_ids: sent_files.map((f) => f.id) }),
-        });
+        const response = await request(controller.signal);
         await read_events(response, (event) => {
             if (event.t === "text") {
                 raw += event.v;
@@ -474,10 +517,14 @@ async function send_message(text) {
             } else if (event.t === "run_done") {
                 runs[event.v.n] = event.v;
                 schedule_paint();
+            } else if (event.t === "search") {
+                searches = searches.concat(event.v);
+                schedule_paint();
             } else if (event.t === "done") {
                 raw = event.v.text;
                 sources = event.v.sources;
                 runs = event.v.runs || [];
+                searches = event.v.searches || [];
                 finished = true;
                 saved = true;
                 if (frame) cancelAnimationFrame(frame);
@@ -485,35 +532,125 @@ async function send_message(text) {
                 if (event.v.truncated) add_notice(reply, "This answer hit the length limit. Ask Rahah to continue.");
             } else if (event.t === "refusal" || event.t === "error") {
                 // partial text from a failed turn is dropped, it was never saved
-                if (frame) cancelAnimationFrame(frame);
-                answer.innerHTML = "";
-                render_sources(reply, []);
-                add_notice(reply, event.v);
-                give_back();
-                finished = true;
+                fail(event.v);
             }
         });
-        if (!finished) {
-            if (frame) cancelAnimationFrame(frame);
-            answer.innerHTML = "";
-            render_sources(reply, []);
-            add_notice(reply, "The connection dropped before the answer finished. Try sending it again.");
-            give_back();
-        }
+        if (!finished) fail("The connection dropped before the answer finished.");
     } catch (error) {
-        if (frame) cancelAnimationFrame(frame);
-        answer.innerHTML = "";
-        render_sources(reply, []);
-        add_notice(reply, error.message || "Rahah couldn't send that message.");
-        give_back();
+        if (controller.signal.aborted) {
+            // what arrived stays on the page, the server saved the same
+            if (frame) cancelAnimationFrame(frame);
+            if (raw) paint();
+            else answer.innerHTML = "";
+            add_notice(reply, "You stopped this answer.");
+            saved = true;
+        } else {
+            fail(error.message || "Rahah couldn't send that message.");
+        }
+    } finally {
+        state.answer_controller = null;
+    }
+    if (saved) reply.classList.add("answered");
+    return saved;
+}
+
+async function send_message(text) {
+    text = text.trim();
+    const ready = state.pending.filter((f) => f.status === "ready");
+    if (!text || state.busy) return;
+    // a question that was spoken is sent as it is, and listening stops so nothing lands in the cleared box
+    stop_voice(true);
+    state.busy = true;
+    update_send_button();
+
+    const sent_files = [...ready];
+    input.value = "";
+    resize_input();
+    state.pending = state.pending.filter((f) => f.status !== "ready");
+    render_attachments();
+
+    const question = add_user_message(text, sent_files);
+    const reply = add_assistant_message();
+    scroll_to_bottom();
+
+    const give_back = () => {
+        // a failed turn isn't saved, so hand the question and files back for another try
+        if (!input.value.trim()) input.value = text;
+        state.pending = [...sent_files, ...state.pending];
+        render_attachments();
+        resize_input();
+    };
+    // trying a failed question again sends it fresh, so the failed copy comes off the page first
+    const again = () => {
+        question.remove();
+        reply.remove();
+        send_message(input.value);
+    };
+
+    let saved = false;
+    try {
+        saved = await run_answer(reply, async (signal) => {
+            const conversation_id = await ensure_conversation();
+            return api(`/api/conversations/${conversation_id}/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, mode: mode_select.value, file_ids: sent_files.map((f) => f.id) }),
+                signal,
+            });
+        }, give_back, again);
     } finally {
         state.busy = false;
         update_send_button();
         load_history();
         if (saved && el("chat-title").textContent === "New chat") set_title(text.slice(0, 60));
+        offer_retry();
         input.focus();
     }
 }
+
+// try again sits under the latest answer only, and asks for a fresh answer to the same question
+function offer_retry() {
+    thread.querySelectorAll(".retry-row").forEach((row) => row.remove());
+    if (current_view() !== "chat" || !state.conversation_id) return;
+    const messages = thread.querySelectorAll(".message");
+    const last = messages[messages.length - 1];
+    if (!last || !last.classList.contains("answered")) return;
+    const row = document.createElement("div");
+    row.className = "retry-row";
+    row.innerHTML = `<button class="btn btn-ghost btn-small" type="button" data-retry>${icons.retry}Try again</button>`;
+    last.appendChild(row);
+}
+
+async function retry_answer() {
+    if (state.busy || !state.conversation_id) return;
+    const messages = thread.querySelectorAll(".message.assistant");
+    const reply = messages[messages.length - 1];
+    if (!reply) return;
+    state.busy = true;
+    // the old answer clears and the thinking label comes back while the new one is written
+    reply.classList.remove("answered");
+    reply.querySelectorAll(".notice, .retry-row, .sources, .searches").forEach((part) => part.remove());
+    show_thinking(reply.querySelector(".answer"));
+    update_send_button();
+    const conversation_id = state.conversation_id;
+    try {
+        await run_answer(reply, (signal) => api(`/api/conversations/${conversation_id}/retry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: mode_select.value }),
+            signal,
+        }), () => {}, retry_answer);
+    } finally {
+        state.busy = false;
+        update_send_button();
+        load_history();
+        offer_retry();
+    }
+}
+
+thread.addEventListener("click", (event) => {
+    if (event.target.closest("[data-retry]")) retry_answer();
+});
 
 // attachments
 
@@ -1215,14 +1352,14 @@ const rec_kinds = { review: "Review", next: "Next step", related: "Related" };
 const rec_actions = {
     ask: { label: "Ask", icon: "chat" },
     flashcards: { label: "Flashcards", icon: "cards" },
-    quiz: { label: "Quiz", icon: "quiz" },
+    quiz: { label: "Test", icon: "quiz" },
     summary: { label: "Summary", icon: "summary" },
 };
 
 function rec_action(item) {
     if (item.action !== "open") return rec_actions[item.action];
     const saved = state.sets.find((s) => s.id === item.set_id);
-    return saved?.kind === "flashcards" ? { label: "Your deck", icon: "cards" } : { label: "Retake quiz", icon: "quiz" };
+    return saved?.kind === "flashcards" ? { label: "Your deck", icon: "cards" } : { label: "Retake test", icon: "quiz" };
 }
 
 function rec_card(item, i) {
@@ -1261,7 +1398,7 @@ function render_recommendations() {
     if (!recs.has_activity) {
         page.innerHTML = `<div class="page-empty">
             <strong>Nothing to go on yet</strong>
-            Chat, make flashcards or take a quiz, and Rahah will suggest what to study next.
+            Chat, make flashcards or take a test, and Rahah will suggest what to study next.
             <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
         </div>`;
         return;
@@ -1942,7 +2079,7 @@ document.addEventListener("visibilitychange", () => {
 const tools = {
     summary: { title: "Summarise notes", sub: "Key points from a PDF or a topic", icon: "summary" },
     flashcards: { title: "Make flashcards", sub: "A deck to flip through", icon: "cards" },
-    quiz: { title: "Make a quiz", sub: "Multiple choice, with a score", icon: "quiz" },
+    quiz: { title: "Make a test", sub: "Multiple choice, with a score", icon: "quiz" },
 };
 
 const sheet_copy = {
@@ -1961,7 +2098,7 @@ const sheet_copy = {
         topic: "A topic, like the causes of World War I, or leave blank to use your notes",
     },
     quiz: {
-        title: "Make a quiz", submit: "Make the quiz", working: "Writing your quiz", label: "Questions",
+        title: "Make a test", submit: "Make the test", working: "Writing your test", label: "Questions",
         choices: [[5, "5"], [10, "10"], [15, "15"], [20, "20"]], pick: 10,
         topic: "A topic, like photosynthesis, or leave blank to use your notes",
     },
@@ -2017,7 +2154,7 @@ function render_set_rows() {
         const deck_slot = el(`decks-${group}`);
         const quiz_slot = el(`quizzes-${group}`);
         if (deck_slot) deck_slot.innerHTML = decks.length ? row_html("Your flashcards", decks.map(set_card).join("")) : "";
-        if (quiz_slot) quiz_slot.innerHTML = quizzes.length ? row_html("Your quizzes", quizzes.map(set_card).join("")) : "";
+        if (quiz_slot) quiz_slot.innerHTML = quizzes.length ? row_html("Your tests", quizzes.map(set_card).join("")) : "";
     });
 }
 
@@ -2648,7 +2785,7 @@ function render_results() {
     const note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
     el("study").innerHTML = `
         <div class="quiz-results">
-            <p class="study-meta">Quiz complete</p>
+            <p class="study-meta">Test complete</p>
             <p class="score"><strong>${s.score}</strong> / ${total}</p>
             <p class="score-note">${note}</p>
             <div class="study-controls">
@@ -2752,7 +2889,7 @@ function sparkline(points) {
     </svg>`;
 }
 
-const stat_sketches = { "Average score": "chart", "Latest quiz": "pencil", "Quizzes taken": "checklist", "Best subject": "trophy" };
+const stat_sketches = { "Average score": "chart", "Latest test": "pencil", "Tests taken": "checklist", "Best subject": "trophy" };
 
 function stat_card(label, value, note, extra = "", small = false) {
     return `<div class="stat-card">
@@ -2789,8 +2926,8 @@ function render_performance_row() {
     }
     slot.innerHTML = row_html("Your performance", [
         stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} questions right`, sparkline(state.performance.timeline)),
-        stat_card("Latest quiz", `${o.latest}%`, delta_html(o.change)),
-        stat_card("Quizzes taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`),
+        stat_card("Latest test", `${o.latest}%`, delta_html(o.change)),
+        stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`),
         `<button class="stat-card more" type="button" data-performance>See all your results ${icons.next}</button>`,
     ].join(""));
 }
@@ -2811,8 +2948,8 @@ function render_performance() {
     if (!o) {
         page.innerHTML = `<div class="page-empty">
             <strong>No scores yet</strong>
-            Take a quiz to see your scores and grades here.
-            <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a quiz</button></div>
+            Take a test to see your scores and grades here.
+            <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a test</button></div>
         </div>`;
         return;
     }
@@ -2824,21 +2961,21 @@ function render_performance() {
     page.innerHTML = `
         <div class="kpis">
             ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} questions right`, sparkline(p.timeline))}
-            ${stat_card("Latest quiz", `${o.latest}%`, delta_html(o.change))}
-            ${stat_card("Quizzes taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`)}
+            ${stat_card("Latest test", `${o.latest}%`, delta_html(o.change))}
+            ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "quiz")}`)}
             ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
         </div>
 
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Scores over time</h3>
-                <p>Each quiz attempt as a percentage, oldest on the left</p>
+                <p>Each test attempt as a percentage, oldest on the left</p>
             </div>
             <div class="chart" id="timeline-chart"></div>
             <details class="perf-details">
                 <summary>Show as a table</summary>
                 <div class="table-wrap"><table>
-                    <thead><tr><th>Date</th><th>Quiz</th><th class="num">Score</th><th class="num">Percent</th><th>Grade</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Test</th><th class="num">Score</th><th class="num">Percent</th><th>Grade</th></tr></thead>
                     <tbody>${p.timeline.slice().reverse().map((t) => `<tr>
                         <td>${short_date(t.created)}</td><td>${escape_html(t.title)}</td>
                         <td class="num">${t.score} / ${t.total}</td><td class="num">${t.percent}%</td><td>${grade_pill(t.grade)}</td>
@@ -2883,11 +3020,11 @@ function render_performance() {
 
         <section class="perf-card">
             <div class="perf-head">
-                <h3>Your quizzes</h3>
+                <h3>Your tests</h3>
                 <p>Most recent first</p>
             </div>
             <div class="table-wrap"><table>
-                <thead><tr><th>Quiz</th><th>Subject</th><th class="num">Attempts</th><th class="num">Best</th><th class="num">Latest</th><th>Best grade</th><th></th></tr></thead>
+                <thead><tr><th>Test</th><th>Subject</th><th class="num">Attempts</th><th class="num">Best</th><th class="num">Latest</th><th>Best grade</th><th></th></tr></thead>
                 <tbody>${p.quizzes.map((q) => `<tr>
                     <td>${escape_html(q.title)}</td><td>${escape_html(mode_name(q.mode))}</td>
                     <td class="num">${q.attempts}</td><td class="num">${q.best}%</td><td class="num">${q.latest}%</td>
@@ -2925,7 +3062,7 @@ function draw_timeline() {
 
     box.innerHTML = `
         <svg width="${width}" height="${height}" style="width: ${width}px; height: ${height}px" tabindex="0" role="img"
-            aria-label="Quiz scores over time, ${points.length} attempts, latest ${points[last].percent} percent. Use the arrow keys to read each one.">
+            aria-label="Test scores over time, ${points.length} attempts, latest ${points[last].percent} percent. Use the arrow keys to read each one.">
             ${grid}
             ${area ? `<path class="area" d="${area}"/>` : ""}
             <path class="line" d="${line}"/>
@@ -3083,11 +3220,18 @@ async function open_conversation(conversation_id) {
         thread.innerHTML = "";
         if (!conversation.messages.length) show_welcome();
         conversation.messages.forEach((m) => {
-            if (m.role === "user") add_user_message(m.text, m.files || []);
-            else add_assistant_message(m.text, m.sources || [], m.runs || []);
+            if (m.role === "user") {
+                add_user_message(m.text, m.files || []);
+                return;
+            }
+            const reply = add_assistant_message(m.text, m.sources || [], m.runs || []);
+            render_searches(reply, m.searches);
+            if (m.stopped) add_notice(reply, "You stopped this answer.");
+            reply.classList.add("answered");
         });
         sync_view();
         set_title(conversation.title);
+        offer_retry();
         scroll_to_bottom();
     } catch (error) {
         start_new_chat();

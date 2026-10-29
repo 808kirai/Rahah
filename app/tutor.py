@@ -29,6 +29,10 @@ one everyday example, like a raisin swelling in water.
 When the student attaches documents, base your answer on them and cite the parts you use. \
 If the documents don't cover the question, say so before answering from general knowledge.
 
+You can search the web. Search only when the question needs current or very specific facts, like \
+recent events, dates, prices, or a detail you aren't sure of. Everyday study questions don't need \
+a search, answer those from what you know. When you use search results, cite them.
+
 Format answers in Markdown. Write maths in LaTeX using \\( ... \\) inline and \\[ ... \\] for \
 display, never with dollar signs, since dollar signs are kept for money. Name the language \
 on every code block.
@@ -43,6 +47,11 @@ marker_open, marker_close = "⟦", "⟧"
 
 # claude runs code on anthropic's servers, in a sandbox with no internet
 code_tool = {"type": "code_execution_20260521", "name": "code_execution"}
+
+# web search, the basic version, since the newer one filters results by running its own code
+# and that would show up as code runs and turn on the code tool in ordinary chats
+# a few searches per answer keeps the cost down, each search is billed on top of tokens
+web_tool = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
 run_tools = ("bash_code_execution", "text_editor_code_execution", "code_execution")
 run_results = ("bash_code_execution_tool_result", "text_editor_code_execution_tool_result", "code_execution_tool_result")
 max_resumes = 5
@@ -128,6 +137,16 @@ class citation_list:
 
 
 def describe_citation(citation) -> dict:
+    # a web result links to its page, a document points to its pages
+    url = getattr(citation, "url", None)
+    if url:
+        site = url.split("//", 1)[-1].split("/", 1)[0].removeprefix("www.")
+        return {
+            "title": getattr(citation, "title", None) or site,
+            "where": site,
+            "quote": (getattr(citation, "cited_text", "") or "").strip(),
+            "url": url,
+        }
     where = ""
     start = getattr(citation, "start_page_number", None)
     end = getattr(citation, "end_page_number", None)
@@ -203,13 +222,20 @@ def is_run(block) -> bool:
     return block.type == "server_tool_use" and block.name in run_tools
 
 
+def search_query(block) -> str | None:
+    # what claude searched the web for, or None when the block isn't a search
+    if block.type == "server_tool_use" and block.name == "web_search":
+        return (block.input or {}).get("query", "")
+    return None
+
+
 def display_from_content(content, outputs: dict | None = None) -> dict:
     """rebuilds the text, sources and code runs the page showed while streaming
 
     outputs maps a file id from a run to its name and type, files without details are shown by id
     """
     cites, runs = citation_list(), run_list()
-    parts = []
+    parts, searches = [], []
     for block in content:
         if block.type == "text":
             marks, _ = cites.marks_for(getattr(block, "citations", None))
@@ -219,9 +245,11 @@ def display_from_content(content, outputs: dict | None = None) -> dict:
             parts.append(marks)
         elif block.type in run_results:
             runs.finish(block)
+        elif search_query(block) is not None:
+            searches.append(search_query(block))
     for run in runs.runs:
         run["files"] = [output_details(f, outputs) for f in run.get("files", [])]
-    return {"text": "".join(parts), "sources": cites.sources, "runs": runs.runs}
+    return {"text": "".join(parts), "sources": cites.sources, "runs": runs.runs, "searches": searches}
 
 
 def output_details(file_id: str, outputs: dict | None) -> dict:
@@ -243,14 +271,13 @@ async def stream_reply(
 ) -> AsyncIterator[dict]:
     """streams one answer as small events for the page, then a final event with the whole reply
 
-    events are text, cite, run, run_done and final
+    events are text, cite, run, run_done, search and final
     with code on, claude can run code in a sandbox, container picks up an earlier sandbox
     a long run of code can pause the turn, which is resumed by sending the answer so far back
     """
     cites, runs = citation_list(), run_list()
     options = fallback_options(cfg)
-    if code:
-        options["tools"] = [code_tool]
+    options["tools"] = [web_tool, code_tool] if code else [web_tool]
     content, sent = [], messages
     reported, expires = None, None
     for _ in range(max_resumes + 1):
@@ -281,6 +308,8 @@ async def stream_reply(
                         run = runs.finish(block)
                         if run:
                             yield {"t": "run_done", "v": dict(run)}
+                    elif search_query(block) is not None:
+                        yield {"t": "search", "v": search_query(block)}
             final = await stream.get_final_message()
         content.extend(final.content)
         if final.container:

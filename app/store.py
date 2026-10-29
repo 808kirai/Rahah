@@ -186,6 +186,20 @@ class store:
             ).fetchall()
         return [{"role": r["role"], **json.loads(r["display"])} for r in rows]
 
+    def drop_last_answer(self, conversation_id: str) -> bool:
+        """removes the answer after the last question, false when there is no question yet"""
+        with self._connect() as db:
+            row = db.execute(
+                "select max(id) as last from messages where conversation_id = ? and role = 'user'", (conversation_id,),
+            ).fetchone()
+            if row["last"] is None:
+                return False
+            db.execute(
+                "delete from messages where conversation_id = ? and role = 'assistant' and id > ?",
+                (conversation_id, row["last"]),
+            )
+        return True
+
     def add_turn(self, conversation_id: str, rows: list[dict], mode: str, title: str) -> None:
         # rows are written together so a failed turn never leaves half a history
         with self._connect() as db:

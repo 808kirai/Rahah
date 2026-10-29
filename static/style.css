@@ -1044,6 +1044,53 @@ button.picker-heading:focus-visible {
     min-height: 160px;
 }
 
+/* what rahah searched for, a small line above the answer */
+.searches {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-2);
+}
+
+.searches svg {
+    width: 15px;
+    height: 15px;
+    margin-top: 0.15rem;
+    color: var(--accent-text);
+}
+
+.searches q {
+    color: var(--text);
+}
+
+.source-link {
+    display: inline-block;
+    margin: 0.35rem 0 0.2rem;
+    font-size: 0.82rem;
+    color: var(--accent-text);
+}
+
+/* try again under the latest answer, and beside an error */
+.retry-row {
+    margin-top: 0.6rem;
+    margin-left: -0.6rem;
+}
+
+.retry-row .btn svg,
+.notice-retry .btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.notice-retry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+}
+
 /* the big headings that split a page into parts, like tests and chats */
 .section-title {
     margin: 1.1rem 0 0.2rem;
@@ -3412,8 +3459,20 @@ button.picker-heading:focus-visible {
     transform: translateY(-2px);
 }
 
+/* while an answer comes in the send button is a stop button, a square on a quiet circle */
+.send-btn.stop {
+    background: var(--dock-active);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--dock-line-focus);
+}
+
+.send-btn.stop:hover {
+    background: var(--surface-2);
+    transform: none;
+}
+
 /* with nothing to send the button goes quiet grey rather than a faded accent */
-.send-btn:disabled {
+.send-btn:disabled:not(.stop) {
     background: var(--dock-active);
     color: var(--text-2);
     cursor: default;

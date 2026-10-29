@@ -6,12 +6,14 @@ from types import SimpleNamespace
 from anthropic.types.beta import (
     BetaBashCodeExecutionToolResultBlock,
     BetaCitationPageLocation,
+    BetaCitationsWebSearchResultLocation,
     BetaContainer,
     BetaMessage,
     BetaServerToolUseBlock,
     BetaTextBlock,
     BetaThinkingBlock,
     BetaUsage,
+    BetaWebSearchToolResultBlock,
 )
 
 
@@ -24,6 +26,46 @@ def page_citation(quote, start, end, title="notes.pdf", index=0):
         type="page_location", cited_text=quote, document_index=index,
         document_title=title, start_page_number=start, end_page_number=end,
     )
+
+
+def search_block(query, search_id="srvtoolu_web"):
+    return BetaServerToolUseBlock.model_validate({
+        "type": "server_tool_use", "id": search_id, "name": "web_search", "input": {"query": query},
+    })
+
+
+def search_result(url, title, search_id="srvtoolu_web"):
+    return BetaWebSearchToolResultBlock.model_validate({
+        "type": "web_search_tool_result", "tool_use_id": search_id,
+        "content": [{"type": "web_search_result", "url": url, "title": title, "encrypted_content": "enc", "page_age": None}],
+    })
+
+
+def web_citation(quote, url, title):
+    return BetaCitationsWebSearchResultLocation(
+        type="web_search_result_location", cited_text=quote, url=url, title=title, encrypted_index="idx",
+    )
+
+
+class stopped_stream:
+    """streams some text, then is cut off the way the page going away cancels it"""
+
+    def __init__(self, text):
+        self.text = text
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def __aiter__(self):
+        return self._events()
+
+    async def _events(self):
+        import asyncio
+        yield SimpleNamespace(type="text", text=self.text)
+        raise asyncio.CancelledError()
 
 
 def thinking_block():
@@ -95,6 +137,8 @@ class fake_messages:
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
+        if isinstance(reply, stopped_stream):
+            return reply
         return fake_stream(reply)
 
 

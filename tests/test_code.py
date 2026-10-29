@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import create_app
-from app.tutor import code_tool, display_from_content
+from app.tutor import code_tool, display_from_content, web_tool
 
 from .fakes import fake_client, message, run_block, run_result, text_block, thinking_block
 from .test_api import ask, new_chat
@@ -52,7 +52,7 @@ def test_coding_mode_runs_code_streams_it_and_keeps_the_sandbox(setup):
     assert events[kinds.index("run_done")]["v"]["stdout"] == "5\n"
 
     calls = claude.beta.messages.calls
-    assert calls[0]["tools"] == [code_tool]
+    assert calls[0]["tools"] == [web_tool, code_tool]
     assert "container" not in calls[0]
 
     # the next turn goes back into the same sandbox, and the saved chat shows the run
@@ -73,9 +73,10 @@ def test_other_modes_have_no_code_tool_until_a_chat_has_run_code(setup):
     ask(web, conversation_id, "list files", mode="coding")
     ask(web, conversation_id, "now maths", mode="maths")
     calls = claude.beta.messages.calls
-    assert "tools" not in calls[0]
+    # other subjects only get web search
+    assert calls[0]["tools"] == [web_tool]
     # the history now holds a run, so the tool stays on after leaving coding mode
-    assert calls[2]["tools"] == [code_tool]
+    assert calls[2]["tools"] == [web_tool, code_tool]
 
 
 def test_an_expired_sandbox_is_not_reused(setup):
