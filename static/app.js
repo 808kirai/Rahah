@@ -3795,3 +3795,8 @@ async function start() {
 }
 
 start();
+
+// installing rahah as an app needs a service worker, it only steps in to show a page when offline
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}

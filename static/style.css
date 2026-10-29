@@ -289,6 +289,7 @@ svg {
     bottom: 0;
     z-index: 20;
     padding-top: 2.5rem;
+    padding-bottom: env(safe-area-inset-bottom);
     background: linear-gradient(to top, var(--bg) 15%, color-mix(in srgb, var(--bg) 75%, transparent) 50%, transparent);
     pointer-events: none;
 }
@@ -307,6 +308,7 @@ svg {
     align-items: center;
     gap: 0.9rem;
     padding: 0.7rem var(--gutter) 0.5rem;
+    padding-top: max(0.7rem, env(safe-area-inset-top));
 }
 
 .nav-left {
@@ -3976,6 +3978,7 @@ tr.pick-row:focus-visible {
     .nav {
         gap: 0.6rem;
         padding: 0.75rem var(--gutter) 0.5rem;
+        padding-top: max(0.75rem, env(safe-area-inset-top));
     }
 
     .brand {

@@ -48,6 +48,7 @@ Look and feel
 - Faint see through cards and boxes, with a soft shadow in light mode
 - The tabs and message box float over the page with a fade underneath, like a streaming app
 - Popups close with a click outside them
+- Rahah can be installed as an app. On Android, Chrome offers Install app or Add to Home screen, on iPhone it's Share then Add to Home Screen, and on a computer Chrome and Edge show an install button in the address bar. It then opens full screen with its own icon, keeps clear of the notch and home bar, and shows a friendly page when there's no internet
 - On phones the whole app is a size smaller, so it reads like a small copy of the website, with two chats per row and a full width message box above the tabs
 
 Setup
@@ -88,7 +89,7 @@ Project layout
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
 - `app/store.py` - Local SQLite storage for chats, files, study sets, reminders, classes and subjects
 - `app/config.py` - Settings read from the environment
-- `static/` - The page, its styles and its script
+- `static/` - The page, its styles and its script, the app manifest, the service worker and the offline page
 - `tests/` - Tests with a fake Claude client
 
 Settings
@@ -120,6 +121,8 @@ Reminders and classes are worked out from the student's own calendar dates and t
 Tests are scored in marks. A multiple choice question is worth one mark and is checked on the page. A written question is worth what its mark scheme says, and each answer is sent to Claude with the question, the mark scheme and the model answer, plus the photo when there is one. Claude replies with a score and feedback as structured JSON, and the score is kept within the question's marks.
 
 GPA counts each test once, at its best attempt, so practising a test again never lowers it. Grade points are A 4, B 3, C 2, D 1, and E and F 0. A subject's GPA is the average over its tests, and the overall GPA is the average over every test.
+
+Installing works through a web app manifest and a small service worker served from the root of the site. The service worker caches nothing but the offline page and its logo, so every page and answer still comes fresh from the server. Phones only offer to install a site over HTTPS, so on a phone this works once Rahah is online; on the computer running it, http://127.0.0.1 counts as safe.
 
 Suggestions on the Suggestions tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
 

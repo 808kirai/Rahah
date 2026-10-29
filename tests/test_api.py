@@ -337,3 +337,18 @@ def test_a_stopped_answer_keeps_the_question_and_what_arrived(setup):
     shown = web.get(f"/api/conversations/{chat}").json()["messages"]
     assert [m["role"] for m in shown] == ["user", "assistant"]
     assert shown[1]["stopped"] and shown[1]["text"] == "Osmosis is the movement of"
+
+
+def test_rahah_can_be_installed_as_an_app(setup):
+    web, _ = setup()
+    page = web.get("/").text
+    assert 'rel="manifest"' in page
+    manifest = web.get("/static/manifest.webmanifest").json()
+    assert manifest["display"] == "standalone" and manifest["start_url"] == "/"
+    assert {"192x192", "512x512"} <= {i["sizes"] for i in manifest["icons"]}
+    for icon in manifest["icons"]:
+        assert web.get(icon["src"]).status_code == 200
+    # the service worker is served from the root, so it covers every page
+    worker = web.get("/sw.js")
+    assert worker.status_code == 200 and "javascript" in worker.headers["content-type"]
+    assert web.get("/static/offline.html").status_code == 200

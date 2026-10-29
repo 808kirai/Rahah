@@ -182,6 +182,11 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     def index():
         return FileResponse(static_dir / "index.html")
 
+    @app.get("/sw.js")
+    def service_worker():
+        # served from the root so it covers the whole app, and checked on every load so updates land
+        return FileResponse(static_dir / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
     # this server's saved subjects join the list as it starts
     sync_custom(db.list_subjects())
 
