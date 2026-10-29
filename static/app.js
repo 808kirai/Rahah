@@ -2134,7 +2134,7 @@ const sheet_copy = {
 
 const sheet = el("sheet");
 const sheet_state = { tool: "flashcards", files: [], pick: 10, style: "choice", opened: 0 };
-const test_styles = [["choice", "Multiple choice"], ["written", "Written"], ["mixed", "Mixed"]];
+const test_styles = [["choice", "Multiple choice"], ["written", "Written"], ["mixed", "Mixed"], ["paper", "Past paper"]];
 
 const tool_sketches = { summary: "notes", flashcards: "cards", quiz: "checklist" };
 
@@ -2523,6 +2523,10 @@ el("sheet-styles").addEventListener("click", (event) => {
     if (!choice) return;
     sheet_state.style = choice.dataset.style;
     el("sheet-styles").querySelectorAll(".choice").forEach((b) => b.setAttribute("aria-pressed", String(b === choice)));
+    // a past paper is the notes themselves, so the topic only narrows it down
+    el("sheet-topic").placeholder = sheet_state.style === "paper"
+        ? "Optional, like Section B only. Attach the past paper under Notes"
+        : sheet_copy.quiz.topic;
 });
 
 el("sheet-attach").addEventListener("click", () => el("sheet-file-input").click());
@@ -2609,6 +2613,10 @@ el("sheet-form").addEventListener("submit", async (event) => {
     }
     if (!topic && !sheet_state.files.length) {
         show_sheet_error("Write a topic or add some notes first.");
+        return;
+    }
+    if (sheet_state.tool === "quiz" && sheet_state.style === "paper" && !sheet_state.files.length) {
+        show_sheet_error("Attach the past paper under Notes first.");
         return;
     }
     if (state.busy) {

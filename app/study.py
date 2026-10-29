@@ -98,6 +98,16 @@ styles = {
         f"Write exactly {{count}} questions, about half multiple choice and half written, mixed through the test. "
         f"{choice_rule} {written_rule}"
     ),
+    # a real exam paper turned into a test, its own questions in its own order
+    "paper": (
+        "The attached notes are a past exam paper. Turn its questions into this test, at most {count} of them, "
+        "in the paper's order, keeping each question's wording and any data or diagrams it describes. A question "
+        f"the paper gives options for becomes a choice question. {choice_rule} Every other question becomes a "
+        "written question worth the marks the paper gives it, or your best estimate when it gives none, with a "
+        "mark_scheme listing the points that each earn a mark and a model_answer that would get full marks. Set its "
+        "options to an empty list, answer to -1 and leave explanation empty. Give the test the paper's subject and "
+        "year as its title when the paper shows them."
+    ),
 }
 
 max_items = 25
@@ -171,7 +181,8 @@ def clean_written(q: dict) -> dict | None:
     marks = q.get("marks")
     if not question or not scheme or not model or not isinstance(marks, int):
         return None
-    return {"type": "written", "question": question, "marks": max(1, min(marks, 10)), "mark_scheme": scheme, "model_answer": model}
+    # exam papers can give a long question many marks, so up to 20 are kept
+    return {"type": "written", "question": question, "marks": max(1, min(marks, 20)), "mark_scheme": scheme, "model_answer": model}
 
 
 def question_marks(item: dict) -> int:

@@ -455,7 +455,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if kind not in kinds:
             raise HTTPException(400, "Unknown kind of study set.")
         if style not in styles:
-            raise HTTPException(400, "Pick multiple choice, written or mixed.")
+            raise HTTPException(400, "Pick multiple choice, written, mixed or past paper.")
         if mode not in modes:
             raise HTTPException(400, "Unknown subject.")
         topic = topic.strip()
@@ -466,6 +466,8 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(400, f"Add up to {max_set_files} files.")
         if not topic and not files:
             raise HTTPException(400, "Write a topic or add some notes first.")
+        if style == "paper" and not files:
+            raise HTTPException(400, "Attach the past paper under Notes first.")
 
         uploads, total = [], 0
         for f in files:

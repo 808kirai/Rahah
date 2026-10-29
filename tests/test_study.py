@@ -206,3 +206,22 @@ def test_flashcards_move_up_when_known_and_back_when_not(setup):
     # deleting the deck clears its progress
     web.delete(f"/api/sets/{deck['id']}")
     assert web.post(f"/api/sets/{deck['id']}/cards", json={"card": 0, "known": True}).status_code == 404
+
+
+def test_a_past_paper_becomes_a_test_of_its_own_questions(setup):
+    paper = {"title": "Physics 2024 Paper 1", "questions": [
+        {"type": "written", "question": "Explain how a transformer works.", "options": [], "answer": -1, "explanation": "",
+         "marks": 12, "mark_scheme": "points (12)", "model_answer": "An alternating current..."},
+    ]}
+    web, claude = setup([reply(paper)])
+    # the paper itself has to be attached
+    assert web.post("/api/sets", data={"kind": "quiz", "topic": "physics", "style": "paper"}).status_code == 400
+    made = web.post(
+        "/api/sets", data={"kind": "quiz", "style": "paper", "count": "20"},
+        files=[("files", ("paper.pdf", pdf_bytes, "application/pdf"))],
+    ).json()
+    assert made["title"] == "Physics 2024 Paper 1"
+    # a long exam question keeps its 12 marks
+    assert made["items"][0]["marks"] == 12
+    text = claude.beta.messages.calls[0]["messages"][0]["content"][-1]["text"]
+    assert "past exam paper" in text and "at most 20" in text
