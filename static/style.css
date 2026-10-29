@@ -4286,7 +4286,7 @@ button.plan-task:focus-visible {
     justify-content: center;
     gap: 0.6rem;
     width: 100%;
-    max-width: max(920px, var(--chat-w));
+    max-width: 920px;
     margin: 0 auto;
     padding: 0.5rem 1.5rem 0;
 }
@@ -4363,7 +4363,7 @@ button.plan-task:focus-visible {
 .composer {
     flex: 1;
     min-width: 0;
-    max-width: var(--chat-w);
+    max-width: 760px;
 }
 
 .composer-box {
