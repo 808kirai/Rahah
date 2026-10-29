@@ -45,6 +45,7 @@ const icons = {
     summary: '<svg viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h9M5 18h6"/></svg>',
     shuffle: '<svg viewBox="0 0 24 24"><path d="M4 7h3.5c4 0 5 10 9 10H20M4 17h3.5c1.6 0 2.7-1.6 3.6-3.5M13 10.5C13.9 8.6 15 7 16.5 7H20M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5"/></svg>',
     terminal: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7.5 9.5l3 2.5-3 2.5M13 15h3.5"/></svg>',
+    printer: '<svg viewBox="0 0 24 24"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/></svg>',
     download: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/></svg>',
     chevron: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -675,6 +676,7 @@ function add_answer_actions(reply) {
         <button class="btn btn-ghost btn-small" type="button" data-answer-action="quiz">${icons.quiz}Test me</button>
         <button class="btn btn-ghost btn-small" type="button" data-answer-action="flashcards">${icons.cards}Flashcards</button>
         ${reply.message_id ? `<span class="rate-answer">
+            <button class="icon-btn" type="button" data-print-answer aria-label="Print or save as PDF" title="Print or save as PDF">${icons.printer}</button>
             <button class="icon-btn" type="button" data-rate="1" aria-pressed="${reply.rating === 1}" aria-label="Helpful" title="Helpful">${icons.thumb_up}</button>
             <button class="icon-btn" type="button" data-rate="-1" aria-pressed="${reply.rating === -1}" aria-label="Not helpful" title="Not helpful">${icons.thumb_down}</button>
         </span>` : ""}`;
@@ -760,6 +762,53 @@ async function rate_answer(reply, rating) {
     reply.querySelectorAll("[data-rate]").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.rate) === next)));
 }
 
+// printing, or saving as pdf from the same dialog, a plain page made just for paper
+
+function print_page(title, body) {
+    const area = el("print-area");
+    area.innerHTML = `<header class="print-head"><strong>${escape_html(title)}</strong><span>Rahah · ${new Date().toLocaleDateString()}</span></header>${body}`;
+    document.body.classList.add("printing");
+    const done = () => {
+        document.body.classList.remove("printing");
+        area.innerHTML = "";
+        window.removeEventListener("afterprint", done);
+    };
+    window.addEventListener("afterprint", done);
+    window.print();
+}
+
+function print_set(s) {
+    if (s.kind === "flashcards") {
+        print_page(s.title, `<ol class="print-cards">${s.items.map((c) => `
+            <li><div class="answer">${render_markdown(c.front)}</div><div class="answer print-back">${render_markdown(c.back)}</div></li>`).join("")}</ol>`);
+        return;
+    }
+    const marks = s.items.reduce((sum, q) => sum + question_marks(q), 0);
+    const questions = s.items.map((q, i) => `<li class="print-q">
+        <div class="answer">${render_markdown(q.question)}</div>
+        <p class="print-marks">${plural(question_marks(q), "mark")}</p>
+        ${is_written(q)
+            ? `<div class="print-lines">${"<span></span>".repeat(Math.min(3 + q.marks * 2, 16))}</div>`
+            : `<ol class="print-options">${q.options.map((o) => `<li>${inline_markdown(o)}</li>`).join("")}</ol>`}
+    </li>`).join("");
+    const key = s.items.map((q, i) => `<li class="print-q">
+        ${is_written(q)
+            ? `<div class="answer">${render_markdown(q.model_answer)}</div><p class="print-marks">Mark scheme</p><div class="answer">${render_markdown(q.mark_scheme)}</div>`
+            : `<p><strong>${"ABCDEF"[q.answer]}.</strong> ${inline_markdown(q.options[q.answer])}</p>${q.explanation ? `<div class="answer">${render_markdown(q.explanation)}</div>` : ""}`}
+    </li>`).join("");
+    print_page(s.title, `<p class="print-sub">${plural(s.items.length, "question")} · ${plural(marks, "mark")}</p>
+        <ol class="print-questions">${questions}</ol>
+        <section class="print-key"><h2>Answers</h2><ol class="print-questions">${key}</ol></section>`);
+}
+
+function print_answer(reply) {
+    if (!reply) return;
+    const question = reply.previousElementSibling?.querySelector(".bubble")?.textContent || "";
+    const answer = reply.querySelector(".answer").innerHTML;
+    const sources = reply.querySelector(".sources")?.outerHTML || "";
+    print_page(question.slice(0, 80) || "Rahah's answer", `${question ? `<p class="print-question">${escape_html(question)}</p>` : ""}<div class="answer">${answer}</div>${sources}`);
+}
+
 // a test or deck from one answer, the answer goes in as notes so nothing is cut short
 function study_answer(reply, tool) {
     const text = String(reply.raw_text || "").replace(/⟦[^⟧]*⟧/g, "").trim();
@@ -801,6 +850,7 @@ thread.addEventListener("click", (event) => {
     if (deck) open_set(deck.dataset.todayDeck);
     if (event.target.closest('[data-today-page="reminders"]')) show_reminders();
     if (event.target.closest("[data-retry]")) retry_answer();
+    if (event.target.closest("[data-print-answer]")) print_answer(event.target.closest(".message"));
     const thumb = event.target.closest("[data-rate]");
     if (thumb) rate_answer(thumb.closest(".message"), Number(thumb.dataset.rate));
     const action = event.target.closest("[data-answer-action]");
@@ -3076,6 +3126,7 @@ function render_deck() {
             </div>
             <div class="study-extra">
                 <button class="btn btn-ghost btn-small" type="button" data-deck="shuffle">${icons.shuffle}Shuffle</button>
+                <button class="btn btn-ghost btn-small" type="button" data-print-set>${icons.printer}Print or save as PDF</button>
                 <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete deck</button>
             </div>
         </div>`;
@@ -3224,6 +3275,9 @@ function render_quiz_start() {
             </div>
             <div class="study-controls">
                 <button class="btn btn-accent" type="button" data-quiz="start">Start the test</button>
+            </div>
+            <div class="study-extra">
+                <button class="btn btn-ghost btn-small" type="button" data-print-set>${icons.printer}Print or save as PDF</button>
             </div>
         </div>`;
 }
@@ -3494,6 +3548,7 @@ function render_results() {
                 <button class="btn btn-soft" type="button" data-home>Back to home</button>
             </div>
             <div class="study-extra">
+                <button class="btn btn-ghost btn-small" type="button" data-print-set>${icons.printer}Print or save as PDF</button>
                 <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete test</button>
             </div>
         </div>`;
@@ -3629,6 +3684,7 @@ thread.addEventListener("click", (event) => {
         ask_about_question(Number(ask.dataset.askQuestion));
         return;
     }
+    if (target.closest("[data-print-set]")) print_set(state.study.set);
     if (target.closest("[data-study-delete]")) delete_set(state.study.set);
 });
 

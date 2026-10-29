@@ -1490,6 +1490,87 @@ button.plan-task:focus-visible {
     color: var(--accent-text);
 }
 
+/* printing, only the print area shows, black on white */
+#print-area {
+    display: none;
+}
+
+@media print {
+    body.printing {
+        background: #fff !important;
+        color: #000;
+    }
+
+    body.printing > *:not(#print-area) {
+        display: none !important;
+    }
+
+    body.printing #print-area {
+        display: block;
+        color: #000;
+        font: 11pt / 1.5 "Inter", sans-serif;
+    }
+
+    #print-area .print-head {
+        display: flex;
+        justify-content: space-between;
+        padding-bottom: 6pt;
+        margin-bottom: 12pt;
+        border-bottom: 1px solid #000;
+        font-size: 13pt;
+    }
+
+    #print-area .print-head span,
+    #print-area .print-sub,
+    #print-area .print-marks {
+        font-size: 9pt;
+        color: #444;
+    }
+
+    #print-area ol {
+        padding-left: 24pt;
+    }
+
+    #print-area .print-q,
+    #print-area .print-cards > li {
+        margin-bottom: 14pt;
+        break-inside: avoid;
+    }
+
+    #print-area .print-options {
+        list-style: upper-alpha;
+    }
+
+    #print-area .print-lines span {
+        display: block;
+        height: 20pt;
+        border-bottom: 1px solid #999;
+    }
+
+    #print-area .print-key {
+        break-before: page;
+    }
+
+    #print-area .print-back {
+        margin-top: 4pt;
+        padding-left: 8pt;
+        border-left: 2px solid #999;
+    }
+
+    #print-area .print-question {
+        font-weight: 700;
+        margin-bottom: 8pt;
+    }
+
+    #print-area a {
+        color: #000;
+    }
+
+    #print-area .sources details {
+        display: block;
+    }
+}
+
 /* the big headings that split a page into parts, like tests and chats */
 .section-title {
     margin: 1.1rem 0 0.2rem;
