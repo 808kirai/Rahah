@@ -278,7 +278,7 @@ def test_removing_a_custom_subject_moves_its_things_to_general(setup):
     web, _ = setup()
     law = web.post("/api/subjects", json={"name": "Law of torts"}).json()["id"]
     chat = web.post("/api/conversations", json={"mode": law}).json()["id"]
-    item = web.post("/api/timetable", json=a_class(mode=law)).json()
+    web.post("/api/timetable", json=a_class(mode=law))
     assert web.delete(f"/api/subjects/{law}").json()["ok"]
     assert law not in {m["id"] for m in web.get("/api/modes").json()["modes"]}
     assert web.get(f"/api/conversations/{chat}").json()["mode"] == "general"
