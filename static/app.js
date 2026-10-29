@@ -2122,7 +2122,7 @@ function tool_tile(id, mode) {
 }
 
 function set_detail(s) {
-    if (s.kind === "flashcards") return `${s.size} card${s.size === 1 ? "" : "s"}`;
+    if (s.kind === "flashcards") return `${s.size} card${s.size === 1 ? "" : "s"}${s.known ? ` · ${s.known} known` : ""}`;
     const out_of = s.marks || s.size;
     const best = s.best_score === null || s.best_score === undefined ? "" : ` · best ${s.best_score}/${out_of}`;
     return `${s.size} question${s.size === 1 ? "" : "s"}${best}`;
@@ -2643,7 +2643,11 @@ function show_set(study_set) {
         answered: false,
         done: false,
         results: [], // how each question went, for reviewing mistakes at the end
+        progress: { ...(study_set.progress || {}) }, // each card's box, 1 still learning up to 5 mastered
+        session: { known: 0, learning: 0 },
+        deck_done: false,
     };
+    if (study_set.kind === "flashcards") state.study.order = practice_order(study_set.items, state.study.progress);
     thread.innerHTML = '<div class="study" id="study"></div>';
     thread.scrollTop = 0;
     render_study();
@@ -2665,13 +2669,33 @@ function render_study() {
     else render_quiz();
 }
 
+// cards that need practice come first, in a random order within each box
+function practice_order(items, progress) {
+    return items.map((_, i) => i)
+        .map((i) => ({ i, box: progress[i] || 0, tie: Math.random() }))
+        .sort((a, b) => a.box - b.box || a.tie - b.tie)
+        .map((c) => c.i);
+}
+
+const box_names = ["New", "Still learning", "Known", "Known", "Known", "Mastered"];
+
+function known_count(s) {
+    return Object.values(s.progress).filter((box) => box >= 2).length;
+}
+
 function render_deck() {
     const s = state.study;
-    const card = s.set.items[s.order[s.index]];
+    if (s.deck_done) {
+        render_deck_done();
+        return;
+    }
+    const at = s.order[s.index];
+    const card = s.set.items[at];
     const last = s.index === s.order.length - 1;
+    const box = s.progress[at] || 0;
     el("study").innerHTML = `
         <div class="deck">
-            <p class="study-meta">Card ${s.index + 1} of ${s.order.length}</p>
+            <p class="study-meta">Card ${s.index + 1} of ${s.order.length} · <span class="box-name box-${box}">${box_names[box]}</span> · ${known_count(s)} of ${s.set.items.length} known</p>
             <div class="flashcard${s.flipped ? " flipped" : ""}" role="button" tabindex="0" data-deck="flip" aria-label="Flip the card">
                 <div class="flashcard-inner">
                     <div class="face front poster">
@@ -2683,6 +2707,10 @@ function render_deck() {
                         <div class="face-text answer">${render_markdown(card.back)}</div>
                     </div>
                 </div>
+            </div>
+            <div class="rate-row"${s.flipped ? "" : " hidden"}>
+                <button class="btn btn-soft" type="button" data-deck="learning">Still learning</button>
+                <button class="btn btn-accent" type="button" data-deck="known">Got it</button>
             </div>
             <div class="study-controls">
                 <button class="icon-btn round" type="button" data-deck="prev" aria-label="Previous card"${s.index === 0 ? " disabled" : ""}>${icons.prev}</button>
@@ -2700,6 +2728,8 @@ function flip_card() {
     const s = state.study;
     s.flipped = !s.flipped;
     document.querySelector(".flashcard")?.classList.toggle("flipped", s.flipped);
+    const rate = document.querySelector(".rate-row");
+    if (rate) rate.hidden = !s.flipped;
     const button = document.querySelector('.study-controls [data-deck="flip"]');
     if (button) button.textContent = s.flipped ? "Show question" : "Show answer";
 }
@@ -2710,6 +2740,64 @@ function step_deck(by) {
     if (next < 0 || next >= s.order.length) return;
     s.index = next;
     s.flipped = false;
+    render_deck();
+}
+
+// still learning brings the card back a few cards later, got it moves it up a box, then on to the next card
+async function rate_card(known) {
+    const s = state.study;
+    if (!s.flipped || s.rating) return;
+    const at = s.order[s.index];
+    s.rating = true;
+    try {
+        const response = await api(`/api/sets/${s.set.id}/cards`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card: at, known }),
+        });
+        s.progress[at] = (await response.json()).box;
+    } catch (error) {
+        // the rating still counts for this session if it couldn't be saved
+        s.progress[at] = known ? Math.min(Math.max(s.progress[at] || 0, 1) + 1, 5) : 1;
+    } finally {
+        s.rating = false;
+    }
+    if (state.study !== s || !el("study")) return;
+    s.session[known ? "known" : "learning"] += 1;
+    if (!known) {
+        const again = Math.min(s.index + 4, s.order.length);
+        if (!s.order.slice(s.index + 1, again).includes(at)) s.order.splice(again, 0, at);
+    }
+    s.flipped = false;
+    if (s.index === s.order.length - 1) {
+        s.deck_done = true;
+        render_deck_done();
+        load_sets();
+        return;
+    }
+    s.index += 1;
+    render_deck();
+}
+
+function render_deck_done() {
+    const s = state.study;
+    const known = known_count(s);
+    const total = s.set.items.length;
+    el("study").innerHTML = `
+        <div class="quiz-results">
+            <p class="study-meta">Deck done</p>
+            <p class="score"><strong>${known}</strong> / ${total} known</p>
+            <p class="score-note">This time ${plural(s.session.known, "card")} got it and ${s.session.learning} still learning. ${known === total ? "You know the whole deck." : "Practise again and the hard ones come first."}</p>
+            <div class="study-controls">
+                <button class="btn btn-accent" type="button" data-deck="again">Practise again</button>
+                <button class="btn btn-soft" type="button" data-home>Back to home</button>
+            </div>
+        </div>`;
+}
+
+function practise_again() {
+    const s = state.study;
+    Object.assign(s, { order: practice_order(s.set.items, s.progress), index: 0, flipped: false, deck_done: false, session: { known: 0, learning: 0 } });
     render_deck();
 }
 
@@ -3058,6 +3146,9 @@ thread.addEventListener("click", (event) => {
         if (action === "prev") step_deck(-1);
         if (action === "next") step_deck(1);
         if (action === "shuffle") shuffle_deck();
+        if (action === "known") rate_card(true);
+        if (action === "learning") rate_card(false);
+        if (action === "again") practise_again();
         return;
     }
     const option = target.closest("[data-option]");
@@ -3095,8 +3186,11 @@ document.addEventListener("keydown", (event) => {
     if (!el("study") || !state.study || sheet.open || event.target.closest("input, textarea, select")) return;
     const s = state.study;
     if (s.set.kind === "flashcards") {
+        if (s.deck_done) return;
         if (event.key === "ArrowRight") step_deck(1);
         else if (event.key === "ArrowLeft") step_deck(-1);
+        else if (s.flipped && event.key === "1") rate_card(false);
+        else if (s.flipped && event.key === "2") rate_card(true);
         else if ((event.key === " " || event.key === "Enter") && !event.target.closest("button")) {
             event.preventDefault();
             flip_card();

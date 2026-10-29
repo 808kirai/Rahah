@@ -2402,6 +2402,36 @@ tr.pick-row:focus-visible {
     font-weight: 500;
 }
 
+/* after a card is flipped, say how it went */
+.rate-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.rate-row[hidden] {
+    display: none;
+}
+
+.box-name {
+    font-weight: 700;
+}
+
+.box-1 {
+    color: var(--mauve);
+}
+
+.box-2,
+.box-3,
+.box-4 {
+    color: var(--accent-text);
+}
+
+.box-5 {
+    color: var(--mint-text);
+}
+
 .study-controls {
     display: flex;
     justify-content: center;

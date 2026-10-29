@@ -185,3 +185,24 @@ def test_marking_is_refused_when_it_doesnt_fit(setup):
     assert web.post(f"/api/sets/{body['id']}/mark", data={"index": "1", "answer": "  "}).status_code == 400
     not_a_photo = web.post(f"/api/sets/{body['id']}/mark", data={"index": "1"}, files={"photo": ("notes.pdf", pdf_bytes, "application/pdf")})
     assert not_a_photo.status_code == 400
+
+
+def test_flashcards_move_up_when_known_and_back_when_not(setup):
+    web, _ = setup([reply(cards)])
+    deck = web.post("/api/sets", data={"kind": "flashcards", "topic": "cells"}).json()
+    assert deck["progress"] == {}
+    rate = lambda card, known: web.post(f"/api/sets/{deck['id']}/cards", json={"card": card, "known": known}).json()
+    assert rate(0, True) == {"box": 2, "known": 1}
+    assert rate(0, True)["box"] == 3
+    assert rate(1, False) == {"box": 1, "known": 1}
+    # still learning sends a card back to the first box
+    assert rate(0, False) == {"box": 1, "known": 0}
+    for _ in range(6):
+        last = rate(1, True)
+    assert last["box"] == 5
+    assert web.get(f"/api/sets/{deck['id']}").json()["progress"] == {"0": 1, "1": 5}
+    assert web.get("/api/sets").json()["sets"][0]["known"] == 1
+    assert web.post(f"/api/sets/{deck['id']}/cards", json={"card": 9, "known": True}).status_code == 400
+    # deleting the deck clears its progress
+    web.delete(f"/api/sets/{deck['id']}")
+    assert web.post(f"/api/sets/{deck['id']}/cards", json={"card": 0, "known": True}).status_code == 404

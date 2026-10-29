@@ -64,6 +64,11 @@ class score_in(BaseModel):
     score: int = Field(ge=0)
 
 
+class card_in(BaseModel):
+    card: int = Field(ge=0)
+    known: bool
+
+
 class done_in(BaseModel):
     done: bool
 
@@ -506,6 +511,15 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 raise HTTPException(400, "Rahah couldn't read that photo. Try a clearer one, or type the answer.")
             log.warning("marking failed: %s", error)
             raise HTTPException(502, friendly_error(error))
+
+    @app.post("/api/sets/{set_id}/cards")
+    def rate_card(set_id: str, body: card_in):
+        # still learning or got it, for one flashcard
+        study_set = set_or_404(set_id)
+        if study_set["kind"] != "flashcards" or body.card >= len(study_set["items"]):
+            raise HTTPException(400, "That card isn't in this deck.")
+        box = db.rate_card(set_id, body.card, body.known)
+        return {"box": box, "known": db.known_cards(set_id)}
 
     @app.post("/api/sets/{set_id}/score")
     def record_score(set_id: str, body: score_in):

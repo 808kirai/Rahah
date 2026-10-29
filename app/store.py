@@ -117,6 +117,13 @@ create table if not exists usage (
     created real not null
 );
 create index if not exists usage_by_time on usage(created);
+create table if not exists card_progress (
+    set_id text not null references study_sets(id) on delete cascade,
+    card integer not null,
+    box integer not null,
+    updated real not null,
+    primary key (set_id, card)
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -466,9 +473,13 @@ class store:
                 (limit,),
             ).fetchall()
         # tests are scored in marks, which can be more than the number of questions once some are written
+        with self._connect() as db:
+            known = {r["set_id"]: r["n"] for r in db.execute(
+                "select set_id, count(*) as n from card_progress where box >= 2 group by set_id").fetchall()}
         sets = []
         for r in rows:
             row = dict(r)
+            row["known"] = known.get(row["id"], 0)
             items = json.loads(row.pop("items"))
             row["marks"] = sum(i["marks"] if i.get("type") == "written" else 1 for i in items)
             row["written"] = any(i.get("type") == "written" for i in items)
@@ -478,9 +489,28 @@ class store:
     def get_set(self, set_id: str) -> dict | None:
         with self._connect() as db:
             row = db.execute("select * from study_sets where id = ?", (set_id,)).fetchone()
+            boxes = db.execute("select card, box from card_progress where set_id = ?", (set_id,)).fetchall()
         if not row:
             return None
-        return {**dict(row), "items": json.loads(row["items"])}
+        return {**dict(row), "items": json.loads(row["items"]), "progress": {str(b["card"]): b["box"] for b in boxes}}
+
+    # flashcards move up a box each time they're known and back to the first box when they aren't,
+    # a card counts as known while it's in box 2 or higher
+    def rate_card(self, set_id: str, card: int, known: bool) -> int:
+        with self._connect() as db:
+            row = db.execute("select box from card_progress where set_id = ? and card = ?", (set_id, card)).fetchone()
+            box = min(max(row["box"] if row else 0, 1) + 1, 5) if known else 1
+            db.execute(
+                "insert into card_progress (set_id, card, box, updated) values (?, ?, ?, ?) "
+                "on conflict(set_id, card) do update set box = excluded.box, updated = excluded.updated",
+                (set_id, card, box, time.time()),
+            )
+        return box
+
+    def known_cards(self, set_id: str) -> int:
+        with self._connect() as db:
+            row = db.execute("select count(*) as n from card_progress where set_id = ? and box >= 2", (set_id,)).fetchone()
+        return row["n"]
 
     def record_score(self, set_id: str, score: int, total: int) -> int:
         # every attempt is kept for the performance page, and the best score moves the set to the front of its row

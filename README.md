@@ -26,7 +26,7 @@ Subjects
 Study tools
 
 - Summaries of uploaded notes or a topic, with the same page sources
-- Flashcard decks made from a topic or notes, to flip through and shuffle
+- Flashcard decks made from a topic or notes, to flip through and shuffle. After flipping a card you mark it Still learning or Got it. A card you're still learning comes back a few cards later, each card moves up a box from learning to mastered as you get it right, and a deck opens with its new and hardest cards first and says how many you know
 - Tests of 5, 10, 15 or 20 questions, multiple choice, written or a mix, and every attempt is kept
 - Written questions come with marks, a mark scheme and a model answer. Answer by typing, by speaking, which the browser turns into text, or with a photo of your working from the camera or gallery, handy for maths. Rahah marks each answer against the mark scheme, says what earned marks and what was missing, and shows the model answer
 - Multiple choice questions show why the right answer is right
