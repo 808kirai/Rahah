@@ -1109,48 +1109,81 @@ button.picker-heading:focus-visible {
 }
 
 /* reminder pop ups, near the top and out of the way of the message box */
-/* the reminders tab, reminders on the left and the weekly timetable on the right, one under the other when narrow */
+/* the reminders tab split in half, reminders on the left and the weekly timetable on the right,
+   two matching cards of the same height, one under the other when narrow */
 .planner {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-    gap: 2rem;
-    align-items: start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: stretch;
 }
 
-.planner .page-tools {
-    flex-wrap: wrap;
+.planner-col {
+    min-width: 0;
+    padding: 1.1rem 1.25rem 1.25rem;
+    border-radius: var(--card);
+    background: var(--card-bg);
+    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
 }
 
-/* the empty message sits close under the buttons here, the timetable is beside or below it */
-.planner .page-empty {
-    margin-top: 2.5rem;
-}
-
-.planner-title {
-    margin: 0.25rem 0 0.6rem;
-    font-size: clamp(1.3rem, 2.2vw, 1.6rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
-}
-
+/* title on the left, buttons on the right, on one line */
 .planner-head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.6rem;
+    gap: 0.6rem 1rem;
 }
 
-.planner-head .planner-title {
-    margin: 0.25rem 0;
+.planner-title {
+    font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
 }
 
-/* the timetable sits in one card, a short row per class */
-#timetable {
-    padding: 1rem 1.1rem 1.1rem;
-    border-radius: var(--card);
-    background: var(--card-bg);
-    box-shadow: inset 0 0 0 1px var(--line), var(--card-shadow);
+/* one line under the title, with the notifications switch on the right of the reminders one */
+.planner-note-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem 1rem;
+    margin: 0.4rem 0 0.3rem;
+}
+
+.planner-note {
+    flex: 1 1 16rem;
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.planner-note-row .page-note {
+    font-size: 0.85rem;
+}
+
+.planner-empty {
+    max-width: 340px;
+    margin: 2.5rem auto 1.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-2);
+}
+
+.planner-empty strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+/* reminder cards sit inside the left card, so they go flat like the class rows instead of a card on a card */
+.planner .reminder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.planner .reminder-card {
+    background: var(--surface-2);
+    box-shadow: none;
 }
 
 .timetable-day {
@@ -1255,23 +1288,17 @@ button.picker-heading:focus-visible {
     color: var(--text-2);
 }
 
-.timetable-empty {
-    padding: 2rem 0.5rem 1.25rem;
-    text-align: center;
-    font-size: 0.9rem;
-    color: var(--text-2);
-}
-
-.timetable-empty strong {
-    display: block;
-    margin-bottom: 0.2rem;
-    color: var(--text);
-}
-
 @media (max-width: 900px) {
     .planner {
         grid-template-columns: 1fr;
         gap: 1.5rem;
+    }
+}
+
+/* when the buttons drop under the title they line up on the left */
+@media (max-width: 720px) {
+    .planner-head .tool-buttons {
+        justify-content: flex-start;
     }
 }
 

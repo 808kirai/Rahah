@@ -327,7 +327,7 @@ function add_notice(message_el, text) {
 
 // home, chats, recommendations and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats", recommendations: "Suggestions", reminders: "Reminders", performance: "Performance" };
+const page_titles = { home: "Home", chats: "Chats", recommendations: "Suggestions", reminders: "Reminders and Timetable", performance: "Performance" };
 
 function current_view() {
     if (el("welcome")) return "home";
@@ -1464,20 +1464,21 @@ function render_reminders() {
     const later = upcoming.filter((r) => days_left(r.due_date) > 7);
     // the most recently finished come first
     const finished = state.reminders.filter((r) => !is_upcoming(r)).reverse();
-    const tools = `<h2 class="planner-title">Reminders</h2>
-    <div class="page-tools">
-        <p class="page-note">Rahah reminds you while it's open. Add them to your calendar to get alerts even when it's closed.</p>
+    const tools = `<div class="planner-head">
+        <h2 class="planner-title">Reminders</h2>
         <div class="tool-buttons">
-            ${notification_tools()}
-            ${upcoming.length ? `<a class="btn btn-soft btn-small" href="/api/reminders/calendar.ics" download>${icons.calendar}Add all to calendar</a>` : ""}
-            <button class="btn btn-accent btn-small" type="button" data-rem-add>${icons.plus}Add a reminder</button>
+            ${upcoming.length ? `<a class="btn btn-soft btn-small" href="/api/reminders/calendar.ics" download title="Every upcoming reminder goes into your calendar with its alerts">${icons.calendar}Add to calendar</a>` : ""}
+            <button class="btn btn-accent btn-small" type="button" data-rem-add>${icons.plus}Add reminder</button>
         </div>
+    </div>
+    <div class="planner-note-row">
+        <p class="planner-note">Alerts show while Rahah is open. Add them to your calendar to get them when it's closed.</p>
+        ${notification_tools()}
     </div>`;
     if (!state.reminders.length) {
-        page.innerHTML = tools + `<div class="page-empty">
+        page.innerHTML = tools + `<div class="planner-empty">
             <strong>No reminders yet</strong>
             Add exams, CATs, midterms and deadlines, and Rahah will remind you as they get close.
-            <div><button class="btn btn-accent" type="button" data-rem-add>Add a reminder</button></div>
         </div>`;
         return;
     }
@@ -1568,7 +1569,7 @@ el("toasts").addEventListener("click", (event) => {
 
 function show_reminders() {
     if (state.busy) return;
-    enter_page("#/reminders", "Reminders", `<div class="list-page planner">
+    enter_page("#/reminders", "Reminders and Timetable", `<div class="list-page planner">
         <section class="planner-col" id="reminders" aria-label="Reminders"></section>
         <section class="planner-col" id="timetable" aria-label="Timetable"></section>
     </div>`);
@@ -1619,9 +1620,12 @@ function render_timetable() {
             ${state.classes.length ? `<a class="btn btn-soft btn-small" href="/api/timetable/calendar.ics" download title="Every class repeats weekly in your calendar, with an alert 15 minutes before">${icons.calendar}Add to calendar</a>` : ""}
             <button class="btn btn-accent btn-small" type="button" data-class-add>${icons.plus}Add class</button>
         </div>
+    </div>
+    <div class="planner-note-row">
+        <p class="planner-note">Classes repeat weekly. Add them to your calendar for an alert 15 minutes before each.</p>
     </div>`;
     if (!state.classes.length) {
-        box.innerHTML = head + `<div class="timetable-empty">
+        box.innerHTML = head + `<div class="planner-empty">
             <strong>No classes yet</strong>
             Add your weekly classes to see each day at a glance.
         </div>`;
