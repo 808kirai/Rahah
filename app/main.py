@@ -78,6 +78,10 @@ class plan_day_in(BaseModel):
     done: bool
 
 
+class rating_in(BaseModel):
+    rating: int = Field(ge=-1, le=1)
+
+
 class card_in(BaseModel):
     card: int = Field(ge=0)
     known: bool
@@ -256,6 +260,17 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             "exam": soon[0] if soon else None,
             "classes": [{"title": c["title"], "start_time": c["start_time"], "end_time": c["end_time"]} for c in classes],
         }
+
+    @app.post("/api/messages/{message_id}/rating")
+    def rate_answer(message_id: int, body: rating_in):
+        # thumbs up or down on one of rahah's answers
+        if not db.rate_message(message_id, body.rating):
+            raise HTTPException(404, "That answer doesn't exist.")
+        return {"rating": body.rating}
+
+    @app.get("/api/feedback")
+    def feedback_report():
+        return db.feedback_summary()
 
     @app.get("/api/usage")
     def usage_report():
@@ -436,11 +451,11 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 yield sse({"t": "error", "v": "Rahah returned an empty answer. Try asking again."})
                 return
             rows.append({"role": "assistant", "content": history_blocks(final.content), "display": display})
-            db.add_turn(conversation_id, rows, mode, title=title)
+            message_id = db.add_turn(conversation_id, rows, mode, title=title)
             if final.container:
                 db.set_container(conversation_id, final.container, final.container_expires.timestamp())
             truncated = final.stop_reason in ("max_tokens", "pause_turn")
-            yield sse({"t": "done", "v": {**display, "truncated": truncated}})
+            yield sse({"t": "done", "v": {**display, "truncated": truncated, "id": message_id}})
 
         return StreamingResponse(
             events(),

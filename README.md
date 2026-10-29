@@ -11,6 +11,7 @@ Chat
 - Answers stream in as they are written, and a stop button ends an answer early. What arrived so far is kept, marked as stopped
 - Try again under the latest answer asks for a fresh one to the same question, and an answer that failed has its own Try again
 - Listen reads an answer aloud with the device's own voice, free and offline, saying simple maths in words and skipping code and citation marks
+- Thumbs up and down on every answer. The usage box counts them and lists the answers marked not helpful with their questions, to see where Rahah's instructions need work
 - Every answer has Test me and Flashcards, which open the test or deck sheet with that answer attached as notes, so a chat turns into practice in one tap
 - Rahah searches the web when a question needs current or very specific facts, shows what it searched for, and links each web source
 - Hint mode, in the + menu, has Rahah guide with hints and questions one step at a time instead of giving the answer, until you ask for it after having a go

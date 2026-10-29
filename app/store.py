@@ -125,6 +125,11 @@ create table if not exists card_progress (
     updated real not null,
     primary key (set_id, card)
 );
+create table if not exists feedback (
+    message_id integer primary key references messages(id) on delete cascade,
+    rating integer not null,
+    created real not null
+);
 create index if not exists messages_by_conversation on messages(conversation_id, id);
 create index if not exists attempts_by_time on quiz_attempts(created, id);
 """
@@ -204,11 +209,49 @@ class store:
         # only what the chat page shows, system mode notes are skipped
         with self._connect() as db:
             rows = db.execute(
-                "select role, display from messages "
-                "where conversation_id = ? and display is not null order by id",
+                "select m.id, m.role, m.display, f.rating from messages m left join feedback f on f.message_id = m.id "
+                "where m.conversation_id = ? and m.display is not null order by m.id",
                 (conversation_id,),
             ).fetchall()
-        return [{"role": r["role"], **json.loads(r["display"])} for r in rows]
+        return [{"role": r["role"], "id": r["id"], "rating": r["rating"] or 0, **json.loads(r["display"])} for r in rows]
+
+    # thumbs up or down on an answer, 1 or -1, and 0 clears it
+    def rate_message(self, message_id: int, rating: int) -> bool:
+        with self._connect() as db:
+            row = db.execute("select role from messages where id = ?", (message_id,)).fetchone()
+            if not row or row["role"] != "assistant":
+                return False
+            if rating:
+                db.execute(
+                    "insert into feedback (message_id, rating, created) values (?, ?, ?) "
+                    "on conflict(message_id) do update set rating = excluded.rating, created = excluded.created",
+                    (message_id, rating, time.time()),
+                )
+            else:
+                db.execute("delete from feedback where message_id = ?", (message_id,))
+        return True
+
+    def feedback_summary(self, recent: int = 8) -> dict:
+        """the totals, and the latest answers marked unhelpful with the question each one answered"""
+        with self._connect() as db:
+            totals = {r["rating"]: r["n"] for r in db.execute("select rating, count(*) as n from feedback group by rating")}
+            down = db.execute(
+                "select m.id, m.conversation_id, m.display, f.created, "
+                "(select q.display from messages q where q.conversation_id = m.conversation_id and q.role = 'user' "
+                "and q.id < m.id order by q.id desc limit 1) as question "
+                "from feedback f join messages m on m.id = f.message_id where f.rating = -1 order by f.created desc limit ?",
+                (recent,),
+            ).fetchall()
+        return {
+            "up": totals.get(1, 0),
+            "down": totals.get(-1, 0),
+            "unhelpful": [{
+                "conversation_id": r["conversation_id"],
+                "question": json.loads(r["question"])["text"][:200] if r["question"] else "",
+                "answer": json.loads(r["display"])["text"][:300],
+                "created": r["created"],
+            } for r in down],
+        }
 
     def drop_last_answer(self, conversation_id: str) -> bool:
         """removes the answer after the last question, false when there is no question yet"""
@@ -224,12 +267,13 @@ class store:
             )
         return True
 
-    def add_turn(self, conversation_id: str, rows: list[dict], mode: str, title: str) -> None:
+    def add_turn(self, conversation_id: str, rows: list[dict], mode: str, title: str) -> int | None:
         # rows are written together so a failed turn never leaves half a history
+        last_id = None
         with self._connect() as db:
             for row in rows:
                 display = row.get("display")
-                db.execute(
+                cursor = db.execute(
                     "insert into messages (conversation_id, role, content, display) values (?, ?, ?, ?)",
                     (
                         conversation_id,
@@ -238,6 +282,8 @@ class store:
                         json.dumps(display) if display is not None else None,
                     ),
                 )
+                if row["role"] == "assistant":
+                    last_id = cursor.lastrowid
             db.execute(
                 "update conversations set mode = ?, updated = ?, "
                 "title = case when title = '' then ? else title end where id = ?",
@@ -245,6 +291,7 @@ class store:
             )
             file_ids = [f for row in rows for f in row.get("file_ids", [])]
             db.executemany("update files set used = 1 where id = ?", [(f,) for f in file_ids])
+        return last_id
 
     def add_file(self, file_id: str, conversation_id: str, name: str, kind: str, media_type: str, size: int) -> None:
         with self._connect() as db:

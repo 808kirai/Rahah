@@ -51,6 +51,8 @@ const icons = {
     chat: '<svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+    thumb_up: '<svg viewBox="0 0 24 24"><path d="M7 10.5V20H4.5a1 1 0 0 1-1-1v-7.5a1 1 0 0 1 1-1z"/><path d="M7 10.5L11 3.5a2 2 0 0 1 2.3 2.3L12.5 9.5h5.2a2 2 0 0 1 2 2.4l-1.3 6.4a2 2 0 0 1-2 1.7H7"/></svg>',
+    thumb_down: '<svg viewBox="0 0 24 24"><path d="M7 13.5V4H4.5a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1z"/><path d="M7 13.5l4 7a2 2 0 0 0 2.3-2.3l-.8-3.7h5.2a2 2 0 0 0 2-2.4l-1.3-6.4a2 2 0 0 0-2-1.7H7"/></svg>',
     speaker: '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
     camera: '<svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg>',
     mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>',
@@ -562,6 +564,8 @@ async function run_answer(reply, request, on_fail, again) {
                 sources = event.v.sources;
                 runs = event.v.runs || [];
                 searches = event.v.searches || [];
+                reply.message_id = event.v.id;
+                reply.rating = 0;
                 finished = true;
                 saved = true;
                 if (frame) cancelAnimationFrame(frame);
@@ -669,7 +673,11 @@ function add_answer_actions(reply) {
     row.innerHTML = `
         ${can_speak ? `<button class="btn btn-ghost btn-small" type="button" data-answer-action="listen">${icons.speaker}Listen</button>` : ""}
         <button class="btn btn-ghost btn-small" type="button" data-answer-action="quiz">${icons.quiz}Test me</button>
-        <button class="btn btn-ghost btn-small" type="button" data-answer-action="flashcards">${icons.cards}Flashcards</button>`;
+        <button class="btn btn-ghost btn-small" type="button" data-answer-action="flashcards">${icons.cards}Flashcards</button>
+        ${reply.message_id ? `<span class="rate-answer">
+            <button class="icon-btn" type="button" data-rate="1" aria-pressed="${reply.rating === 1}" aria-label="Helpful" title="Helpful">${icons.thumb_up}</button>
+            <button class="icon-btn" type="button" data-rate="-1" aria-pressed="${reply.rating === -1}" aria-label="Not helpful" title="Not helpful">${icons.thumb_down}</button>
+        </span>` : ""}`;
     reply.appendChild(row);
     return row;
 }
@@ -735,6 +743,23 @@ function read_aloud(reply) {
     });
 }
 
+// thumbs up or down, the same one again clears it
+async function rate_answer(reply, rating) {
+    if (!reply?.message_id) return;
+    const next = reply.rating === rating ? 0 : rating;
+    try {
+        await api(`/api/messages/${reply.message_id}/rating`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rating: next }),
+        });
+    } catch (error) {
+        return;
+    }
+    reply.rating = next;
+    reply.querySelectorAll("[data-rate]").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.rate) === next)));
+}
+
 // a test or deck from one answer, the answer goes in as notes so nothing is cut short
 function study_answer(reply, tool) {
     const text = String(reply.raw_text || "").replace(/⟦[^⟧]*⟧/g, "").trim();
@@ -776,6 +801,8 @@ thread.addEventListener("click", (event) => {
     if (deck) open_set(deck.dataset.todayDeck);
     if (event.target.closest('[data-today-page="reminders"]')) show_reminders();
     if (event.target.closest("[data-retry]")) retry_answer();
+    const thumb = event.target.closest("[data-rate]");
+    if (thumb) rate_answer(thumb.closest(".message"), Number(thumb.dataset.rate));
     const action = event.target.closest("[data-answer-action]");
     if (action && action.dataset.answerAction === "listen") read_aloud(action.closest(".message"));
     else if (action) study_answer(action.closest(".message"), action.dataset.answerAction);
@@ -3672,7 +3699,7 @@ function show_performance() {
 
 // what rahah has cost on this api key, today, this week and in all, with what caching saved
 
-const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions" };
+const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions", plan: "Revision plans" };
 
 function dollars(value) {
     return `$${value >= 1 ? value.toFixed(2) : value.toFixed(4)}`;
@@ -3680,11 +3707,27 @@ function dollars(value) {
 
 async function load_usage() {
     try {
-        state.usage = await (await api("/api/usage")).json();
+        const [usage, feedback] = await Promise.all([api("/api/usage"), api("/api/feedback")]);
+        state.usage = await usage.json();
+        state.feedback = await feedback.json();
     } catch (error) {
         return;
     }
     render_usage();
+}
+
+// what students thought of the answers, with the unhelpful ones to look at
+function feedback_html(f) {
+    if (!f || (!f.up && !f.down)) return "";
+    return `<div class="feedback-box">
+        <p class="usage-note">Answer ratings: ${f.up} helpful · ${f.down} not helpful</p>
+        ${f.unhelpful.length ? `<details class="perf-details">
+            <summary>Answers marked not helpful</summary>
+            <ul class="detail-list unhelpful-list">${f.unhelpful.map((u) => `<li>
+                <a href="#/c/${u.conversation_id}"><strong>${escape_html(u.question || "A question")}</strong><span>${escape_html(u.answer)}</span></a>
+            </li>`).join("")}</ul>
+        </details>` : ""}
+    </div>`;
 }
 
 function render_usage() {
@@ -3705,6 +3748,7 @@ function render_usage() {
         <div class="usage-cols">${column("Today", u.today)}${column("Last 7 days", u.week)}${column("All time", all)}</div>
         <p class="usage-note">${!all.requests ? "Nothing used yet." : all.cache_share ? `Caching saved ${dollars(all.saved)}, and ${all.cache_share}% of what Claude read came from the cache.` : "Nothing came from the cache yet. Caching starts saving once chats get longer."}</p>
         ${all.kinds.length ? `<div class="usage-kinds">${all.kinds.map((k) => `<span>${usage_kinds[k.kind] || k.kind} <strong>${dollars(k.cost)}</strong></span>`).join("")}</div>` : ""}
+        ${feedback_html(state.feedback)}
     </section>`;
 }
 
@@ -4105,6 +4149,8 @@ async function open_conversation(conversation_id) {
             if (m.stopped) add_notice(reply, "You stopped this answer.");
             reply.classList.add("answered");
             reply.raw_text = m.text;
+            reply.message_id = m.id;
+            reply.rating = m.rating || 0;
             add_answer_actions(reply);
         });
         sync_view();

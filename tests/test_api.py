@@ -391,3 +391,28 @@ def test_hint_mode_adds_a_note_for_that_question_only(setup):
     # try again keeps hint mode when asked to
     web.post(f"/api/conversations/{chat}/retry", json={"mode": "maths", "hints": True})
     assert "Hint mode is on" in claude.beta.messages.calls[2]["messages"][-1]["content"]
+
+
+def test_answers_can_be_rated_and_unhelpful_ones_are_listed(setup):
+    web, _ = setup([message([text_block("first answer")]), message([text_block("better answer")])])
+    chat = new_chat(web)
+    done = ask(web, chat, "what is osmosis")[-1]
+    answer = done["v"]["id"]
+    assert answer
+    assert web.post(f"/api/messages/{answer}/rating", json={"rating": -1}).json() == {"rating": -1}
+    shown = web.get(f"/api/conversations/{chat}").json()["messages"]
+    assert shown[1]["rating"] == -1 and shown[0]["rating"] == 0
+    report = web.get("/api/feedback").json()
+    assert report["down"] == 1 and report["up"] == 0
+    assert report["unhelpful"][0]["question"] == "what is osmosis" and report["unhelpful"][0]["answer"] == "first answer"
+    # questions can't be rated, and nor can answers that don't exist
+    assert web.post(f"/api/messages/{shown[0]['id']}/rating", json={"rating": 1}).status_code == 404
+    assert web.post("/api/messages/999999/rating", json={"rating": 1}).status_code == 404
+    assert web.post(f"/api/messages/{answer}/rating", json={"rating": 2}).status_code == 422
+    # trying again replaces the answer, and its rating goes with it
+    web.post(f"/api/conversations/{chat}/retry", json={"mode": "general"})
+    assert web.get("/api/feedback").json()["down"] == 0
+    new_answer = web.get(f"/api/conversations/{chat}").json()["messages"][1]
+    web.post(f"/api/messages/{new_answer['id']}/rating", json={"rating": 1})
+    web.post(f"/api/messages/{new_answer['id']}/rating", json={"rating": 0})
+    assert web.get("/api/feedback").json() == {"up": 0, "down": 0, "unhelpful": []}

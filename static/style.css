@@ -1116,6 +1116,44 @@ button.picker-heading:focus-visible {
     color: var(--accent-text);
 }
 
+/* thumbs up and down at the end of an answer's actions */
+.rate-answer {
+    display: inline-flex;
+    margin-left: auto;
+}
+
+.rate-answer .icon-btn {
+    width: 34px;
+    height: 34px;
+}
+
+.rate-answer svg {
+    width: 17px;
+    height: 17px;
+}
+
+.rate-answer [aria-pressed="true"] {
+    color: var(--accent-text);
+    background: var(--accent-soft);
+}
+
+.unhelpful-list a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.unhelpful-list span {
+    font-size: 0.8rem;
+    color: var(--text-2);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 /* a row of small actions under each answer, try again on the latest one */
 .answer-actions {
     display: flex;
