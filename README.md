@@ -141,7 +141,9 @@ render.yaml in the repo sets everything up: a Starter server that stays on, a 1 
 5. Signed in as the admin, open /api/admin/address and check that from_header is true, so each visitor is counted by their own address
 6. Every push to main updates the site, with under a minute down while it restarts
 
-A backup of the database is made on the same disk each day and kept for a week.
+A backup of the database is made on the same disk each day and kept for a week. Once email is set up, that day's backup is also zipped and emailed to studywithrahah@gmail.com (RAHAH_BACKUP_EMAIL), so losing the disk doesn't lose everything. To restore one, unzip it and put it back on the disk as /var/data/rahah.db while Rahah is stopped.
+
+Problems on the server, like Claude failing or anything that breaks a request, are emailed to the admin (RAHAH_ALERT_EMAIL), gathered into one email at most every half hour so a bad spell doesn't flood the inbox. The full details stay in Render's logs.
 
 The privacy page at /privacy says what Rahah keeps, why, who else sees it and how to have it removed. The terms at /terms set the rules: one account each, fair use of the allowance, answers can be wrong, the student's work stays theirs. Both are linked from the sign in page and the Account tab, and Google asks for the privacy address, with the homepage, before Sign in with Google can be published for everyone.
 
@@ -202,6 +204,7 @@ Settings
 - `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`
 - `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
 - `RAHAH_SMTP_USER`, `RAHAH_SMTP_PASSWORD` - The Gmail address and app password that send password reset emails. Leave them out and Forgot password points to the help email instead. `RAHAH_SMTP_HOST` and `RAHAH_SMTP_PORT` change the provider, defaulting to Gmail on 587, and `RAHAH_PUBLIC_URL` sets the address in links if Render's own isn't there
+- `RAHAH_BACKUP_EMAIL`, `RAHAH_ALERT_EMAIL` - Where the daily backup and problem alerts go once email is set up, defaulting to the sending Gmail account and the admin's email. `off` turns either one off
 - `RAHAH_CLIENT_IP_HEADER` - Online behind a host's proxy, the header holding each visitor's own address, `true-client-ip` on Render. Left blank the address comes from the connection
 - `GOOGLE_CLIENT_ID` - Turns on Sign in with Google, see above
 - `APPLE_CLIENT_ID` - Turns on Sign in with Apple, see above

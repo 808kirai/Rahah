@@ -46,6 +46,10 @@ class settings:
     smtp_password: str = ""
     # rahah's own address, for links in emails, render fills in RENDER_EXTERNAL_URL by itself
     public_url: str = ""
+    # where the daily backup and problem alerts are emailed once email is set up, off turns either off.
+    # blank sends backups to the sending gmail account and alerts to the admin's email
+    backup_email: str = ""
+    alert_email: str = ""
     # where students write for help, password resets and other requests
     support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
@@ -81,6 +85,8 @@ def load_settings() -> settings:
         # gmail shows app passwords in groups of four, the spaces don't matter
         smtp_password=os.getenv("RAHAH_SMTP_PASSWORD", "").replace(" ", ""),
         public_url=(os.getenv("RAHAH_PUBLIC_URL", "") or os.getenv("RENDER_EXTERNAL_URL", "")).strip().rstrip("/"),
+        backup_email=os.getenv("RAHAH_BACKUP_EMAIL", "").strip(),
+        alert_email=os.getenv("RAHAH_ALERT_EMAIL", "").strip(),
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

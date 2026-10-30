@@ -1,6 +1,7 @@
 """the rahah web server, run it with uvicorn app.main:create_app --factory"""
 
 import asyncio
+import gzip
 from datetime import date
 import json
 import logging
@@ -20,6 +21,7 @@ from .accounts import (
     check_password, clean_email, clean_username, email_problem, hash_password, new_token, password_problem, session_cookie,
     session_days, sign_in_guard, username_from, username_problem,
 )
+from .alerts import alert_box, alert_handler
 from .mailer import send_email
 from .providers import identity, provider_error, verify_apple, verify_google
 from .modes import (
@@ -278,8 +280,18 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     }
     db = store(cfg.db_path)
     # how emails go out, tests swap in their own
-    mailer = mailer or (lambda to, subject, text: send_email(cfg, to, subject, text))
+    mailer = mailer or (lambda to, subject, text, attachment=None: send_email(cfg, to, subject, text, attachment))
     reset_by_email = bool(cfg.smtp_user and cfg.smtp_password)
+
+    def email_to(setting: str, fallback: str) -> str:
+        # an email address for backups or alerts, nothing when email isn't set up or it's turned off
+        if not reset_by_email or setting.lower() == "off":
+            return ""
+        return setting or fallback
+
+    backup_to = email_to(cfg.backup_email, cfg.smtp_user)
+    alert_to = email_to(cfg.alert_email, cfg.admin_email or cfg.smtp_user)
+    alerts = alert_box(lambda subject, text: mailer(alert_to, subject, text))
     reset_minutes = 30
     # the account with the admin email is the admin whenever rahah starts, so fixing a mistyped
     # admin email after the account was made takes effect on the next start
@@ -296,6 +308,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                 made = await asyncio.to_thread(db.backup, cfg.db_path.parent / "backups")
                 if made:
                     log.info("backed up the database to %s", made)
+                    # a copy leaves render too, so losing the disk doesn't lose everything
+                    if backup_to:
+                        await asyncio.to_thread(email_backup, made)
             except Exception as error:
                 log.warning("database backup failed: %s", error)
 
@@ -304,14 +319,54 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                 await asyncio.sleep(3600)
                 await back_up()
 
+        async def keep_alerting():
+            # problems are gathered and sent as one email at most every half hour
+            while True:
+                await asyncio.sleep(60)
+                if alerts.due():
+                    await asyncio.to_thread(alerts.flush)
+
+        handler = alert_handler(alerts) if alert_to else None
+        if handler:
+            log.addHandler(handler)
         await back_up()
-        task = asyncio.create_task(keep_backed_up())
+        tasks = [asyncio.create_task(keep_backed_up())]
+        if handler:
+            tasks.append(asyncio.create_task(keep_alerting()))
         yield
-        task.cancel()
+        for task in tasks:
+            task.cancel()
+        if handler:
+            log.removeHandler(handler)
+
+    def email_backup(path: Path) -> None:
+        # squeezed with gzip, a study database shrinks a lot. gmail takes attachments up to 25 MB
+        packed = gzip.compress(path.read_bytes())
+        day = path.stem.removeprefix("rahah-")
+        if len(packed) > 20 * 1024 * 1024:
+            mailer(backup_to, f"Rahah backup {day} is too big to email",
+                   f"Today's backup is {len(packed) // (1024 * 1024)} MB packed, too big for email. It's saved on Render's disk "
+                   "for a week. Time to move backups to cloud storage.")
+            return
+        size = f"{max(1, len(packed) // 1024)} KB"
+        mailer(backup_to, f"Rahah backup {day}",
+               f"Today's copy of Rahah's database is attached ({size}).\n\n"
+               "Keep these somewhere safe, they hold every account and chat. Passwords are stored scrambled, not as typed.\n\n"
+               "To restore one: unzip it, then upload it to Render's disk as /var/data/rahah.db while Rahah is stopped.",
+               attachment=(f"{path.name}.gz", packed, "application/gzip"))
 
     # the automatic api pages are left off, nobody outside needs a map of the routes
     app = FastAPI(title="Rahah", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     install_security(app, cfg, max(cfg.max_upload_mb, max_set_mb) + 5)
+
+    @app.middleware("http")
+    async def note_crashes(request: Request, call_next):
+        # an error nothing else caught is written to the log, which emails the admin
+        try:
+            return await call_next(request)
+        except Exception:
+            log.exception("something broke on %s %s", request.method, request.url.path)
+            raise
     signups = counter(cfg.signups_per_ip, 86400)
     running = in_flight(cfg.max_running)
     # checked against when a name isn't found, so a wrong name takes as long as a wrong password
