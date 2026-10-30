@@ -149,7 +149,7 @@ function render_week() {
 
 // what rahah has cost on this api key, today, this week and in all, with what caching saved
 
-const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions", plan: "Revision plans" };
+const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions", plan: "Revision plans", stall: "Acolyte too slow, Mage answered" };
 
 // money is always shown to the cent
 function dollars(value) {

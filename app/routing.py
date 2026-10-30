@@ -66,5 +66,16 @@ def chat_route(cfg: settings, choice: str, mode: str, code_ran: bool) -> route:
     return route(model_for(cfg, tier), cfg.effort, tier)
 
 
+def stall_backup(cfg: settings, used: route) -> route | None:
+    """what to ask instead when acolyte hasn't started an answer in time, or None to keep waiting
+
+    haiku sometimes waits in a queue for a minute or more before it starts, so a stuck acolyte answer is
+    asked of mage. answers already streaming are never cut off, and with one model set there's nothing to switch to
+    """
+    if used.tier != "acolyte" or cfg.model or cfg.stall_seconds <= 0:
+        return None
+    return route(model_for(cfg, "mage"), used.effort, "mage")
+
+
 def choices_for(is_admin: bool) -> list[dict]:
     return [{k: v for k, v in c.items() if k != "admin"} for c in choices if is_admin or not c.get("admin")]

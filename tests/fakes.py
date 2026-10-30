@@ -1,5 +1,6 @@
 """a stand in for the anthropic client, built from the sdk's own types so shapes stay real"""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -127,6 +128,19 @@ class fake_stream:
         return self.final
 
 
+class stalled_stream(fake_stream):
+    """a reply that sits silent for a while before its first event, like a request stuck in a queue"""
+
+    def __init__(self, final, delay):
+        super().__init__(final)
+        self.delay = delay
+
+    async def _events(self):
+        await asyncio.sleep(self.delay)
+        async for event in super()._events():
+            yield event
+
+
 class fake_messages:
     def __init__(self, replies):
         self.replies = list(replies)
@@ -137,7 +151,7 @@ class fake_messages:
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        if isinstance(reply, stopped_stream):
+        if isinstance(reply, (stopped_stream, stalled_stream)):
             return reply
         return fake_stream(reply)
 

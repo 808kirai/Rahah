@@ -8,7 +8,7 @@ What it does today
 
 Chat
 
-- A model picker beside the send arrow, shown as plain text like "Mage Careful", by names that say how hard each one thinks. Students only ever see the names, never the Claude models behind them. Auto, the default, sends everyday questions to Acolyte (Haiku 5.5) and maths, science and code to Mage (Sonnet 5.5). Students can pick Acolyte or Mage themselves, and the admin also gets Archmage (Opus 5.5). The choice is saved with the account, each answer shows which model wrote it, and a student asking for Archmage is turned away before anything is spent
+- A model picker beside the send arrow, shown as plain text like "Mage Careful", by names that say how hard each one thinks. Students only ever see the names, never the Claude models behind them. Auto, the default, sends everyday questions to Acolyte (Haiku 5.5) and maths, science and code to Mage (Sonnet 5.5). Students can pick Acolyte or Mage themselves, and the admin also gets Archmage (Opus 5.5). The choice is saved with the account, each answer shows which model wrote it, and a student asking for Archmage is turned away before anything is spent. Haiku sometimes waits in a queue for a minute or more before it starts, so if Acolyte hasn't started an answer within 20 seconds, Rahah drops that request and asks Mage instead. An answer that has started is never cut off, and the usage box counts how often this happens
 - Answers stream in as they are written, and a stop button ends an answer early. What arrived so far is kept, marked as stopped
 - Try again under the latest answer asks for a fresh one to the same question, and an answer that failed has its own Try again
 - Listen reads an answer aloud with the device's own voice, free and offline, saying simple maths in words and skipping code and citation marks
@@ -153,6 +153,7 @@ Settings
 
 - `ANTHROPIC_API_KEY` - Your Claude API key, required
 - `RAHAH_MODEL` - Leave it out for the model picker. Set to one model, like `claude-haiku-5-5`, and every request uses it whatever the picker says, which is handy for cheap testing
+- `RAHAH_STALL_SECONDS` - How long Acolyte gets to start an answer before Mage is asked instead, defaults to `20`, and `0` turns it off
 - `RAHAH_LIGHT_MODEL`, `RAHAH_DEEP_MODEL`, `RAHAH_TOP_MODEL` - The models behind Acolyte, Mage and Archmage, defaulting to `claude-haiku-5-5`, `claude-sonnet-5-5` and `claude-opus-5-5`
 - `RAHAH_EFFORT` - How hard Claude thinks, one of low, medium, high, xhigh or max, defaults to `medium`
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`

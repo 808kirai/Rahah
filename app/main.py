@@ -26,7 +26,7 @@ from .modes import (
 )
 from .performance import summarise
 from .report import weekly_report
-from .routing import chat_route, choice_ids, choices_for
+from .routing import chat_route, choice_ids, choices_for, stall_backup
 from .plans import make_plan, plan_calendar
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
@@ -808,6 +808,29 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         code = runs_code(mode) or sandbox is not None
         # the student's pick, or on auto, acolyte for everyday questions and mage for hard subjects
         use = chat_route(cfg, choice, mode, sandbox is not None)
+        # the route actually used, which changes if acolyte is too slow to start and mage answers instead
+        answered = {"route": use}
+
+        async def routed():
+            stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort)
+            backup = stall_backup(cfg, use)
+            if backup:
+                try:
+                    first = await asyncio.wait_for(anext(stream), cfg.stall_seconds)
+                except asyncio.TimeoutError:
+                    # nothing yet, the stuck request is dropped and mage is asked, the switch is counted for the admin
+                    await stream.aclose()
+                    log.info("acolyte took over %ss to start, asking mage", cfg.stall_seconds)
+                    db.add_usage(user["id"], "stall", {"model": use.model, "input_tokens": 0, "output_tokens": 0,
+                                                        "cache_read": 0, "cache_write": 0, "searches": 0}, 0.0)
+                    answered["route"] = backup
+                    stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=backup.model, effort=backup.effort)
+                except StopAsyncIteration:
+                    return
+                else:
+                    yield first
+            async for event in stream:
+                yield event
         container = sandbox["container_id"] if sandbox and sandbox["expires"] > time.time() + container_margin else None
         outputs = db.get_outputs(conversation_id)
 
@@ -833,7 +856,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         async def events():
             final, ended, partial, searches = None, False, "", []
             try:
-                async for event in stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort):
+                async for event in routed():
                     if event["t"] == "final":
                         final = event["v"]
                         continue
@@ -863,7 +886,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             if final.stop_reason == "refusal":
                 yield sse({"t": "refusal", "v": "Rahah can't help with that request. Try rephrasing it."})
                 return
-            display = {**display_from_content(final.content, outputs), "tier": use.tier}
+            display = {**display_from_content(final.content, outputs), "tier": answered["route"].tier}
             if not display["text"].strip():
                 yield sse({"t": "error", "v": "Rahah returned an empty answer. Try asking again."})
                 return

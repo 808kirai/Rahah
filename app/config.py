@@ -18,6 +18,8 @@ class settings:
     light_model: str = "claude-haiku-5-5"
     deep_model: str = "claude-sonnet-5-5"
     top_model: str = "claude-opus-5-5"
+    # seconds acolyte gets to start an answer before rahah asks mage instead, 0 turns this off
+    stall_seconds: float = 20
     effort: str = "medium"
     db_path: Path = project_root / "data" / "rahah.db"
     max_upload_mb: int = 30
@@ -39,6 +41,7 @@ def load_settings() -> settings:
         light_model=os.getenv("RAHAH_LIGHT_MODEL", "claude-haiku-5-5").strip() or "claude-haiku-5-5",
         deep_model=os.getenv("RAHAH_DEEP_MODEL", "claude-sonnet-5-5").strip() or "claude-sonnet-5-5",
         top_model=os.getenv("RAHAH_TOP_MODEL", "claude-opus-5-5").strip() or "claude-opus-5-5",
+        stall_seconds=float(os.getenv("RAHAH_STALL_SECONDS", "20")),
         effort=effort,
         db_path=Path(os.getenv("RAHAH_DB", str(project_root / "data" / "rahah.db"))),
         max_upload_mb=int(os.getenv("RAHAH_MAX_UPLOAD_MB", "30")),

@@ -6,7 +6,7 @@ from app.main import create_app
 from app.routing import chat_route, chat_tier, choices_for, pick
 from app.usage import summarise
 
-from .fakes import fake_client, message, signed_in, text_block
+from .fakes import fake_client, message, signed_in, stalled_stream, text_block
 
 
 @pytest.fixture
@@ -109,3 +109,26 @@ def test_the_usage_box_shows_cost_per_model():
         {"model": "claude-sonnet-5-5", "requests": 1, "cost": 0.01},
         {"model": "claude-haiku-5-5", "requests": 2, "cost": 0.003},
     ]
+
+
+def test_a_stuck_acolyte_answer_is_asked_of_mage(setup):
+    app, claude = setup([stalled_stream(message([text_block("Too late.")]), 2), message([text_block("Mage here.")])], stall_seconds=0.3)
+    web = signed_in(TestClient(app))
+    _, sent = answer(web, "general", "what is osmosis?")
+    assert sent.status_code == 200
+    assert [c["model"] for c in claude.beta.messages.calls] == ["claude-haiku-5-5", "claude-sonnet-5-5"]
+    # the student gets mage's answer, tagged as mage, and the stuck one never shows
+    assert "Mage here." in sent.text and "Too late." not in sent.text and '"tier": "mage"' in sent.text
+    # the switch is counted for the admin, at no cost
+    stalls = [k for k in web.get("/api/usage").json()["all"]["kinds"] if k["kind"] == "stall"]
+    assert stalls == [{"kind": "stall", "requests": 1, "cost": 0.0}]
+
+
+def test_a_quick_acolyte_answer_and_mage_answers_are_left_alone(setup):
+    app, claude = setup([stalled_stream(message([text_block("Quick enough.")]), 0.05), stalled_stream(message([text_block("Slow mage.")]), 0.5)], stall_seconds=0.3)
+    web = signed_in(TestClient(app))
+    _, sent = answer(web, "general")
+    assert "Quick enough." in sent.text and len(claude.beta.messages.calls) == 1
+    # mage is never switched, however long it takes to start
+    _, sent = answer(web, "maths")
+    assert "Slow mage." in sent.text and len(claude.beta.messages.calls) == 2
