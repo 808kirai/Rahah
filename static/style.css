@@ -1913,6 +1913,169 @@ body.signed-out .toasts {
     }
 }
 
+/* the suggested for you row on home, with its refresh button beside the heading */
+.category-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.rec-refresh svg {
+    width: 15px;
+    height: 15px;
+}
+
+/* the account tab */
+.account-page .perf-card + .perf-card,
+.account-page .account-grid + .perf-card,
+.account-page #usage-slot .perf-card {
+    margin-top: 1rem;
+}
+
+/* profile and password as two tall cards side by side, each with its boxes stacked */
+.account-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.account-page .account-grid .perf-card {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.account-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+/* the buttons sit at the foot of each card with room above them */
+.account-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 1.5rem;
+}
+
+@media (max-width: 900px) {
+    .account-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.account-actions .field-hint {
+    margin: 0;
+}
+
+/* today's allowance in the usage box */
+.allowance {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    background: var(--card-bg);
+}
+
+.allowance-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.allowance-head strong {
+    color: var(--text);
+}
+
+.allowance-track {
+    height: 8px;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.allowance-bar {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.allowance-bar.full {
+    background: var(--mauve-text);
+}
+
+.allowance small {
+    color: var(--text-2);
+    font-size: 0.75rem;
+}
+
+.usage-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 8rem;
+}
+
+.usage-bar .allowance-track {
+    flex: 1;
+}
+
+.usage-bar-value {
+    min-width: 2.6rem;
+    text-align: right;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
+/* the students page */
+.admin-table td small {
+    display: block;
+    color: var(--text-2);
+    font-size: 0.75rem;
+}
+
+.admin-table tr.is-off td {
+    opacity: 0.55;
+}
+
+.admin-cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-2);
+}
+
+.admin-cap .text-input {
+    width: 6.5rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.admin-tag {
+    color: var(--text-2);
+    font-size: 0.82rem;
+}
+
+.admin-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.account-admin {
+    margin-top: 0.6rem;
+}
+
 /* who's signed in, at the top of settings */
 .account-row {
     display: flex;

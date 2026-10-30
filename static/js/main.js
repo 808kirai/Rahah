@@ -599,7 +599,9 @@ function render_account() {
     const box = el("account-box");
     if (!box || !me) return;
     const shown = me.name || me.username;
+    // profile and password sit side by side as two tall cards, students and usage stay full width below
     box.innerHTML = `
+        <div class="account-grid">
         <section class="perf-card">
             <div class="account-row">
                 <span class="account-avatar" aria-hidden="true">${escape_html(shown.slice(0, 1).toUpperCase())}</span>
@@ -637,6 +639,7 @@ function render_account() {
                 <p class="field-hint" id="password-note" hidden></p>
             </div>
         </section>
+        </div>
         ${me.is_admin ? `<section class="perf-card">
             <div class="perf-head">
                 <h3>Students</h3>
