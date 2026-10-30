@@ -78,7 +78,7 @@ Look and feel
 - A near black navy theme with soft teal glows and a solid blue accent, after a Dribbble reference, and a matching light theme
 - Faint see through cards and boxes, with a soft shadow in light mode
 - The tabs and message box float over the page with a fade underneath, like a streaming app
-- Popups close with a click outside them
+- Popups close with a click outside them, and ease in when they open and out when they close, whether by a button, Escape or a click outside. On phones they slide up from the bottom and back down. Pages fade and lift in when you change tab, chat or deck. Anyone with reduced motion turned on gets no animation
 - The sign in page has the form on the left with Google and Apple as matching outlined ovals (Google's own button sits unseen over ours, so the click still goes to Google), outlined boxes, a Forgot password link and a link to switch between signing in and making an account, and the halftone picture from the reference design on the right. It's kept as a small shading map (static/img/auth-art.png, 17 KB) and redrawn as crisp diamond dots at the screen's own size, dark on the light page and light on the dark one. Phones get the form alone
 - Settings, the gear at the top, kept on the device:
   - Answer language, from 18 including Kiswahili, Arabic, French, Amharic, Somali, Hindi and Chinese. Rahah answers and makes tests and decks in it, gives the English term in brackets for key subject words, and Listen reads in that language

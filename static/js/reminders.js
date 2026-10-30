@@ -596,7 +596,7 @@ function show_plan(id, remake = false) {
                 <a class="btn btn-soft" href="/api/reminders/${r.id}/plan.ics" download>${icons.calendar}Add to calendar</a>
             </div>`;
     }
-    if (!plan_sheet.open) plan_sheet.showModal();
+    open_box(plan_sheet);
 }
 
 async function make_revision_plan(id) {

@@ -2134,11 +2134,18 @@ body.signed-out .toasts {
     flex-wrap: wrap;
     align-items: center;
     gap: 0.6rem;
-    margin-top: 0.6rem;
+    margin-top: 1rem;
 }
 
 .account-links:empty {
     display: none;
+}
+
+/* the connect buttons are the sign in page's ovals, sized to their words */
+.account-links .account-provider {
+    width: auto;
+    min-width: 230px;
+    padding: 0 1.25rem;
 }
 
 .account-linked {
@@ -3202,10 +3209,11 @@ body.signed-out .toasts {
     box-shadow: 0 30px 80px var(--shadow);
 }
 
+/* boxes ease in when they open and out when they close, the page adds closing for the way out */
 .sheet {
     opacity: 0;
-    transform: translateY(18px) scale(0.98);
-    transition: opacity 0.3s var(--ease-out), transform 0.45s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+    transform: translateY(24px) scale(0.96);
+    transition: opacity 0.28s var(--ease-out), transform 0.4s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
 }
 
 .sheet[open] {
@@ -3213,10 +3221,17 @@ body.signed-out .toasts {
     transform: none;
 }
 
+.sheet[open].closing {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    transition-duration: 0.22s, 0.22s;
+    transition-timing-function: ease-in, ease-in;
+}
+
 @starting-style {
     .sheet[open] {
         opacity: 0;
-        transform: translateY(18px) scale(0.98);
+        transform: translateY(24px) scale(0.96);
     }
 }
 
@@ -3227,6 +3242,33 @@ body.signed-out .toasts {
 
 .sheet[open]::backdrop {
     background: rgba(2, 6, 12, 0.55);
+}
+
+.sheet[open].closing::backdrop {
+    background: rgba(2, 6, 12, 0);
+    transition-duration: 0.22s;
+}
+
+/* a new page fades and lifts in */
+.thread.view-in > * {
+    animation: view-in 0.38s var(--ease-out) both;
+}
+
+@keyframes view-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .thread.view-in > * {
+        animation: none;
+    }
 }
 
 @starting-style {
@@ -5211,6 +5253,17 @@ body.signed-out .toasts {
         width: 100%;
         max-width: 100%;
         border-radius: 28px 28px 0 0;
+        transform: translateY(100%);
+    }
+
+    .sheet[open].closing {
+        transform: translateY(100%);
+    }
+
+    @starting-style {
+        .sheet[open] {
+            transform: translateY(100%);
+        }
     }
 
     .field-row,

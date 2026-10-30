@@ -105,8 +105,23 @@ function current_view() {
     return "chat";
 }
 
+// a new page eases in, a fade and a small lift, whenever what's shown changes
+let shown_view = "";
+function ease_in_view() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    thread.classList.remove("view-in");
+    void thread.offsetWidth; // starts the animation again even if it just ran
+    thread.classList.add("view-in");
+    clearTimeout(ease_in_view.timer);
+    ease_in_view.timer = setTimeout(() => thread.classList.remove("view-in"), 600);
+}
+
 function sync_view() {
     const view = current_view();
+    if (view !== shown_view) {
+        shown_view = view;
+        ease_in_view();
+    }
     document.body.classList.toggle("is-home", view === "home");
     document.body.classList.toggle("is-chats", view === "chats");
     document.body.classList.toggle("is-account", view === "account" || view === "admin");

@@ -72,6 +72,44 @@ function escape_html(text) {
     return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
+// popup boxes ease out before they really close, so closing is as smooth as opening
+// every close goes through here, cancel, done, escape or a click outside, and opening again mid close cancels it
+const box_close_ms = 220;
+const native_close = HTMLDialogElement.prototype.close;
+const native_show_modal = HTMLDialogElement.prototype.showModal;
+HTMLDialogElement.prototype.close = function (value) {
+    if (!this.open || this.closing_timer || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (!this.closing_timer) native_close.call(this, value);
+        return;
+    }
+    this.classList.add("closing");
+    this.closing_timer = setTimeout(() => {
+        this.closing_timer = null;
+        this.classList.remove("closing");
+        native_close.call(this, value);
+    }, box_close_ms);
+};
+HTMLDialogElement.prototype.showModal = function () {
+    if (this.closing_timer) {
+        clearTimeout(this.closing_timer);
+        this.closing_timer = null;
+        this.classList.remove("closing");
+        if (this.open) return;
+    }
+    native_show_modal.call(this);
+};
+// opens a box unless it's already showing, and a box that's halfway through closing stays open instead
+function open_box(dialog) {
+    if (!dialog.open || dialog.closing_timer) dialog.showModal();
+}
+
+// escape closes a box the same smooth way
+document.addEventListener("cancel", (event) => {
+    if (!(event.target instanceof HTMLDialogElement)) return;
+    event.preventDefault();
+    event.target.close();
+}, true);
+
 async function api(path, options = {}) {
     const response = await fetch(path, options);
     // a session that ran out or was signed out elsewhere goes back to the sign in screen

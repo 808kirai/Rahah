@@ -396,7 +396,7 @@ function show_notes_picker() {
         <div class="sheet-actions">
             <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
         </div>`;
-    if (!detail_sheet.open) detail_sheet.showModal();
+    open_box(detail_sheet);
 }
 
 function attach_note(id) {

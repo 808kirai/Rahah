@@ -739,6 +739,7 @@ function show_set(study_set) {
     if (study_set.kind === "flashcards") state.study.order = practice_order(study_set.items, state.study.progress);
     thread.innerHTML = '<div class="study" id="study"></div>';
     thread.scrollTop = 0;
+    ease_in_view();
     render_study();
     sync_view();
 }

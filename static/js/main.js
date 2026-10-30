@@ -44,6 +44,7 @@ async function open_conversation(conversation_id) {
         mode_select.value = conversation.mode;
         sync_placeholder();
         thread.innerHTML = "";
+        ease_in_view();
         if (!conversation.messages.length) show_welcome();
         conversation.messages.forEach((m) => {
             if (m.role === "user") {
@@ -657,9 +658,15 @@ async function render_account_links() {
     const config = await auth_config();
     if (!slot || !me || (!config.google_client_id && !config.apple_client_id)) return;
     const done = (name) => `<span class="account-linked">${icons.check}${name} connected</span>`;
+    // the logos come from the sign in page's own buttons, so both places look the same
+    const google_logo = el("auth-google").querySelector(".google-logo").outerHTML;
+    const apple_logo = el("apple-button").querySelector(".apple-logo").outerHTML;
     slot.innerHTML = `
-        ${config.google_client_id ? (me.google ? done("Google") : '<div class="account-google" id="google-connect"></div>') : ""}
-        ${config.apple_client_id ? (me.apple ? done("Apple") : '<button class="btn btn-ghost btn-small" type="button" data-connect-apple>Connect Apple</button>') : ""}`;
+        ${config.google_client_id ? (me.google ? done("Google") : `<div class="auth-provider auth-google account-provider">
+            <span class="auth-provider-face" aria-hidden="true">${google_logo}<span>Connect Google</span></span>
+            <div class="auth-google-hit" id="google-connect"></div>
+        </div>`) : ""}
+        ${config.apple_client_id ? (me.apple ? done("Apple") : `<button class="auth-provider account-provider" type="button" data-connect-apple>${apple_logo}<span>Connect Apple</span></button>`) : ""}`;
     if (config.google_client_id && !me.google) draw_google_button(el("google-connect"), "signin_with");
 }
 

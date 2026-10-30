@@ -496,7 +496,7 @@ function show_test_detail(id) {
             <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
             <a class="btn btn-accent" href="#/set/${q.id}" data-detail-close>Retake</a>
         </div>`;
-    if (!detail_sheet.open) detail_sheet.showModal();
+    open_box(detail_sheet);
 }
 
 function show_subject_detail(mode) {
@@ -517,7 +517,7 @@ function show_subject_detail(mode) {
         <div class="sheet-actions">
             <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
         </div>`;
-    if (!detail_sheet.open) detail_sheet.showModal();
+    open_box(detail_sheet);
 }
 
 el("detail-close").addEventListener("click", () => detail_sheet.close());
@@ -545,7 +545,7 @@ function show_gpa_detail() {
         <div class="sheet-actions">
             <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
         </div>`;
-    if (!detail_sheet.open) detail_sheet.showModal();
+    open_box(detail_sheet);
 }
 
 function pick_detail(target) {
