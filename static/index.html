@@ -205,6 +205,14 @@
                             <input type="file" id="file-input" multiple hidden accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif,.py,.js,.ts,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.kt,.swift,.r,.sql,.sh,.html,.css,.json,.csv">
                             <input type="file" id="photo-input" multiple hidden accept="image/*">
                             <textarea id="input" rows="1" placeholder="Ask anything, or drop a PDF here" aria-label="Message"></textarea>
+                            <!-- which model answers, by a name that says how hard it thinks -->
+                            <div class="model-tools">
+                                <button type="button" class="model-pick" id="model-pick" aria-haspopup="menu" aria-expanded="false" aria-controls="model-menu" title="Choose how Rahah thinks">
+                                    <span id="model-pick-name">Auto</span>
+                                    <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                                </button>
+                                <div class="input-menu model-menu" id="model-menu" role="menu" aria-label="Choose how Rahah thinks" hidden></div>
+                            </div>
                             <button type="submit" class="send-btn" id="send" aria-label="Send" disabled>
                                 <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                             </button>

@@ -315,6 +315,7 @@ async function run_answer(reply, request, on_fail, again) {
                 searches = event.v.searches || [];
                 reply.message_id = event.v.id;
                 reply.rating = 0;
+                show_tier(reply, event.v.tier);
                 finished = true;
                 saved = true;
                 if (frame) cancelAnimationFrame(frame);
@@ -850,10 +851,88 @@ el("composer-chips").addEventListener("click", (event) => {
     if (event.target.closest("[data-talk-off]")) stop_talk();
 });
 
+// the model picker, auto or a name for each model, saved with the account like the other settings
+
+const tier_names = { acolyte: "Acolyte", mage: "Mage", archmage: "Archmage" };
+
+function model_choices() {
+    return state.me?.models?.length ? state.me.models : [{ id: "auto", name: "Auto", hint: "Rahah picks" }];
+}
+
+// a choice that's no longer offered, like archmage for someone who stopped being admin, goes back to auto
+function model_choice() {
+    const choice = state.settings?.model || "auto";
+    return model_choices().some((c) => c.id === choice) ? choice : "auto";
+}
+
+function render_model_pick() {
+    el("model-pick").closest(".model-tools").hidden = !state.me?.models?.length;
+    const current = model_choices().find((c) => c.id === model_choice());
+    el("model-pick-name").textContent = current.name;
+    el("model-pick").title = current.hint;
+}
+
+function open_model_menu() {
+    const menu = el("model-menu");
+    menu.innerHTML = model_choices().map((c) => `
+        <button type="button" class="input-option model-option" role="menuitemradio" aria-checked="${c.id === model_choice()}" data-model="${escape_html(c.id)}">
+            <span><strong>${escape_html(c.name)}</strong><small>${escape_html(c.hint)}</small></span>
+            ${c.id === model_choice() ? icons.check : ""}
+        </button>`).join("");
+    menu.hidden = false;
+    el("model-pick").setAttribute("aria-expanded", "true");
+    (menu.querySelector('[aria-checked="true"]') || menu.querySelector(".model-option"))?.focus();
+}
+
+function close_model_menu(refocus = false) {
+    const menu = el("model-menu");
+    if (menu.hidden) return;
+    menu.hidden = true;
+    el("model-pick").setAttribute("aria-expanded", "false");
+    if (refocus) el("model-pick").focus();
+}
+
+el("model-pick").addEventListener("click", () => (el("model-menu").hidden ? open_model_menu() : close_model_menu()));
+el("model-menu").addEventListener("click", (event) => {
+    const option = event.target.closest("[data-model]");
+    if (!option) return;
+    save_settings({ model: option.dataset.model });
+    close_model_menu(true);
+});
+el("model-menu").addEventListener("keydown", (event) => {
+    const options = [...el("model-menu").querySelectorAll(".model-option")];
+    const at = options.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+        event.preventDefault();
+        close_model_menu(true);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        options[(at + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus();
+    } else if (event.key === "Tab") {
+        close_model_menu();
+    }
+});
+document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".model-tools")) close_model_menu();
+});
+
+// the name of the model that wrote an answer, beside rahah's own name
+function show_tier(reply, tier) {
+    const label = reply?.querySelector(".label");
+    if (!label || !tier_names[tier]) return;
+    let tag = label.querySelector(".tier-tag");
+    if (!tag) {
+        tag = document.createElement("span");
+        tag.className = "tier-tag";
+        label.appendChild(tag);
+    }
+    tag.textContent = tier_names[tier];
+}
+
 // settings, kept on this device
 
 function settings_body() {
-    return { language: state.settings.language, low_data: state.settings.low_data };
+    return { language: state.settings.language, low_data: state.settings.low_data, model: model_choice() };
 }
 
 function load_settings() {
@@ -863,7 +942,11 @@ function load_settings() {
             saved = JSON.parse(localStorage.getItem("rahah-settings") || "{}");
         } catch (e) {}
     }
-    state.settings = { language: typeof saved.language === "string" ? saved.language : "", low_data: Boolean(saved.low_data) };
+    state.settings = {
+        language: typeof saved.language === "string" ? saved.language : "",
+        low_data: Boolean(saved.low_data),
+        model: typeof saved.model === "string" ? saved.model : "auto",
+    };
     try {
         localStorage.setItem("rahah-settings", JSON.stringify(state.settings));
     } catch (e) {}
@@ -893,6 +976,7 @@ function apply_settings() {
         state.settings.language = "";
     }
     state.answer_lang_code = state.languages[state.settings.language] || "";
+    render_model_pick();
     render_composer_chips();
     render_settings();
 }

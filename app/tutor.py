@@ -6,6 +6,7 @@ from typing import AsyncIterator
 
 from .config import settings
 from .modes import modes
+from .routing import model_for
 from .store import stored_file
 from .usage import add_up, usage_of
 
@@ -66,9 +67,9 @@ max_resumes = 5
 max_output_chars = 20000
 
 
-def fallback_options(cfg: settings) -> dict:
+def fallback_options(model: str) -> dict:
     # haiku has no fallback model, so the retry setting is only sent to the bigger models
-    if cfg.model.startswith("claude-haiku"):
+    if model.startswith("claude-haiku"):
         return {}
     return {"fallbacks": "default", "betas": [fallback_beta]}
 
@@ -325,6 +326,7 @@ class reply:
 
 async def stream_reply(
     client, cfg: settings, messages: list[dict], code: bool = False, container: str | None = None,
+    model: str = "", effort: str = "",
 ) -> AsyncIterator[dict]:
     """streams one answer as small events for the page, then a final event with the whole reply
 
@@ -333,7 +335,9 @@ async def stream_reply(
     a long run of code can pause the turn, which is resumed by sending the answer so far back
     """
     cites, runs = citation_list(), run_list()
-    options = fallback_options(cfg)
+    model = model or model_for(cfg, "acolyte")
+    effort = effort or cfg.effort
+    options = fallback_options(model)
     options["tools"] = [web_tool, code_tool] if code else [web_tool]
     content, sent = [], messages
     reported, expires = None, None
@@ -341,11 +345,11 @@ async def stream_reply(
     for _ in range(max_resumes + 1):
         extra = {"container": container} if container else {}
         async with client.beta.messages.stream(
-            model=cfg.model,
+            model=model,
             max_tokens=cfg.max_tokens,
             system=base_prompt,
             messages=sent,
-            output_config={"effort": cfg.effort},
+            output_config={"effort": effort},
             cache_control={"type": "ephemeral"},
             **options,
             **extra,

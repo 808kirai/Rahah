@@ -7,6 +7,7 @@ from .modes import modes
 from .usage import usage_of
 from .reminders import days_until, kinds as reminder_kinds
 from .study import clean_text, study_error
+from .routing import pick
 from .tutor import fallback_options
 
 recommend_prompt = """You are Rahah, a study companion for students, built on Claude by Anthropic. You look \
@@ -158,13 +159,13 @@ async def recommend(
     history = describe_history(chats, sets, results, deadlines)
     text = ask_text.format(count=6, sketch_names=", ".join(sketches), history=history)
     async with client.beta.messages.stream(
-        model=cfg.model,
+        model=pick(cfg, "tools").model,
         max_tokens=16000,
         system=recommend_prompt,
         messages=[{"role": "user", "content": text}],
         # a light task, so claude thinks less and the page fills sooner
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema()}},
-        **fallback_options(cfg),
+        **fallback_options(pick(cfg, "tools").model),
     ) as stream:
         final = await stream.get_final_message()
     if on_usage:

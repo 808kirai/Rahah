@@ -339,6 +339,72 @@ svg {
 }
 
 /* the logo is two masks so the R follows the text colour and the diamond stays mauve */
+/* the model picker in the message box, a small pill that opens a list upwards */
+.model-tools {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.model-tools[hidden] {
+    display: none;
+}
+
+.model-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 34px;
+    padding: 0 0.6rem 0 0.8rem;
+    border: none;
+    border-radius: var(--pill);
+    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+}
+
+.model-pick:hover,
+.model-pick[aria-expanded="true"] {
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+.model-pick svg {
+    width: 14px;
+    height: 14px;
+}
+
+.model-menu {
+    left: auto;
+    right: 0;
+    min-width: 17rem;
+}
+
+.model-option {
+    justify-content: space-between;
+}
+
+.model-option svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--accent-text);
+}
+
+/* the model that wrote an answer, small beside rahah's name */
+.tier-tag {
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
 /* the logo exactly as designed, a dark circle with three rising chevrons, the same in every theme */
 .logo {
     display: inline-grid;

@@ -9,6 +9,8 @@ prices = {
     "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.20},
     "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cache_read": 0.01},
 }
+# haiku costs five times as much per token once a prompt passes 100,000 tokens
+long_prompt = {"claude-haiku-5-5": (100_000, 5)}
 # writing to the five minute cache costs a quarter more than plain input
 cache_write_rate = 1.25
 search_price = 0.01
@@ -41,9 +43,14 @@ def add_up(parts: list[dict]) -> dict:
 
 def cost_of(use: dict) -> float | None:
     """dollars for one request, or None for a model without a known price"""
-    price = next((p for name, p in prices.items() if use["model"].startswith(name)), None)
-    if not price:
+    name = next((n for n in prices if use["model"].startswith(n)), None)
+    if not name:
         return None
+    price = prices[name]
+    prompt = use["input_tokens"] + use["cache_read"] + use["cache_write"]
+    limit, times = long_prompt.get(name, (None, 1))
+    if limit and prompt > limit:
+        price = {k: v * times for k, v in price.items()}
     tokens = (
         use["input_tokens"] * price["input"]
         + use["cache_write"] * price["input"] * cache_write_rate
@@ -69,10 +76,14 @@ def summarise(rows: list[dict], since: dict[str, float]) -> dict:
         read = sum(r["cache_read"] for r in picked)
         fresh = sum(r["input_tokens"] + r["cache_write"] for r in picked)
         kinds: dict[str, dict] = {}
+        models: dict[str, dict] = {}
         for r in picked:
             k = kinds.setdefault(r["kind"], {"kind": r["kind"], "requests": 0, "cost": 0.0})
             k["requests"] += 1
             k["cost"] += r["cost"] or 0
+            m = models.setdefault(r["model"], {"model": r["model"], "requests": 0, "cost": 0.0})
+            m["requests"] += 1
+            m["cost"] += r["cost"] or 0
         result[name] = {
             "requests": len(picked),
             "cost": round(sum(r["cost"] or 0 for r in picked), 4),
@@ -83,5 +94,6 @@ def summarise(rows: list[dict], since: dict[str, float]) -> dict:
             # how much of what was read came from the cache
             "cache_share": round(100 * read / (fresh + read)) if fresh + read else 0,
             "kinds": sorted(({**k, "cost": round(k["cost"], 4)} for k in kinds.values()), key=lambda k: -k["cost"]),
+            "models": sorted(({**m, "cost": round(m["cost"], 4)} for m in models.values()), key=lambda m: -m["cost"]),
         }
     return result

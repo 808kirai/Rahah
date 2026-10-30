@@ -82,8 +82,9 @@ def test_a_full_turn_streams_saves_and_cites(setup):
     assert streamed == events[-1]["v"]["text"]
 
     call = claude.beta.messages.calls[0]
-    assert call["model"] == "claude-opus-5-5"
-    assert call["fallbacks"] == "default"
+    # an everyday question goes to the light model, which has no fallback setting
+    assert call["model"] == "claude-haiku-5-5"
+    assert "fallbacks" not in call
     assert call["output_config"] == {"effort": "medium"}
     sent = call["messages"]
     assert [m["role"] for m in sent] == ["user", "system"]

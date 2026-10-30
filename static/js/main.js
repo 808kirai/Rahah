@@ -56,6 +56,7 @@ async function open_conversation(conversation_id) {
             if (m.stopped) add_notice(reply, "You stopped this answer.");
             reply.classList.add("answered");
             reply.raw_text = m.text;
+            show_tier(reply, m.tier);
             reply.message_id = m.id;
             reply.rating = m.rating || 0;
             add_answer_actions(reply);

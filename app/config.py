@@ -12,7 +12,12 @@ effort_levels = ("low", "medium", "high", "xhigh", "max")
 
 @dataclass
 class settings:
-    model: str = "claude-opus-5-5"
+    # left blank, each kind of work goes to the model that suits it, see app/routing.py
+    # set, every request uses this one model, handy for cheap testing
+    model: str = ""
+    light_model: str = "claude-haiku-5-5"
+    deep_model: str = "claude-sonnet-5-5"
+    top_model: str = "claude-opus-5-5"
     effort: str = "medium"
     db_path: Path = project_root / "data" / "rahah.db"
     max_upload_mb: int = 30
@@ -30,7 +35,10 @@ def load_settings() -> settings:
     if effort not in effort_levels:
         raise ValueError(f"RAHAH_EFFORT must be one of {', '.join(effort_levels)}")
     return settings(
-        model=os.getenv("RAHAH_MODEL", "claude-opus-5-5"),
+        model=os.getenv("RAHAH_MODEL", "").strip(),
+        light_model=os.getenv("RAHAH_LIGHT_MODEL", "claude-haiku-5-5").strip() or "claude-haiku-5-5",
+        deep_model=os.getenv("RAHAH_DEEP_MODEL", "claude-sonnet-5-5").strip() or "claude-sonnet-5-5",
+        top_model=os.getenv("RAHAH_TOP_MODEL", "claude-opus-5-5").strip() or "claude-opus-5-5",
         effort=effort,
         db_path=Path(os.getenv("RAHAH_DB", str(project_root / "data" / "rahah.db"))),
         max_upload_mb=int(os.getenv("RAHAH_MAX_UPLOAD_MB", "30")),

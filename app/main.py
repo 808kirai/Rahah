@@ -26,6 +26,7 @@ from .modes import (
 )
 from .performance import summarise
 from .report import weekly_report
+from .routing import chat_route, choice_ids, choices_for
 from .plans import make_plan, plan_calendar
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
@@ -169,6 +170,7 @@ class message_in(BaseModel):
     language: str = ""
     low_data: bool = False
     voice: bool = False
+    model: str = "auto"
 
 
 class retry_in(BaseModel):
@@ -176,6 +178,7 @@ class retry_in(BaseModel):
     hints: bool = False
     language: str = ""
     low_data: bool = False
+    model: str = "auto"
 
 
 def settings_notes(body) -> tuple:
@@ -327,6 +330,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             return {"limited": False}
         return {"limited": True, "percent": used_percent(a["used"], a["cap"]), "resets_in": a["resets_in"]}
 
+    def check_choice(user: dict, choice: str) -> None:
+        if choice not in choice_ids:
+            raise HTTPException(400, "Pick a model from the list.")
+        if choice == "archmage" and not user["is_admin"]:
+            raise HTTPException(403, "Archmage is only for the person who runs Rahah. Pick Mage instead.")
+
     def own_subjects(user: dict) -> set[str]:
         return {s["id"] for s in db.list_subjects(user["id"])}
 
@@ -341,6 +350,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
             "allowance": allowance_out(user),
+            # with one model set for everything in .env there's nothing to pick, so the page hides the picker
+            "models": [] if cfg.model else choices_for(user["is_admin"]),
         }
 
     def start_session(request: Request, response: Response, user: dict) -> None:
@@ -745,6 +756,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     def send_message(conversation_id: str, body: message_in, user: dict = Depends(signed_in)):
         conversation = conversation_or_404(user, conversation_id)
         check_mode(user, body.mode)
+        check_choice(user, body.model)
         check_allowance(user)
         text = body.text.strip()
         if not text:
@@ -769,13 +781,14 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if note:
             rows.append(note)
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
-        return answer_response(user, conversation_id, messages, rows, body.mode, text[:60], "chat")
+        return answer_response(user, conversation_id, messages, rows, body.mode, text[:60], "chat", body.model)
 
     @app.post("/api/conversations/{conversation_id}/retry")
     def retry_answer(conversation_id: str, body: retry_in, user: dict = Depends(signed_in)):
         # the last answer is dropped and asked for again, the question stays as it was
         conversation = conversation_or_404(user, conversation_id)
         check_mode(user, body.mode)
+        check_choice(user, body.model)
         check_allowance(user)
         if not db.drop_last_answer(conversation_id):
             raise HTTPException(400, "There's no answer to try again yet.")
@@ -785,12 +798,17 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if note:
             rows.append(note)
             messages.append(note)
-        return answer_response(user, conversation_id, messages, rows, body.mode, "", "retry")
+        return answer_response(user, conversation_id, messages, rows, body.mode, "", "retry", body.model)
 
-    def answer_response(user: dict, conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str):
+    def answer_response(
+        user: dict, conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str,
+        choice: str = "auto",
+    ):
         # once code has run in a chat the tool stays on, since the history holds its runs
         sandbox = db.get_container(conversation_id)
         code = runs_code(mode) or sandbox is not None
+        # the student's pick, or on auto, acolyte for everyday questions and mage for hard subjects
+        use = chat_route(cfg, choice, mode, sandbox is not None)
         container = sandbox["container_id"] if sandbox and sandbox["expires"] > time.time() + container_margin else None
         outputs = db.get_outputs(conversation_id)
 
@@ -816,7 +834,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         async def events():
             final, ended, partial, searches = None, False, "", []
             try:
-                async for event in stream_reply(claude(), cfg, messages, code=code, container=container):
+                async for event in stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort):
                     if event["t"] == "final":
                         final = event["v"]
                         continue
@@ -846,7 +864,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             if final.stop_reason == "refusal":
                 yield sse({"t": "refusal", "v": "Rahah can't help with that request. Try rephrasing it."})
                 return
-            display = display_from_content(final.content, outputs)
+            display = {**display_from_content(final.content, outputs), "tier": use.tier}
             if not display["text"].strip():
                 yield sse({"t": "error", "v": "Rahah returned an empty answer. Try asking again."})
                 return

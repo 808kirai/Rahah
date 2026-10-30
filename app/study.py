@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from .config import settings
 from .modes import modes
+from .routing import pick
 from .tutor import fallback_options
 from .usage import usage_of
 
@@ -238,13 +239,14 @@ async def make_set(
     """asks claude for a set and returns its title and checked items"""
     text = request_text(kind, topic, count, mode, bool(uploads), style, language)
     content = source_blocks(uploads) + [{"type": "text", "text": text}]
+    use = pick(cfg, "tools")
     async with client.beta.messages.stream(
-        model=cfg.model,
+        model=use.model,
         max_tokens=cfg.max_tokens,
         system=study_prompt,
         messages=[{"role": "user", "content": content}],
-        output_config={"effort": cfg.effort, "format": {"type": "json_schema", "schema": kinds[kind]["schema"]}},
-        **fallback_options(cfg),
+        output_config={"effort": use.effort, "format": {"type": "json_schema", "schema": kinds[kind]["schema"]}},
+        **fallback_options(use.model),
     ) as stream:
         final = await stream.get_final_message()
     if on_usage:
@@ -298,13 +300,14 @@ async def mark_answer(client, cfg: settings, item: dict, mode: str, answer: str,
     if answer and photo:
         lines.append("The photo shows their working.")
     content = (source_blocks([photo]) if photo else []) + [{"type": "text", "text": "\n\n".join(lines)}]
+    use = pick(cfg, "marking")
     async with client.beta.messages.stream(
-        model=cfg.model,
+        model=use.model,
         max_tokens=4000,
         system=mark_prompt,
         messages=[{"role": "user", "content": content}],
-        output_config={"effort": cfg.effort, "format": {"type": "json_schema", "schema": mark_schema}},
-        **fallback_options(cfg),
+        output_config={"effort": use.effort, "format": {"type": "json_schema", "schema": mark_schema}},
+        **fallback_options(use.model),
     ) as stream:
         final = await stream.get_final_message()
     if on_usage:

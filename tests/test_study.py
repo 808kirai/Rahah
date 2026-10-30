@@ -43,8 +43,9 @@ def test_flashcards_are_made_checked_and_saved(setup):
 
     call = claude.beta.messages.calls[0]
     assert call["output_config"]["format"]["type"] == "json_schema"
-    assert call["output_config"]["effort"] == "medium"
-    assert call["fallbacks"] == "default"
+    # making a set goes to the light model with a bit more thought
+    assert call["model"] == "claude-haiku-5-5"
+    assert call["output_config"]["effort"] == "high"
     sent = call["messages"][0]["content"]
     assert len(sent) == 1 and "Topic: cells" in sent[0]["text"] and "exactly 10 flashcards" in sent[0]["text"]
 
@@ -167,6 +168,8 @@ def test_a_written_answer_is_marked_from_text_or_a_photo(setup):
     # a score over the question's marks comes back down to them
     assert marked == {"score": 2, "marks": 2, "feedback": "You gave F = ma.", "model_answer": body["items"][1]["model_answer"]}
     call = claude.beta.messages.calls[1]
+    # marking goes to the deep model, a wrong mark costs the student more than a plainer summary
+    assert call["model"] == "claude-sonnet-5-5" and call["output_config"]["effort"] == "high" and call["fallbacks"] == "default"
     text = call["messages"][0]["content"][-1]["text"]
     assert "worth 2 marks" in text and "Mark scheme" in text and "force is mass times acceleration" in text
 

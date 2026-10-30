@@ -213,6 +213,13 @@ function feedback_html(f) {
     </div>`;
 }
 
+// a claude model by its picker name, with the model in brackets
+function model_label(model) {
+    const names = { "claude-haiku": "Acolyte (Haiku)", "claude-sonnet": "Mage (Sonnet)", "claude-opus": "Archmage (Opus)" };
+    const found = Object.keys(names).find((key) => model.startsWith(key));
+    return found ? names[found] : model || "Other";
+}
+
 function render_usage() {
     const slot = el("usage-slot");
     if (!slot || !state.me) return;
@@ -236,6 +243,7 @@ function render_usage() {
         <div class="usage-cols">${column("Today", u.today)}${column("Last 7 days", u.week)}${column("All time", all)}</div>
         <p class="usage-note">${!all.requests ? "Nothing used yet." : all.cache_share ? `Caching saved ${dollars(all.saved)}, and ${all.cache_share}% of what Claude read came from the cache.` : "Nothing came from the cache yet. Caching starts saving once chats get longer."}</p>
         ${all.kinds.length ? `<div class="usage-kinds">${all.kinds.map((k) => `<span>${usage_kinds[k.kind] || k.kind} <strong>${dollars(k.cost)}</strong></span>`).join("")}</div>` : ""}
+        ${(all.models || []).length ? `<div class="usage-kinds">${all.models.map((m) => `<span>${escape_html(model_label(m.model))} <strong>${dollars(m.cost)}</strong></span>`).join("")}</div>` : ""}
         ${feedback_html(state.feedback)}
     </section>`;
 }

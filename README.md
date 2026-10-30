@@ -2,12 +2,13 @@ Rahah
 
 A study companion for students. Ask about any subject, upload notes, slides or textbook pages and get answers that point to the page they came from, practise with flashcards and tests, keep track of exams and classes, or get help writing and fixing code.
 
-Rahah runs on Claude Opus 5.5 through the Claude API.
+Rahah runs on Claude through the Claude API, using Haiku 5.5, Sonnet 5.5 and Opus 5.5 for different work.
 
 What it does today
 
 Chat
 
+- A model picker in the message box, by names that say how hard each one thinks. Auto, the default, sends everyday questions to Acolyte (Haiku 5.5) and maths, science and code to Mage (Sonnet 5.5). Students can pick Acolyte or Mage themselves, and the admin also gets Archmage (Opus 5.5). The choice is saved with the account, each answer shows which model wrote it, and a student asking for Archmage is turned away before anything is spent
 - Answers stream in as they are written, and a stop button ends an answer early. What arrived so far is kept, marked as stopped
 - Try again under the latest answer asks for a fresh one to the same question, and an answer that failed has its own Try again
 - Listen reads an answer aloud with the device's own voice, free and offline, saying simple maths in words and skipping code and citation marks
@@ -140,6 +141,7 @@ Project layout
 - `app/report.py` - The weekly report, this week next to last on the student's own clock
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
 - `app/store.py` - Local SQLite storage for chats, files, notes, study sets, reminders, classes and subjects
+- `app/routing.py` - Which model answers what: the picker's names, Auto, and the fixed models for making study material and marking
 - `app/accounts.py` - Password hashing, sign up checks, sessions and the slow down after wrong passwords
 - `app/providers.py` - Checking Google and Apple sign in tokens
 - `app/config.py` - Settings read from the environment
@@ -150,7 +152,8 @@ Project layout
 Settings
 
 - `ANTHROPIC_API_KEY` - Your Claude API key, required
-- `RAHAH_MODEL` - The Claude model, defaults to `claude-opus-5-5`
+- `RAHAH_MODEL` - Leave it out for the model picker. Set to one model, like `claude-haiku-5-5`, and every request uses it and the picker hides, which is handy for cheap testing
+- `RAHAH_LIGHT_MODEL`, `RAHAH_DEEP_MODEL`, `RAHAH_TOP_MODEL` - The models behind Acolyte, Mage and Archmage, defaulting to `claude-haiku-5-5`, `claude-sonnet-5-5` and `claude-opus-5-5`
 - `RAHAH_EFFORT` - How hard Claude thinks, one of low, medium, high, xhigh or max, defaults to `medium`
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
@@ -192,7 +195,7 @@ Costs
 
 Every request to Claude is logged with its tokens, cache use and web searches, and priced from Claude's price list, so the usage box shows real spending and per student limits can be built on the same log. Chats are cached, so in a long chat each follow up mostly reads the earlier messages from the cache at a twentieth of the price. A test showed a follow up in a long chat costing about a sixth of what it would without the cache. Very short chats are below the size Claude caches.
 
-Every question is billed to the API key. Opus 5.5 costs 4 dollars per million input tokens and 20 dollars per million output tokens, which is roughly 1 to 5 cents per question, and more when large PDFs are attached. A web search costs about 1 cent on top, plus the tokens for reading its results. Marking a written answer is one more request, a little more with a photo. Questions that run code cost more, since the code and its output are read by Claude too. Sandbox time is free for the first 1,550 hours a month per organization, then 5 cents an hour. Per student limits come with student accounts.
+Every question is billed to the API key. Rahah spreads the work across three models to keep costs down. Haiku 5.5 (Acolyte) costs 10 cents per million input tokens and 50 cents per million output tokens, five times that once a prompt passes 100,000 tokens, and answers everyday questions and makes flashcards, tests, summaries, suggestions and revision plans. Sonnet 5.5 (Mage) costs 2 and 10 dollars, and answers maths, science and code and marks written answers, where a slip costs the student more. Opus 5.5 (Archmage) costs 4 and 20 dollars and only the admin can pick it. In a live check an everyday answer on Haiku cost about 0.07 cents and a worked maths answer on Sonnet about 0.7 cents. The usage box shows cost per model. A chat keeps one model while its subject and choice stay the same, since the cache only works within one model. A web search costs about 1 cent on top, plus the tokens for reading its results. Marking a written answer is one more request, a little more with a photo. Questions that run code cost more, since the code and its output are read by Claude too. Sandbox time is free for the first 1,550 hours a month per organization, then 5 cents an hour. Per student limits come with student accounts.
 
 Roadmap
 

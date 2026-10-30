@@ -21,7 +21,10 @@ def test_costs_follow_the_price_list():
     assert cost_of(use(cache_write=1_000_000)) == 5.0
     assert cost_of(use(cache_read=1_000_000)) == 0.2
     assert cost_of(use(searches=3)) == 0.03
-    assert cost_of(use("claude-haiku-5-5", input_tokens=1_000_000)) == 0.1
+    assert cost_of(use("claude-haiku-5-5", input_tokens=100_000, output_tokens=100_000)) == 0.06
+    # past 100,000 prompt tokens haiku charges five times as much per token
+    assert cost_of(use("claude-haiku-5-5", input_tokens=200_000)) == 0.1
+    assert cost_of(use("claude-haiku-5-5", input_tokens=50_000, cache_read=60_000)) == round((50_000 * 0.5 + 60_000 * 0.05) / 1e6, 6)
     assert cost_of(use("some-other-model", input_tokens=5)) is None
 
 

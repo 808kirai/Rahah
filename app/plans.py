@@ -8,6 +8,7 @@ from .config import settings
 from .modes import modes
 from .reminders import ics_text, fold, kinds
 from .study import clean_text, study_error
+from .routing import pick
 from .tutor import fallback_options
 from .usage import usage_of
 
@@ -96,12 +97,12 @@ async def make_plan(client, cfg: settings, reminder: dict, today: date, topics: 
     if reminder["notes"]:
         lines.append(f"The student's notes on it: {reminder['notes']}")
     async with client.beta.messages.stream(
-        model=cfg.model,
+        model=pick(cfg, "tools").model,
         max_tokens=16000,
         system=plan_prompt,
         messages=[{"role": "user", "content": "\n\n".join(lines)}],
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": plan_schema}},
-        **fallback_options(cfg),
+        **fallback_options(pick(cfg, "tools").model),
     ) as stream:
         final = await stream.get_final_message()
     if on_usage:
