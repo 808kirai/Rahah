@@ -1,4 +1,4 @@
-// rahah, the chat, messages, sending and streaming answers, read aloud, voice chat, printing, attachments, photos, hint mode, settings and voice typing
+// rahah, the chat, messages, sending and streaming answers, read aloud, voice chat, printing, attachments, photos, hint mode, the model and language menu and voice typing
 // plain scripts with no build step, loaded in order and sharing one global scope
 
 // messages on the page
@@ -877,14 +877,35 @@ function render_model_pick() {
 
 function open_model_menu() {
     const menu = el("model-menu");
+    menu.classList.remove("lang-list");
     menu.innerHTML = model_choices().map((c) => `
         <button type="button" class="input-option model-option" role="menuitemradio" aria-checked="${c.id === model_choice()}" data-model="${escape_html(c.id)}">
             <span><strong>${escape_html(c.name)}</strong><small>${escape_html(c.hint)}</small></span>
             ${c.id === model_choice() ? icons.check : ""}
-        </button>`).join("");
+        </button>`).join("") + `
+        <div class="menu-line" role="separator"></div>
+        <button type="button" class="input-option model-option lang-row" role="menuitem" data-lang-open>
+            <span><strong>Answer in</strong><small>Answers, tests, decks and Listen</small></span>
+            <span class="lang-now">${escape_html(state.settings.language || "Your question's language")}${icons.next}</span>
+        </button>`;
     menu.hidden = false;
     el("model-pick").setAttribute("aria-expanded", "true");
     (menu.querySelector('[aria-checked="true"]') || menu.querySelector(".model-option"))?.focus();
+}
+
+// every answer language, in the same menu, with a way back to the models
+function open_language_list() {
+    const menu = el("model-menu");
+    const langs = [["", "Match my question"], ...Object.keys(state.languages).map((name) => [name, name])];
+    menu.classList.add("lang-list");
+    menu.innerHTML = `
+        <button type="button" class="input-option model-option lang-back" data-lang-back>${icons.prev}<span><strong>Answer in</strong></span></button>
+        <div class="menu-line" role="separator"></div>
+        <div class="lang-options">${langs.map(([value, label]) => `
+            <button type="button" class="input-option model-option" role="menuitemradio" aria-checked="${value === state.settings.language}" data-lang="${escape_html(value)}">
+                <span><strong>${escape_html(label)}</strong></span>${value === state.settings.language ? icons.check : ""}
+            </button>`).join("")}</div>`;
+    (menu.querySelector('[data-lang][aria-checked="true"]') || menu.querySelector("[data-lang]"))?.focus();
 }
 
 function close_model_menu(refocus = false) {
@@ -897,6 +918,20 @@ function close_model_menu(refocus = false) {
 
 el("model-pick").addEventListener("click", () => (el("model-menu").hidden ? open_model_menu() : close_model_menu()));
 el("model-menu").addEventListener("click", (event) => {
+    if (event.target.closest("[data-lang-open]")) {
+        open_language_list();
+        return;
+    }
+    if (event.target.closest("[data-lang-back]")) {
+        open_model_menu();
+        return;
+    }
+    const lang = event.target.closest("[data-lang]");
+    if (lang) {
+        save_settings({ language: lang.dataset.lang });
+        close_model_menu(true);
+        return;
+    }
     const option = event.target.closest("[data-model]");
     if (!option) return;
     save_settings({ model: option.dataset.model });
@@ -932,7 +967,7 @@ function show_tier(reply, tier) {
     tag.textContent = tier_names[tier];
 }
 
-// settings, kept on this device
+// settings, the answer language and model in the model menu and low-data mode on the account tab
 
 function settings_body() {
     return { language: state.settings.language, low_data: state.settings.low_data, model: model_choice() };
@@ -981,32 +1016,10 @@ function apply_settings() {
     state.answer_lang_code = state.languages[state.settings.language] || "";
     render_model_pick();
     render_composer_chips();
-    render_settings();
-}
-
-function render_settings() {
-    const langs = [["", "Match my question"], ...Object.keys(state.languages).map((name) => [name, name])];
-    el("settings-langs").innerHTML = langs.map(([value, label]) =>
-        `<button class="choice" type="button" data-lang="${escape_html(value)}" aria-pressed="${value === state.settings.language}">${escape_html(label)}</button>`).join("");
-    el("settings-data").querySelectorAll("[data-low-data]").forEach((b) =>
+    // the account tab's low-data switch follows along
+    el("low-data-choices")?.querySelectorAll("[data-low-data]").forEach((b) =>
         b.setAttribute("aria-pressed", String((b.dataset.lowData === "1") === state.settings.low_data)));
 }
-
-const settings_sheet = el("settings-sheet");
-el("settings-btn").addEventListener("click", () => {
-    render_settings();
-    settings_sheet.showModal();
-});
-el("settings-close").addEventListener("click", () => settings_sheet.close());
-el("settings-done").addEventListener("click", () => settings_sheet.close());
-el("settings-langs").addEventListener("click", (event) => {
-    const pick = event.target.closest("[data-lang]");
-    if (pick) save_settings({ language: pick.dataset.lang });
-});
-el("settings-data").addEventListener("click", (event) => {
-    const pick = event.target.closest("[data-low-data]");
-    if (pick) save_settings({ low_data: pick.dataset.lowData === "1" });
-});
 
 // voice typing, the browser turns speech into words in the message box and rahah reads the words
 // claude can't hear audio, so only the text is ever sent

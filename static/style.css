@@ -401,6 +401,44 @@ svg {
     gap: 1rem;
 }
 
+/* the answer language sits under the models, and opens its own scrolling list in the same menu */
+.menu-line {
+    height: 1px;
+    margin: 0.25rem 0.6rem;
+    background: var(--border);
+}
+
+.lang-now {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: var(--text-2);
+}
+
+.lang-now svg {
+    width: 14px;
+    height: 14px;
+}
+
+.lang-back {
+    justify-content: flex-start;
+}
+
+.lang-back svg {
+    width: 16px;
+    height: 16px;
+}
+
+.lang-options {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: min(52vh, 24rem);
+    overflow-y: auto;
+}
+
 .model-option > span {
     min-width: 0;
 }
@@ -2414,10 +2452,6 @@ body.signed-out .toasts {
     color: var(--text-2);
     font-size: 0.82rem;
     line-height: 1.45;
-}
-
-#settings-langs {
-    flex-wrap: wrap;
 }
 
 /* the notes library on the chats and tests page */

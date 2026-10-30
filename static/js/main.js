@@ -838,6 +838,16 @@ function render_account() {
         </div>
         <section class="perf-card">
             <div class="perf-head">
+                <h3>Low-data mode</h3>
+                <p>For slow or expensive data: shorter answers, smaller photos, and no web searches or diagrams.</p>
+            </div>
+            <div class="choices" id="low-data-choices" role="group" aria-label="Low-data mode">
+                <button class="choice" type="button" data-low-data="0" aria-pressed="${!state.settings?.low_data}">Off</button>
+                <button class="choice" type="button" data-low-data="1" aria-pressed="${Boolean(state.settings?.low_data)}">On</button>
+            </div>
+        </section>
+        <section class="perf-card">
+            <div class="perf-head">
                 <h3>Help</h3>
                 <p>Pick a topic and Gmail opens with a message ready to send. What Rahah keeps is on the <a class="support-link" href="/privacy" target="_blank" rel="noopener">privacy page</a>, and the rules are in the <a class="support-link" href="/terms" target="_blank" rel="noopener">terms</a></p>
             </div>
@@ -935,6 +945,8 @@ function account_note(id, text) {
 
 thread.addEventListener("click", async (event) => {
     if (!event.target.closest("#account-box")) return;
+    const low = event.target.closest("[data-low-data]");
+    if (low) save_settings({ low_data: low.dataset.lowData === "1" });
     if (event.target.closest("[data-connect-apple]")) apple_sign_in((text) => alert(text));
     if (event.target.closest("[data-sign-out]")) sign_out();
     if (event.target.closest("[data-save-profile]")) {
