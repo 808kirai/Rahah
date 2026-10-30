@@ -1872,6 +1872,12 @@ body.signed-out .toasts {
     color: var(--accent-text);
 }
 
+.help-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .support-link {
     color: var(--accent-text);
     font-weight: 600;

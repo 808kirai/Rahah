@@ -330,8 +330,12 @@ function set_auth_mode(mode) {
 }
 
 function show_auth_error(text) {
-    el("auth-error").textContent = text;
-    el("auth-error").hidden = !text;
+    const box = el("auth-error");
+    box.textContent = text;
+    if (text && text.includes(support_email())) {
+        box.insertAdjacentHTML("beforeend", ` <a class="support-link" href="mailto:${escape_html(support_email())}" data-help="turned_off">Write to us</a>`);
+    }
+    box.hidden = !text;
 }
 
 // google and apple buttons appear once their keys are set on the server
@@ -429,11 +433,73 @@ function support_email() {
     return auth.config?.support_email || "studywithrahah@gmail.com";
 }
 
+// emailing for help, gmail opens with a short message already written for the trouble
+// chip is the label on the account tab's help card, the others come from their own links
+const help_messages = {
+    broken: { chip: "Something isn't working", subject: "Something isn't working", lines: ["Something in Rahah isn't working for me.", "", "What I was doing:", "What happened:"], device: true },
+    limit: { chip: "My daily limit", subject: "Question about my daily limit", lines: ["I've run out of my daily study limit and would like to ask about it."] },
+    reset: { chip: "Password reset", subject: "Password reset", lines: ["I've forgotten my password and need a new one. I'm writing from the email on my account."] },
+    account: { chip: "Account question", subject: "Account question", lines: ["I have a question about my account:"] },
+    other: { chip: "Something else", subject: "Question about Rahah", lines: ["My question:"] },
+    turned_off: { subject: "My account was turned off", lines: ["My account has been turned off. Could you tell me why, or turn it back on?"] },
+};
+
+// who's writing, from the account, or on the sign in page from what they typed
+function help_sender() {
+    if (state.me) return { username: state.me.username, email: state.me.email };
+    const typed = (el("auth-login")?.value || el("auth-username")?.value || "").trim();
+    return typed.includes("@") ? { email: typed } : { username: typed };
+}
+
+function help_body(kind) {
+    const m = help_messages[kind] || help_messages.other;
+    const who = help_sender();
+    const details = [
+        who.username ? `Username: ${who.username}` : "Username:",
+        who.email ? `Email on my account: ${who.email}` : "",
+        m.device ? `Device: ${navigator.userAgentData?.platform || navigator.platform || "unknown"}, ${navigator.userAgent.match(/(Edg|Chrome|Firefox|Safari)\/[\d.]+/)?.[0] || "browser"}` : "",
+    ].filter(Boolean);
+    const subject = who.username ? `${m.subject}, @${who.username}` : m.subject;
+    return { subject, body: ["Hi Rahah team,", "", ...m.lines, "", ...details, "", "Thanks"].join("\n") };
+}
+
+// a computer opens gmail's compose window in a new tab, a phone opens the gmail app
+function open_help_email(kind) {
+    const { subject, body } = help_body(kind);
+    const to = support_email();
+    const enc = encodeURIComponent;
+    const mailto = `mailto:${to}?subject=${enc(subject)}&body=${enc(body)}`;
+    const agent = navigator.userAgent;
+    if (/iPhone|iPad|iPod/i.test(agent)) {
+        // the gmail app on iphone has its own link, and the phone's own mail app takes over if it isn't installed
+        const started = Date.now();
+        location.href = `googlegmail:///co?to=${enc(to)}&subject=${enc(subject)}&body=${enc(body)}`;
+        setTimeout(() => {
+            if (document.visibilityState === "visible" && Date.now() - started < 2000) location.href = mailto;
+        }, 900);
+        return;
+    }
+    if (/Android/i.test(agent)) {
+        // email links open gmail, the mail app on most android phones
+        location.href = mailto;
+        return;
+    }
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${enc(to)}&su=${enc(subject)}&body=${enc(body)}`, "_blank", "noopener");
+}
+
+// every help link anywhere goes through here
+document.addEventListener("click", (event) => {
+    const link = event.target.closest("[data-help]");
+    if (!link) return;
+    event.preventDefault();
+    open_help_email(link.dataset.help);
+});
+
 async function set_up_providers() {
     const config_for_help = await auth_config();
     if (config_for_help.support_email) {
         el("auth-forgot-note").querySelectorAll(".support-link").forEach((link) => {
-            link.textContent = config_for_help.support_email;
+            link.textContent = `Email ${config_for_help.support_email}`;
             link.href = `mailto:${config_for_help.support_email}?subject=Password%20reset`;
         });
     }
@@ -641,7 +707,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>${me.has_password ? "Password" : "Add a password"}</h3>
-                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? Email <a class="support-link" href="mailto:${escape_html(support_email())}?subject=Password%20reset">${escape_html(support_email())}</a>.</p>
+                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? <a class="support-link" href="mailto:${escape_html(support_email())}?subject=Password%20reset" data-help="reset">Email us for a new one</a>.</p>
             </div>
             <div class="account-fields">
                 ${me.has_password ? '<input class="text-input" type="password" id="password-current" autocomplete="current-password" placeholder="Current password">' : ""}
@@ -657,9 +723,10 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Help</h3>
-                <p>Questions, a password reset, or anything else you need</p>
+                <p>Pick what it's about and Gmail opens with a short message ready to send to ${escape_html(support_email())}</p>
             </div>
-            <a class="btn btn-soft btn-small" href="mailto:${escape_html(support_email())}?subject=${encodeURIComponent("Rahah help, @" + me.username)}">Email ${escape_html(support_email())}</a>
+            <div class="help-choices">${Object.entries(help_messages).filter(([, m]) => m.chip).map(([kind, m]) =>
+                `<a class="btn btn-soft btn-small" href="mailto:${escape_html(support_email())}" data-help="${kind}">${escape_html(m.chip)}</a>`).join("")}</div>
         </section>
         ${me.is_admin ? `<section class="perf-card">
             <div class="perf-head">
