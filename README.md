@@ -44,7 +44,7 @@ Study tools
 - This week, at the top of Performance: tests taken, average, cards practised and questions asked over the last seven days next to the seven before, study days with a streak, the strongest and weakest subject, and a next step with a button to start it. It's worked out on the server on the student's own clock, with no Claude cost
 - A performance page with your average, your GPA out of 4.0, scores over time, GPA and grades by subject, and a table of every test, plus a summary under Exam on the home page. Choosing a subject opens a box with its tests, and choosing a test opens a box with every attempt and a Retake button
 - A Usage and cost box at the bottom of the performance page shows what Rahah has cost today, in the last 7 days and in all, what caching saved, and the cost of each kind of request
-- Suggested for you, near the top of Home, with ideas of what to study next picked by Claude from your chats, decks and test scores, and a Refresh button
+- Suggested for you, near the top of Home, with ideas of what to study next picked by Claude from your chats, decks and test scores, up to 5 at a time, and a Refresh button
 
 Pages
 

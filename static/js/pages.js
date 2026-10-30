@@ -579,7 +579,7 @@ function render_recommendations() {
         body = `<section class="row">
             <h3 class="row-title">Picked from your chats, decks and scores${recs.created && !state.recs_loading ? ` · ${time_ago(recs.created, true)}` : ""}</h3>
             <button class="row-arrow prev" type="button" aria-label="Scroll suggestions left">${icons.prev}</button>
-            <div class="row-track">${recs.items.map((item, i) => rec_card(item, i)).join("")}</div>
+            <div class="row-track">${recs.items.slice(0, 5).map((item, i) => rec_card(item, i)).join("")}</div>
             <button class="row-arrow next" type="button" aria-label="Scroll suggestions right">${icons.next}</button>
         </section>`;
     } else {
