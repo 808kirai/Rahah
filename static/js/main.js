@@ -312,7 +312,6 @@ function set_auth_mode(mode) {
     document.querySelectorAll(".auth-signup-only").forEach((n) => (n.hidden = !signup));
     document.querySelectorAll(".auth-login-only").forEach((n) => (n.hidden = signup));
     el("auth-title").textContent = signup ? "Make your account" : "Welcome back";
-    el("auth-sub").textContent = signup ? "Free to start. Your chats, tests and notes stay in your own account." : "Sign in to pick up where you left off.";
     el("auth-submit").textContent = signup ? "Create account" : "Sign in";
     el("auth-password").autocomplete = signup ? "new-password" : "current-password";
     el("auth-password").placeholder = signup ? "At least 8 characters" : "";
@@ -442,6 +441,12 @@ el("auth-form").addEventListener("submit", async (event) => {
         : { login: el("auth-login").value.trim(), password };
     if (signup ? !body.username || !body.email || !password : !body.login || !password) {
         show_auth_error(signup ? "Fill in a username, email and password." : "Fill in your username or email and password.");
+        return;
+    }
+    // the password typed twice must match, so a typo doesn't lock the student out of a new account
+    if (signup && password !== el("auth-password-again").value) {
+        show_auth_error("The passwords don't match.");
+        el("auth-password-again").focus();
         return;
     }
     el("auth-submit").disabled = true;

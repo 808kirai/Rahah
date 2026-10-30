@@ -47,7 +47,6 @@
         <div class="auth-card">
             <p class="brand auth-brand">Rahah</p>
             <h1 class="auth-title" id="auth-title">Welcome back</h1>
-            <p class="auth-sub" id="auth-sub">Sign in to pick up where you left off.</p>
             <div class="choices auth-tabs" role="tablist" aria-label="Sign in or create an account">
                 <button class="choice" type="button" role="tab" data-auth-tab="login" aria-pressed="true">Sign in</button>
                 <button class="choice" type="button" role="tab" data-auth-tab="signup" aria-pressed="false">Create account</button>
@@ -76,6 +75,10 @@
                 <label class="field">
                     <span class="field-label">Password</span>
                     <input class="text-input" id="auth-password" type="password" autocomplete="current-password" maxlength="200">
+                </label>
+                <label class="field auth-signup-only" hidden>
+                    <span class="field-label">Repeat password</span>
+                    <input class="text-input" id="auth-password-again" type="password" autocomplete="new-password" maxlength="200">
                 </label>
                 <p class="sheet-error" id="auth-error" role="alert" hidden></p>
                 <button class="btn btn-accent auth-submit" type="submit" id="auth-submit">Sign in</button>

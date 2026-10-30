@@ -91,7 +91,7 @@ def test_too_many_wrong_passwords_wait_a_while(make):
     web = TestClient(app)
     sign_up(web, "amina")
     web.post("/api/auth/logout")
-    for _ in range(8):
+    for _ in range(5):
         assert web.post("/api/auth/login", json={"login": "amina", "password": "wrong guess"}).status_code == 401
     # even the right password waits now
     blocked = web.post("/api/auth/login", json={"login": "amina", "password": "correct horse"})

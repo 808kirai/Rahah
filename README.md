@@ -57,11 +57,11 @@ Pages
 
 Accounts
 
-- Students sign up with a username, email and password, and sign in with either the username or the email
+- Students sign up with a username, email and a password typed twice to catch typos, and sign in with either the username or the email
 - Each student's chats, tests, decks, notes, reminders, timetable, subjects, suggestions, progress and usage are their own. Nobody else can list, open, change or use them, and every route checks this on the server
 - The first account is the admin. It takes over everything made before accounts and sees the total usage and every student's answer ratings in the usage box
 - Passwords are hashed with scrypt and never stored as typed. Signing in sets a session cookie for 30 days that the page's script can't read, and only a hash of the session is stored
-- Wrong passwords are slowed down: after 8 tries for one name or address there's a 15 minute wait
+- Wrong passwords are slowed down: after 5 tries for one name or address there's a 15 minute wait
 - Settings shows who's signed in, a sign out button and a way to change the password, which signs out other devices. The answer language and low-data mode are saved with the account, so they follow the student to another device
 - Signing out, or someone else signing in on the same device, clears the copies saved for offline use, so one student never sees another's decks
 - Each student has a daily allowance, 50 cents by default (RAHAH_DAILY_CAP), counted from the usage log and reset at midnight UTC. Once it's used, anything that calls Claude says so and when it starts again, while saved flashcards and tests still work. The usage box shows the allowance as a bar. The admin has no limit

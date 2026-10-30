@@ -86,7 +86,7 @@ def username_from(text: str) -> str:
 class sign_in_guard:
     """slows down guessing, a name or an address gets a few tries, then a short wait"""
 
-    def __init__(self, tries: int = 8, window: int = 15 * 60):
+    def __init__(self, tries: int = 5, window: int = 15 * 60):
         self.tries = tries
         self.window = window
         self.fails: dict[str, deque] = defaultdict(deque)
