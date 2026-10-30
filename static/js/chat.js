@@ -101,7 +101,7 @@ function current_view() {
     if (el("performance")) return "performance";
     if (el("account")) return "account";
     if (el("admin")) return "admin";
-    if (el("study")) return "study";
+    if (el("study") || el("shared")) return "study";
     return "chat";
 }
 

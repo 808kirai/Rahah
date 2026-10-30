@@ -232,6 +232,11 @@ class store:
             columns = {r["name"] for r in db.execute("pragma table_info(users)").fetchall()}
             if "agreed" not in columns:
                 db.execute("alter table users add column agreed real")
+            # a shared test or deck has a secret link anyone signed in can copy it from
+            set_columns = {r["name"] for r in db.execute("pragma table_info(study_sets)").fetchall()}
+            if "share_token" not in set_columns:
+                db.execute("alter table study_sets add column share_token text")
+                db.execute("create unique index if not exists sets_by_share on study_sets(share_token)")
             # the secret part of each student's calendar feed address
             if "calendar_token" not in columns:
                 db.execute("alter table users add column calendar_token text")
@@ -992,6 +997,36 @@ class store:
             row["written"] = any(i.get("type") == "written" for i in items)
             sets.append(row)
         return sets
+
+    def share_set(self, uid: str, set_id: str) -> str | None:
+        # the set's share link, made the first time it's shared
+        with self._connect() as db:
+            row = db.execute("select share_token from study_sets where id = ? and user_id = ?", (set_id, uid)).fetchone()
+            if not row:
+                return None
+            if row[0]:
+                return row[0]
+            token = new_token()
+            db.execute("update study_sets set share_token = ? where id = ?", (token, set_id))
+            return token
+
+    def stop_sharing(self, uid: str, set_id: str) -> bool:
+        with self._connect() as db:
+            return db.execute("update study_sets set share_token = null where id = ? and user_id = ?", (set_id, uid)).rowcount == 1
+
+    def shared_set(self, token: str) -> dict | None:
+        # a shared set with who shared it, found by its link
+        with self._connect() as db:
+            row = db.execute(
+                "select s.*, u.username as owner_username, u.name as owner_name, u.disabled as owner_disabled "
+                "from study_sets s join users u on u.id = s.user_id where s.share_token = ?",
+                (token,),
+            ).fetchone()
+        if not row or row["owner_disabled"]:
+            return None
+        found = dict(row)
+        found["items"] = json.loads(found["items"])
+        return found
 
     def get_set(self, uid: str, set_id: str) -> dict | None:
         with self._connect() as db:

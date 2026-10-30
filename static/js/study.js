@@ -810,6 +810,7 @@ function render_deck() {
             </div>
             <div class="study-extra">
                 <button class="btn btn-ghost btn-small" type="button" data-deck="shuffle">${icons.shuffle}Shuffle</button>
+                <button class="btn btn-ghost btn-small" type="button" data-share-set>${icons.share}Share</button>
                 <button class="btn btn-ghost btn-small" type="button" data-print-set>${icons.printer}Print or save as PDF</button>
                 <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete deck</button>
             </div>
@@ -962,6 +963,7 @@ function render_quiz_start() {
                 <button class="btn btn-accent" type="button" data-quiz="start">Start the test</button>
             </div>
             <div class="study-extra">
+                <button class="btn btn-ghost btn-small" type="button" data-share-set>${icons.share}Share</button>
                 <button class="btn btn-ghost btn-small" type="button" data-print-set>${icons.printer}Print or save as PDF</button>
             </div>
         </div>`;
@@ -1235,6 +1237,7 @@ function render_results() {
                 <button class="btn btn-soft" type="button" data-home>Back to home</button>
             </div>
             <div class="study-extra">
+                <button class="btn btn-ghost btn-small" type="button" data-share-set>${icons.share}Share</button>
                 <button class="btn btn-ghost btn-small" type="button" data-print-set>${icons.printer}Print or save as PDF</button>
                 <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete test</button>
             </div>
@@ -1371,8 +1374,105 @@ thread.addEventListener("click", (event) => {
         ask_about_question(Number(ask.dataset.askQuestion));
         return;
     }
+    if (target.closest("[data-share-set]")) open_share_sheet(state.study.set);
     if (target.closest("[data-print-set]")) print_set(state.study.set);
     if (target.closest("[data-study-delete]")) delete_set(state.study.set);
+});
+
+// sharing a test or deck, friends with the link each get their own copy to take
+
+async function open_share_sheet(study_set, url = "") {
+    const word = study_set.kind === "flashcards" ? "deck" : "test";
+    if (!url) {
+        try {
+            url = (await (await api(`/api/sets/${study_set.id}/share`, { method: "POST" })).json()).url;
+        } catch (error) {
+            alert(error.message);
+            return;
+        }
+    }
+    el("detail-title").textContent = `Share this ${word}`;
+    el("detail-body").innerHTML = `
+        <p class="detail-sub">Friends with a Rahah account can add their own copy of ${escape_html(study_set.title)}. Their answers and scores stay theirs, and yours stay yours.</p>
+        <input class="text-input share-link" readonly value="${escape_html(url)}" aria-label="Share link">
+        <div class="calendar-choices">
+            ${navigator.share ? `<button class="btn btn-accent" type="button" data-share-send>${icons.share}Share</button>` : ""}
+            <button class="btn btn-soft" type="button" data-share-copy>Copy the link</button>
+        </div>
+        <div class="sheet-actions">
+            <button class="btn btn-ghost btn-small" type="button" data-share-stop>Stop sharing</button>
+            <button class="btn btn-ghost" type="button" data-detail-close>Done</button>
+        </div>`;
+    el("detail-body").dataset.shareUrl = url;
+    el("detail-body").dataset.shareSet = study_set.id;
+    el("detail-body").dataset.shareTitle = study_set.title;
+    el("detail-body").dataset.shareWord = word;
+    open_box(detail_sheet);
+}
+
+el("detail-sheet").addEventListener("click", async (event) => {
+    const body = el("detail-body");
+    if (event.target.closest("[data-share-send]")) {
+        try {
+            await navigator.share({ title: body.dataset.shareTitle, text: `Try my ${body.dataset.shareWord} on Rahah: ${body.dataset.shareTitle}`, url: body.dataset.shareUrl });
+        } catch (e) {}
+    }
+    const copy = event.target.closest("[data-share-copy]");
+    if (copy) {
+        try {
+            await navigator.clipboard.writeText(body.dataset.shareUrl);
+            copy.textContent = "Copied";
+        } catch (e) {
+            body.querySelector(".share-link").select();
+        }
+    }
+    if (event.target.closest("[data-share-stop]")) {
+        try {
+            await api(`/api/sets/${body.dataset.shareSet}/share/stop`, { method: "POST" });
+            body.innerHTML = `<p class="detail-sub">Sharing stopped. The old link doesn't work any more, and copies friends already added stay theirs.</p>
+                <div class="sheet-actions"><button class="btn btn-accent" type="button" data-detail-close>Done</button></div>`;
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+});
+
+// a link a friend shared, it shows what it is and adds a copy to this account
+async function show_shared(token) {
+    enter_page(`#/shared/${token}`, "Shared with you", '<div class="shared-page" id="shared"><p class="page-note wait">Opening the shared link…</p></div>');
+    sync_view();
+    set_title("Shared with you");
+    let found;
+    try {
+        found = await (await api(`/api/shared/${token}`)).json();
+    } catch (error) {
+        el("shared").innerHTML = `<div class="page-empty"><strong>That link doesn't open</strong>${escape_html(error.message)}</div>`;
+        return;
+    }
+    const word = found.kind === "flashcards" ? "deck" : "test";
+    const count = found.kind === "flashcards" ? plural(found.size, "card") : `${plural(found.size, "question")} · ${plural(found.marks, "mark")}`;
+    el("shared").innerHTML = `<section class="perf-card shared-card">
+        ${sketch_html(found.kind === "flashcards" ? "cards" : "checklist")}
+        <p class="study-meta">${found.yours ? `Your ${word}` : `${escape_html(found.from)} shared a ${word} with you`}</p>
+        <h2 class="shared-title">${escape_html(found.title)}</h2>
+        <p class="detail-sub">${count} · ${escape_html(mode_name(found.mode))}</p>
+        <button class="btn btn-accent" type="button" data-shared-copy="${escape_html(token)}">${found.yours ? `Open your ${word}` : `Add to my ${word}s`}</button>
+        ${found.yours ? "" : '<p class="field-hint">You get your own copy, so your answers and scores are yours.</p>'}
+    </section>`;
+}
+
+thread.addEventListener("click", async (event) => {
+    const add = event.target.closest("[data-shared-copy]");
+    if (!add) return;
+    add.disabled = true;
+    try {
+        const { id } = await (await api(`/api/shared/${add.dataset.sharedCopy}/copy`, { method: "POST" })).json();
+        load_sets();
+        location.hash = `#/set/${id}`;
+    } catch (error) {
+        add.disabled = false;
+        alert(error.message);
+    }
 });
 
 // arrow keys move through a deck, space flips it, number keys answer a quiz

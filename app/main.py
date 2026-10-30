@@ -1295,6 +1295,50 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     def get_set(set_id: str, user: dict = Depends(signed_in)):
         return set_or_404(user, set_id)
 
+    # sharing a test or deck with friends, who each get their own copy to take
+
+    def share_address(request: Request, token: str) -> str:
+        base = cfg.public_url or str(request.base_url).rstrip("/")
+        return f"{base}/#/shared/{token}"
+
+    @app.post("/api/sets/{set_id}/share")
+    def share_set(set_id: str, request: Request, user: dict = Depends(signed_in)):
+        token = db.share_set(user["id"], set_id)
+        if not token:
+            raise HTTPException(404, "That set doesn't exist.")
+        return {"url": share_address(request, token)}
+
+    @app.post("/api/sets/{set_id}/share/stop")
+    def stop_sharing_set(set_id: str, user: dict = Depends(signed_in)):
+        if not db.stop_sharing(user["id"], set_id):
+            raise HTTPException(404, "That set doesn't exist.")
+        return {"ok": True}
+
+    def shared_or_404(token: str) -> dict:
+        found = db.shared_set(token) if len(token) >= 20 else None
+        if not found:
+            raise HTTPException(404, "This link doesn't work any more. Ask your friend to share it again.")
+        return found
+
+    @app.get("/api/shared/{token}")
+    def look_at_shared(token: str, user: dict = Depends(signed_in)):
+        found = shared_or_404(token)
+        items = found["items"]
+        return {
+            "title": found["title"], "kind": found["kind"], "mode": found["mode"], "size": found["size"],
+            "marks": sum(i["marks"] if i.get("type") == "written" else 1 for i in items),
+            "from": found["owner_name"] or found["owner_username"], "yours": found["user_id"] == user["id"],
+        }
+
+    @app.post("/api/shared/{token}/copy")
+    def copy_shared(token: str, user: dict = Depends(signed_in)):
+        found = shared_or_404(token)
+        if found["user_id"] == user["id"]:
+            return {"id": found["id"]}
+        # a subject the friend made up themselves becomes general study for someone who doesn't have it
+        mode = found["mode"] if allowed_mode(found["mode"], own_subjects(user)) else default_mode
+        return {"id": db.add_set(user["id"], found["kind"], found["title"], mode, found["items"])}
+
     @app.post("/api/sets/{set_id}/mark")
     async def mark_written(
         set_id: str,

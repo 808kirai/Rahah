@@ -121,6 +121,11 @@ function route() {
         if (!el("admin")) show_admin();
         return;
     }
+    const shared = location.hash.match(/^#\/shared\/([\w-]{20,200})$/);
+    if (shared) {
+        if (!el("shared")) return show_shared(shared[1]);
+        return;
+    }
     const set_match = location.hash.match(/^#\/set\/([0-9a-f]+)$/);
     if (set_match) {
         if (!el("study") || state.study?.set.id !== set_match[1]) return open_set(set_match[1]);
@@ -538,8 +543,13 @@ el("apple-button").addEventListener("click", () => apple_sign_in(show_provider_e
 async function finish_sign_in(me) {
     if (remember_me(me)) await forget_saved_data();
     remember_me(me);
-    // a fresh start loads everything for this student
-    location.hash = "#/";
+    // a fresh start loads everything for this student, on the shared link they came from if there was one
+    let next = "#/";
+    try {
+        next = sessionStorage.getItem("rahah-after-sign-in") || "#/";
+        sessionStorage.removeItem("rahah-after-sign-in");
+    } catch (e) {}
+    location.hash = next;
     location.reload();
 }
 
@@ -977,6 +987,14 @@ async function start() {
     }
     const me = await load_me();
     if (!me) {
+        // a shared link waits until they've signed in or made an account
+        if (location.hash.startsWith("#/shared/")) {
+            try {
+                sessionStorage.setItem("rahah-after-sign-in", location.hash);
+            } catch (e) {}
+            auth.mode = "signup";
+            el("auth-shared-note").hidden = false;
+        }
         // a refresh on create account stays on create account
         if (location.hash === "#/signup") auth.mode = "signup";
         await show_auth();

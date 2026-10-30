@@ -1886,6 +1886,56 @@ body.signed-out .toasts {
     color: var(--mauve-text);
 }
 
+/* a test or deck a friend shared, one card in the middle of the page */
+.shared-page {
+    display: grid;
+    place-items: start center;
+    padding: 6vh var(--gutter) 2rem;
+}
+
+.shared-card {
+    position: relative;
+    width: min(100%, 460px);
+    padding: 1.6rem;
+    text-align: left;
+}
+
+.shared-card .study-meta {
+    margin-bottom: 0.4rem;
+    padding-right: 3.5rem;
+    text-align: left;
+}
+
+.shared-card .sketch {
+    top: 1.2rem;
+    right: 1.2rem;
+}
+
+.shared-title {
+    margin: 0.2rem 0 0.35rem;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+}
+
+.shared-card .btn {
+    margin-top: 1.1rem;
+}
+
+.shared-card .field-hint {
+    margin-top: 0.6rem;
+}
+
+.share-link {
+    width: 100%;
+    margin-top: 0.9rem;
+    font-size: 0.82rem;
+}
+
+.auth-hint.auth-shared-note {
+    margin: -0.2rem 0 1.6rem;
+    color: var(--accent-text);
+}
+
 /* adding the calendar link, one button per calendar app */
 .calendar-choices {
     display: flex;
