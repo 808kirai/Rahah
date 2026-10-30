@@ -1796,13 +1796,6 @@ body.signed-out .toasts {
     background: var(--panel-line);
 }
 
-.auth-note {
-    margin: 1.25rem 0 0;
-    color: var(--text-2);
-    font-size: 0.75rem;
-    text-align: center;
-}
-
 /* the suggested for you row on home, with its refresh button beside the heading */
 .category-head {
     display: flex;
