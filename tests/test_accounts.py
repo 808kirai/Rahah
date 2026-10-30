@@ -39,7 +39,7 @@ def test_passwords_are_hashed_and_checked():
 def test_every_api_route_needs_a_signed_in_student(make):
     app, _ = make()
     web = TestClient(app)
-    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple", "/api/health"}
+    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple", "/api/auth/forgot", "/api/auth/reset", "/api/health"}
     checked = 0
     for route in app.routes:
         path = getattr(route, "path", "")
@@ -280,7 +280,7 @@ def provider_app(tmp_path, people):
 def test_signing_in_with_google_makes_an_account_then_signs_into_it(tmp_path):
     app = provider_app(tmp_path, {"amina": ("g-1", "Amina.O@gmail.com", "Amina Otieno"), "fake": ("x", None, "")})
     web = TestClient(app)
-    assert web.get("/api/auth/config").json() == {"google_client_id": "google-id", "apple_client_id": "apple-id", "support_email": "studywithrahah@gmail.com"}
+    assert web.get("/api/auth/config").json() == {"google_client_id": "google-id", "apple_client_id": "apple-id", "support_email": "studywithrahah@gmail.com", "reset_by_email": False}
     assert web.post("/api/auth/google", json={"credential": "fake-token"}).status_code == 401
 
     made = web.post("/api/auth/google", json={"credential": "amina", "agreed": True}).json()
@@ -333,7 +333,7 @@ def test_apple_sign_in_and_usernames_that_are_taken(tmp_path):
 def test_google_and_apple_stay_off_until_set_up(make):
     app, _ = make()
     web = TestClient(app)
-    assert web.get("/api/auth/config").json() == {"google_client_id": "", "apple_client_id": "", "support_email": "studywithrahah@gmail.com"}
+    assert web.get("/api/auth/config").json() == {"google_client_id": "", "apple_client_id": "", "support_email": "studywithrahah@gmail.com", "reset_by_email": False}
     assert web.post("/api/auth/google", json={"credential": "x"}).status_code == 404
     assert web.post("/api/auth/apple", json={"id_token": "x"}).status_code == 404
 
@@ -411,3 +411,55 @@ def test_the_admin_cant_delete_their_own_account(make):
     app, _ = make()
     admin = signed_in(TestClient(app), "runie")
     assert admin.post("/api/me/delete", json={"password": "correct horse!"}).status_code == 400
+
+
+def reset_app(tmp_path, sent):
+    cfg = settings(db_path=tmp_path / "reset.db", smtp_user="studywithrahah@gmail.com", smtp_password="app-password", public_url="https://rahah.example")
+    return create_app(cfg, client=fake_client(), mailer=lambda to, subject, text: sent.append((to, subject, text)))
+
+
+def test_a_forgotten_password_is_reset_with_a_link_sent_by_email(tmp_path):
+    sent = []
+    app = reset_app(tmp_path, sent)
+    assert TestClient(app).get("/api/auth/config").json()["reset_by_email"] is True
+    amina = TestClient(app)
+    sign_up(amina, "amina")
+    # an unknown name gets the same answer and no email
+    assert TestClient(app).post("/api/auth/forgot", json={"login": "nobody"}).json() == {"ok": True}
+    assert sent == []
+    assert TestClient(app).post("/api/auth/forgot", json={"login": "Amina@Example.com"}).json() == {"ok": True}
+    to, subject, text = sent[-1]
+    assert to == "amina@example.com" and "Reset" in subject and "@amina" in text
+    token = re.search(r"https://rahah\.example/#/reset/(\S+)", text).group(1)
+    # a weak password is turned down without using up the link
+    web = TestClient(app)
+    assert web.post("/api/auth/reset", json={"token": token, "password": "short"}).status_code == 400
+    done = web.post("/api/auth/reset", json={"token": token, "password": "a new horse!"})
+    assert done.status_code == 200 and done.json()["username"] == "amina"
+    assert web.get("/api/me").status_code == 200
+    # the old session is signed out, the old password stops working, the new one works
+    assert amina.get("/api/me").status_code == 401
+    assert TestClient(app).post("/api/auth/login", json={"login": "amina", "password": "correct horse!"}).status_code == 401
+    assert TestClient(app).post("/api/auth/login", json={"login": "amina", "password": "a new horse!"}).status_code == 200
+    # a link works once
+    assert TestClient(app).post("/api/auth/reset", json={"token": token, "password": "another horse!"}).status_code == 400
+
+
+def test_only_the_newest_reset_link_works_and_asking_is_limited(tmp_path):
+    sent = []
+    app = reset_app(tmp_path, sent)
+    sign_up(TestClient(app), "amina")
+    for _ in range(5):
+        TestClient(app).post("/api/auth/forgot", json={"login": "amina"})
+    # three emails an hour for one account
+    assert len(sent) == 3
+    first = re.search(r"/#/reset/(\S+)", sent[0][2]).group(1)
+    last = re.search(r"/#/reset/(\S+)", sent[-1][2]).group(1)
+    assert TestClient(app).post("/api/auth/reset", json={"token": first, "password": "a new horse!"}).status_code == 400
+    assert TestClient(app).post("/api/auth/reset", json={"token": last, "password": "a new horse!"}).status_code == 200
+
+
+def test_without_email_set_up_reset_points_to_the_help_address(make):
+    app, _ = make()
+    refused = TestClient(app).post("/api/auth/forgot", json={"login": "amina"})
+    assert refused.status_code == 404 and "studywithrahah@gmail.com" in refused.json()["detail"]

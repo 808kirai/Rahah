@@ -39,6 +39,13 @@ class settings:
     # behind a host's proxy, the header the host fills with the visitor's own address, one visitors can't fake.
     # left blank the address comes straight from the connection, right when nothing sits in front
     client_ip_header: str = ""
+    # password reset by email, through gmail by default, off until the user and an app password are set
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # rahah's own address, for links in emails, render fills in RENDER_EXTERNAL_URL by itself
+    public_url: str = ""
     # where students write for help, password resets and other requests
     support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
@@ -68,6 +75,12 @@ def load_settings() -> settings:
         signups_per_ip=int(os.getenv("RAHAH_SIGNUPS_PER_IP", "20")),
         max_running=int(os.getenv("RAHAH_MAX_RUNNING", "2")),
         client_ip_header=os.getenv("RAHAH_CLIENT_IP_HEADER", "").strip().lower(),
+        smtp_host=os.getenv("RAHAH_SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com",
+        smtp_port=int(os.getenv("RAHAH_SMTP_PORT", "587")),
+        smtp_user=os.getenv("RAHAH_SMTP_USER", "").strip(),
+        # gmail shows app passwords in groups of four, the spaces don't matter
+        smtp_password=os.getenv("RAHAH_SMTP_PASSWORD", "").replace(" ", ""),
+        public_url=(os.getenv("RAHAH_PUBLIC_URL", "") or os.getenv("RENDER_EXTERNAL_URL", "")).strip().rstrip("/"),
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

@@ -76,7 +76,8 @@ Accounts
 - New accounts, by password, Google or Apple, tick a box agreeing to the terms and privacy page, and that a parent or guardian said yes if they're under 18, as Kenya's Data Protection Act asks. The server refuses a new account without it and records when it was ticked. Signing back in doesn't ask again
 - Young students: many are under 18, so Rahah follows Anthropic's guidelines for products used by minors. The page says Rahah is an AI, Claude is told to keep everything suitable for school, never to claim to be human, to refuse romantic, sexual, dangerous or hurtful requests, not to ask for personal details, and to point a student in danger to a trusted adult, Childline Kenya on 116, Kenya Red Cross on 1199, or 999 and 112. Report something unsafe on the Help card emails a report, and the privacy page and terms explain these safeguards
 - Students can delete their own account from the bottom of the Account tab, after typing their password, or their username for a Google or Apple account. Everything in it goes: chats, tests, decks, notes, reminders, progress and usage, their files kept with Claude, and the copies saved on that device. The admin account can't be deleted this way
-- Not yet: password reset by email and email checks need an email service, which comes with deployment
+- Forgot password on the sign in page emails a link once RAHAH_SMTP_USER and RAHAH_SMTP_PASSWORD are set, sent through Gmail from studywithrahah@gmail.com. The link works once, for 30 minutes, and only the newest one works. It opens a page to choose a new password, which signs the account out everywhere else and signs in here. The reply is the same whether or not the account exists, the email goes out after the reply so timing gives nothing away, and asking is limited to 3 emails an hour per account and 10 per connection. The token sits after the # in the link, so it never reaches server logs. Without those settings, Forgot password says to email for help as before
+- Not yet: checking a new account's email
 
 Security
 
@@ -134,7 +135,7 @@ render.yaml in the repo sets everything up: a Starter server that stays on, a 1 
 
 1. On render.com, choose New, then Blueprint, and pick the Rahah repo on GitHub
 2. Check the region in render.yaml first, it can't be changed once the service is made. It's set to frankfurt
-3. Fill in the three secrets Render asks for: ANTHROPIC_API_KEY, RAHAH_ADMIN_EMAIL and GOOGLE_CLIENT_ID
+3. Fill in the secrets Render asks for: ANTHROPIC_API_KEY, RAHAH_ADMIN_EMAIL, GOOGLE_CLIENT_ID, and for password reset emails RAHAH_SMTP_USER and RAHAH_SMTP_PASSWORD
 4. Once it's live, add the onrender.com address to Authorized JavaScript origins for the Google client ID, then sign up with the admin email before sharing the link
 5. Signed in as the admin, open /api/admin/address and check that from_header is true, so each visitor is counted by their own address
 6. Every push to main updates the site, with under a minute down while it restarts
@@ -199,6 +200,7 @@ Settings
 - `RAHAH_SIGNUPS_PER_IP` - Accounts one connection can make a day, defaults to `20`
 - `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`
 - `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
+- `RAHAH_SMTP_USER`, `RAHAH_SMTP_PASSWORD` - The Gmail address and app password that send password reset emails. Leave them out and Forgot password points to the help email instead. `RAHAH_SMTP_HOST` and `RAHAH_SMTP_PORT` change the provider, defaulting to Gmail on 587, and `RAHAH_PUBLIC_URL` sets the address in links if Render's own isn't there
 - `RAHAH_CLIENT_IP_HEADER` - Online behind a host's proxy, the header holding each visitor's own address, `true-client-ip` on Render. Left blank the address comes from the connection
 - `GOOGLE_CLIENT_ID` - Turns on Sign in with Google, see above
 - `APPLE_CLIENT_ID` - Turns on Sign in with Apple, see above

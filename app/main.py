@@ -10,16 +10,17 @@ import time
 from pathlib import Path
 
 import anthropic
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from .config import load_settings, settings
 from .accounts import (
-    check_password, clean_email, clean_username, email_problem, hash_password, password_problem, session_cookie,
+    check_password, clean_email, clean_username, email_problem, hash_password, new_token, password_problem, session_cookie,
     session_days, sign_in_guard, username_from, username_problem,
 )
+from .mailer import send_email
 from .providers import identity, provider_error, verify_apple, verify_google
 from .modes import (
     allowed_mode, custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom,
@@ -81,6 +82,15 @@ class signup_in(BaseModel):
     name: str = Field(default="", max_length=60)
     # the box for the terms and privacy, with a parent or guardian's ok for anyone under 18
     agreed: bool = False
+
+
+class forgot_in(BaseModel):
+    login: str = Field(min_length=1, max_length=200)
+
+
+class reset_in(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
 
 
 class delete_me_in(BaseModel):
@@ -259,7 +269,7 @@ def safe_filename(name: str) -> str:
     return re.sub(r"[^\w.\- ]", "_", Path(name).name)[:120] or "file"
 
 
-def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None) -> FastAPI:
+def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None, mailer=None) -> FastAPI:
     cfg = cfg or load_settings()
     # how google and apple tokens are checked, tests swap in their own
     verifiers = verifiers or {
@@ -267,6 +277,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         "apple": lambda token, name="": verify_apple(token, cfg.apple_client_id, name),
     }
     db = store(cfg.db_path)
+    # how emails go out, tests swap in their own
+    mailer = mailer or (lambda to, subject, text: send_email(cfg, to, subject, text))
+    reset_by_email = bool(cfg.smtp_user and cfg.smtp_password)
+    reset_minutes = 30
     # the account with the admin email is the admin whenever rahah starts, so fixing a mistyped
     # admin email after the account was made takes effect on the next start
     if cfg.admin_email:
@@ -425,7 +439,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     @app.get("/api/auth/config")
     def auth_config():
         # what the sign in page offers, before anyone is signed in
-        return {"google_client_id": cfg.google_client_id, "apple_client_id": cfg.apple_client_id, "support_email": cfg.support_email}
+        return {"google_client_id": cfg.google_client_id, "apple_client_id": cfg.apple_client_id, "support_email": cfg.support_email,
+                "reset_by_email": reset_by_email}
 
     @app.post("/api/auth/signup")
     def sign_up(body: signup_in, request: Request, response: Response):
@@ -474,6 +489,59 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             db.end_session(token)
         response.delete_cookie(session_cookie, path="/")
         return {"ok": True}
+
+    # password reset by email. the answer is the same whether or not the account exists,
+    # so it can't be used to find out who has one, and the email goes out after the reply
+    resets_per_address = counter(10, 3600)
+    resets_per_account = counter(3, 3600)
+
+    def send_reset(user: dict, link: str) -> None:
+        hello = user["name"] or user["username"]
+        text = (
+            f"Hi {hello},\n\n"
+            f"Someone asked to reset the password for your Rahah account, @{user['username']}. "
+            f"To choose a new password, open this link within {reset_minutes} minutes:\n\n{link}\n\n"
+            "If it wasn't you, ignore this email and your password stays the same.\n\n"
+            f"Rahah\n{cfg.support_email}"
+        )
+        try:
+            mailer(user["email"], "Reset your Rahah password", text)
+        except Exception as error:
+            log.warning("couldn't send a reset email: %s", error)
+
+    @app.post("/api/auth/forgot")
+    def forgot_password(body: forgot_in, request: Request, background: BackgroundTasks):
+        if not reset_by_email:
+            raise HTTPException(404, f"Password reset by email isn't set up yet. Email {cfg.support_email} for a new password.")
+        address = client_address(request)
+        if resets_per_address.full(address):
+            raise HTTPException(429, "Too many reset emails were asked for from this connection. Try again in an hour.")
+        resets_per_address.add(address)
+        user = db.find_user(body.login.strip())
+        if user and user["email"] and not user["disabled"] and not resets_per_account.full(user["id"]):
+            resets_per_account.add(user["id"])
+            token = new_token()
+            db.add_reset(user["id"], token, time.time() + reset_minutes * 60)
+            # the token sits after the #, so it never reaches server logs or other sites
+            base = cfg.public_url or str(request.base_url).rstrip("/")
+            background.add_task(send_reset, user, f"{base}/#/reset/{token}")
+        return {"ok": True}
+
+    @app.post("/api/auth/reset")
+    def reset_password(body: reset_in, request: Request, response: Response):
+        problem = password_problem(body.password)
+        if problem:
+            raise HTTPException(400, problem)
+        user_id = db.take_reset(body.token)
+        user = db.get_user(user_id) if user_id else None
+        if not user or user["disabled"]:
+            raise HTTPException(400, "That reset link has run out or was already used. Ask for a new one.")
+        db.update_user(user["id"], password=hash_password(body.password))
+        # every device is signed out, then this one signs in with the new password
+        db.end_sessions(user["id"])
+        user = db.get_user(user["id"])
+        start_session(request, response, user)
+        return user_out(user)
 
     provider_names = {"google": "Google", "apple": "Apple"}
 

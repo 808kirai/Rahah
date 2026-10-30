@@ -89,6 +89,11 @@ function start_new_chat() {
 }
 
 function route() {
+    const reset = location.hash.match(/^#\/reset\/([\w-]{20,200})$/);
+    if (reset) {
+        show_reset(reset[1]);
+        return;
+    }
     // recents was merged into chats, so old links still land there
     if (location.hash === "#/chats" || location.hash === "#/recents") {
         if (!el("chats")) show_chats();
@@ -313,19 +318,26 @@ async function show_auth() {
 }
 
 function set_auth_mode(mode) {
+    // leaving the reset screen drops the link from the address bar
+    if (auth.mode === "reset" && mode !== "reset") history.replaceState(null, "", "/");
     auth.mode = mode;
     const signup = mode === "signup";
+    const reset = mode === "reset";
     document.querySelectorAll(".auth-signup-only").forEach((n) => (n.hidden = !signup));
-    document.querySelectorAll(".auth-login-only").forEach((n) => (n.hidden = signup));
+    document.querySelectorAll(".auth-login-only").forEach((n) => (n.hidden = signup || reset));
+    // choosing a new password asks for it twice, and nothing else
+    if (reset) el("auth-password-again").closest(".field").hidden = false;
+    document.body.classList.toggle("auth-resetting", reset);
     el("auth-forgot-note").hidden = true;
-    el("auth-title").textContent = signup ? "Create an account" : "Sign in";
-    el("auth-switch-text").textContent = signup ? "Already have an account?" : "Don't have an account?";
-    el("auth-switch").textContent = signup ? "Sign in" : "Create an account";
+    el("auth-title").textContent = reset ? "Choose a new password" : signup ? "Create an account" : "Sign in";
+    el("auth-switch-text").textContent = reset ? "Remembered it?" : signup ? "Already have an account?" : "Don't have an account?";
+    el("auth-switch").textContent = signup || reset ? "Sign in" : "Create an account";
     el("apple-label").textContent = signup ? "Sign up with Apple" : "Sign in with Apple";
     el("google-label").textContent = signup ? "Sign up with Google" : "Sign in with Google";
-    el("auth-submit").textContent = signup ? "Create account" : "Sign in";
-    el("auth-password").autocomplete = signup ? "new-password" : "current-password";
-    el("auth-password").placeholder = signup ? "At least 8 characters and a special character" : "Enter your password";
+    el("auth-submit").textContent = reset ? "Save new password" : signup ? "Create account" : "Sign in";
+    document.querySelector('label[for="auth-password"]').textContent = reset ? "New password" : "Password";
+    el("auth-password").autocomplete = signup || reset ? "new-password" : "current-password";
+    el("auth-password").placeholder = signup || reset ? "At least 8 characters and a special character" : "Enter your password";
     show_auth_error("");
 }
 
@@ -529,12 +541,56 @@ async function finish_sign_in(me) {
 }
 
 el("auth-switch").addEventListener("click", () => {
-    set_auth_mode(auth.mode === "signup" ? "login" : "signup");
+    set_auth_mode(auth.mode === "login" ? "signup" : "login");
     (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
 });
-el("auth-forgot").addEventListener("click", () => {
-    el("auth-forgot-note").hidden = !el("auth-forgot-note").hidden;
+el("auth-forgot").addEventListener("click", async () => {
+    const note = el("auth-forgot-note");
+    if (!note.hidden) {
+        note.hidden = true;
+        return;
+    }
+    const config = await auth_config();
+    const help = `<a class="support-link" href="mailto:${escape_html(support_email())}?subject=Password%20reset" data-help="reset">Email ${escape_html(support_email())}</a>`;
+    note.innerHTML = config.reset_by_email
+        ? `Type your username or email above and we'll email you a link to choose a new password.
+            <button class="btn btn-soft btn-small auth-send-reset" type="button" id="auth-send-reset">Email me a link</button>
+            <span class="auth-reset-sent" id="auth-reset-sent" hidden></span>
+            <span class="auth-reset-help">Can't get into that email? ${help}.</span>`
+        : `${help} and we'll set you a new password. The message is written for you, just send it from the email on your account.`;
+    note.hidden = false;
 });
+
+el("auth-forgot-note").addEventListener("click", async (event) => {
+    const button = event.target.closest("#auth-send-reset");
+    if (!button) return;
+    const login = el("auth-login").value.trim();
+    if (!login) {
+        show_auth_error("Type your username or email first.");
+        el("auth-login").focus();
+        return;
+    }
+    button.disabled = true;
+    show_auth_error("");
+    try {
+        await api("/api/auth/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login }) });
+        el("auth-reset-sent").textContent = "If that account has an email, a link is on its way. It works for 30 minutes, so check your inbox and spam.";
+        el("auth-reset-sent").hidden = false;
+    } catch (error) {
+        show_auth_error(error.message);
+    }
+    button.disabled = false;
+});
+
+// the link in a reset email opens this, the sign in page asking for a new password
+function show_reset(token) {
+    auth.reset_token = token;
+    document.body.classList.add("signed-out");
+    el("auth").hidden = false;
+    set_auth_mode("reset");
+    requestAnimationFrame(draw_auth_art);
+    el("auth-password").focus();
+}
 
 // the halftone picture beside the form
 // a seeded random keeps the same picture on every visit, it only stretches to fit
@@ -629,6 +685,10 @@ window.addEventListener("resize", () => {
 
 el("auth-form").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (auth.mode === "reset") {
+        save_new_password();
+        return;
+    }
     const signup = auth.mode === "signup";
     const password = el("auth-password").value;
     const body = signup
@@ -663,6 +723,32 @@ el("auth-form").addEventListener("submit", async (event) => {
         el("auth-submit").disabled = false;
     }
 });
+
+async function save_new_password() {
+    const password = el("auth-password").value;
+    if (!password) {
+        show_auth_error("Choose a new password.");
+        return;
+    }
+    if (password !== el("auth-password-again").value) {
+        show_auth_error("The passwords don't match.");
+        el("auth-password-again").focus();
+        return;
+    }
+    el("auth-submit").disabled = true;
+    show_auth_error("");
+    try {
+        const response = await api("/api/auth/reset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: auth.reset_token, password }),
+        });
+        await finish_sign_in(await response.json());
+    } catch (error) {
+        show_auth_error(error.message);
+        el("auth-submit").disabled = false;
+    }
+}
 
 async function sign_out() {
     try {
@@ -869,6 +955,12 @@ thread.addEventListener("click", async (event) => {
 });
 
 async function start() {
+    const reset = location.hash.match(/^#\/reset\/([\w-]{20,200})$/);
+    if (reset) {
+        await auth_config();
+        show_reset(reset[1]);
+        return;
+    }
     const me = await load_me();
     if (!me) {
         show_auth();

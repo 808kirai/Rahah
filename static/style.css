@@ -1898,6 +1898,31 @@ body.signed-out .toasts {
     line-height: 1.45;
 }
 
+/* forgot password, the button that emails a reset link and what happens next */
+.auth-send-reset {
+    display: flex;
+    margin: 0.55rem 0;
+}
+
+.auth-reset-sent {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: var(--mint-text);
+}
+
+.auth-reset-sent[hidden] {
+    display: none;
+}
+
+.auth-reset-help {
+    display: block;
+}
+
+/* choosing a new password from an email link, google and apple aren't needed */
+.auth-resetting #auth-providers {
+    display: none;
+}
+
 .auth-submit {
     margin-top: 0.4rem;
     width: 100%;

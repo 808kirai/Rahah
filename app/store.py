@@ -36,6 +36,12 @@ create table if not exists users (
     created real not null,
     last_seen real
 );
+create table if not exists password_resets (
+    token text primary key,
+    user_id text not null references users(id) on delete cascade,
+    expires real not null,
+    used integer not null default 0
+);
 create table if not exists sessions (
     token text primary key,
     user_id text not null references users(id) on delete cascade,
@@ -385,6 +391,26 @@ class store:
     def end_session(self, token: str) -> None:
         with self._connect() as db:
             db.execute("delete from sessions where token = ?", (token_hash(token),))
+
+    def add_reset(self, user_id: str, token: str, expires: float) -> None:
+        # only the newest link works, asking again cancels the one before
+        with self._connect() as db:
+            db.execute("delete from password_resets where user_id = ? or expires < ?", (user_id, time.time()))
+            db.execute("insert into password_resets (token, user_id, expires) values (?, ?, ?)", (token_hash(token), user_id, expires))
+
+    def take_reset(self, token: str) -> str | None:
+        # a link works once, before it runs out, and gives back whose it was
+        key = token_hash(token)
+        with self._connect() as db:
+            row = db.execute(
+                "select user_id from password_resets where token = ? and used = 0 and expires > ?", (key, time.time())
+            ).fetchone()
+            if not row:
+                return None
+            # marking it used only counts if nobody else used it a moment before
+            if db.execute("update password_resets set used = 1 where token = ? and used = 0", (key,)).rowcount != 1:
+                return None
+        return row[0]
 
     def end_sessions(self, user_id: str, keep: str | None = None) -> None:
         # signs the account out everywhere, except the session keep if given
