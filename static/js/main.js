@@ -319,7 +319,8 @@ function set_auth_mode(mode) {
     el("auth-title").textContent = signup ? "Create an account" : "Sign in";
     el("auth-switch-text").textContent = signup ? "Already have an account?" : "Don't have an account?";
     el("auth-switch").textContent = signup ? "Sign in" : "Create an account";
-    el("apple-button").lastChild.textContent = signup ? " Sign up with Apple" : " Sign in with Apple";
+    el("apple-label").textContent = signup ? "Sign up with Apple" : "Sign in with Apple";
+    el("google-label").textContent = signup ? "Sign up with Google" : "Sign in with Google";
     el("auth-submit").textContent = signup ? "Create account" : "Sign in";
     el("auth-password").autocomplete = signup ? "new-password" : "current-password";
     el("auth-password").placeholder = signup ? "8 or more characters with a symbol like !" : "Enter your password";
@@ -400,7 +401,7 @@ async function draw_google_button(slot, text = "continue_with") {
         const light = document.documentElement.getAttribute("data-theme") === "light";
         google.accounts.id.renderButton(slot, {
             theme: light ? "outline" : "filled_black", size: "large", shape: "pill", text, logo_alignment: "center",
-            width: Math.min(360, slot.clientWidth || 360),
+            width: Math.min(400, slot.clientWidth || 360),
         });
     } catch (e) {
         slot.innerHTML = '<p class="field-hint">Google sign in couldn\'t load. Check the connection.</p>';
@@ -425,6 +426,7 @@ async function set_up_providers() {
     const config = await auth_config();
     el("auth-providers").hidden = !config.google_client_id && !config.apple_client_id;
     el("apple-button").hidden = !config.apple_client_id;
+    el("auth-google").hidden = !config.google_client_id;
     if (config.google_client_id) draw_google_button(el("google-button"));
 }
 
@@ -446,20 +448,55 @@ el("auth-forgot").addEventListener("click", () => {
     el("auth-forgot-note").hidden = !el("auth-forgot-note").hidden;
 });
 
-// the halftone beside the form, a big flowing shape of diamond dots like a printed picture, drawn once per size
+// the halftone picture beside the form
 // a seeded random keeps the same picture on every visit, it only stretches to fit
-function auth_random(seed) {
-    return () => {
-        seed = (seed + 0x6d2b79f5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
+// the picture is kept as a small map of how dark each spot is, and redrawn here as diamond dots at the screen's
+// own size, so it stays sharp on any screen and takes the page's colours
+const auth_picture = { tones: null, width: 0, height: 0, loading: null };
+
+function load_auth_picture() {
+    if (!auth_picture.loading) {
+        auth_picture.loading = new Promise((resolve) => {
+            const image = new Image();
+            image.onload = () => {
+                const off = document.createElement("canvas");
+                off.width = image.width;
+                off.height = image.height;
+                const octx = off.getContext("2d");
+                octx.drawImage(image, 0, 0);
+                const data = octx.getImageData(0, 0, image.width, image.height).data;
+                // dark is 1 and white is 0
+                auth_picture.tones = new Float32Array(image.width * image.height);
+                for (let i = 0; i < auth_picture.tones.length; i += 1) auth_picture.tones[i] = 1 - data[i * 4] / 255;
+                auth_picture.width = image.width;
+                auth_picture.height = image.height;
+                resolve();
+            };
+            image.onerror = () => resolve();
+            image.src = "/static/img/auth-art.png";
+        });
+    }
+    return auth_picture.loading;
 }
 
-function draw_auth_art() {
+// how dark the picture is at a point, blended between its neighbours so the shading is smooth
+function picture_tone(x, y) {
+    const { tones, width, height } = auth_picture;
+    const fx = Math.min(Math.max(x, 0), width - 1.001);
+    const fy = Math.min(Math.max(y, 0), height - 1.001);
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const tx = fx - x0, ty = fy - y0;
+    const at = (cx, cy) => tones[cy * width + cx];
+    const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
+    const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
+    return top * (1 - ty) + bottom * ty;
+}
+
+async function draw_auth_art() {
     const canvas = el("auth-art");
     if (!canvas || el("auth").hidden || getComputedStyle(canvas).display === "none") return;
+    await load_auth_picture();
+    if (!auth_picture.tones) return;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const ratio = window.devicePixelRatio || 1;
@@ -468,48 +505,23 @@ function draw_auth_art() {
     const ctx = canvas.getContext("2d");
     ctx.scale(ratio, ratio);
     ctx.clearRect(0, 0, width, height);
-    // black and white like a printed halftone, the page's own text colour on its background
+    // dark dots on the light page and light dots on the dark one, the page's own text colour
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#edf5fa";
     ctx.globalAlpha = 0.92;
 
-    // layered value noise for the light and dark patches
-    const rand = auth_random(7);
-    const size = 16;
-    const grid = Array.from({ length: size * size }, rand);
-    const at = (x, y) => grid[((y % size) + size) % size * size + ((x % size) + size) % size];
-    const smooth = (t) => t * t * (3 - 2 * t);
-    const noise = (x, y) => {
-        const x0 = Math.floor(x), y0 = Math.floor(y);
-        const sx = smooth(x - x0), sy = smooth(y - y0);
-        const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx;
-        const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
-        return top + (bottom - top) * sy;
-    };
-    const fbm = (x, y) => 0.55 * noise(x, y) + 0.3 * noise(x * 2.1 + 7, y * 2.1 + 3) + 0.15 * noise(x * 4.3 + 1, y * 4.3 + 9);
-    const ease = (a, b, t) => smooth(Math.min(Math.max((t - a) / (b - a), 0), 1));
+    // the picture covers the panel, centred, the way a background photo would
+    const scale = Math.max(width / auth_picture.width, height / auth_picture.height);
+    const left = (width - auth_picture.width * scale) / 2;
+    const top = (height - auth_picture.height * scale) / 2;
 
-    // the left edge of the shape down the panel, close to the left at the top, bulging out
-    // around the middle, then pulling back right towards the bottom
-    const edge = (v) => 0.1 + 0.32 * v - 0.2 * Math.exp(-(((v - 0.52) / 0.16) ** 2)) + 0.32 * ease(0.66, 0.95, v) + 0.04 * Math.sin(v * 11);
-
-    // dots on a diagonal grid, every other row shifted half a step, so full dots join up into solid patches
-    const step = 13;
+    // dots on a diagonal grid, every other row shifted half a step, sized by how dark the picture is under them
+    const step = 11;
     const half = step / 2;
-    const speckle = auth_random(11);
     for (let row = 0, y = 0; y < height + step; row += 1, y += half) {
         for (let x = (row % 2) * half; x < width + step; x += step) {
-            const u = x / width, v = y / height;
-            const ragged = 0.14 * (noise(u * 7 + 2, v * 7) - 0.5) + 0.05 * (noise(u * 22, v * 22 + 4) - 0.5);
-            const inside = ease(-0.05, 0.08, u - edge(v) + ragged);
-            if (inside <= 0) continue;
-            // dark cores, light washes and the odd hole, the shape fades a little near its edge
-            let tone = inside * (fbm(u * 4.2, v * 4.2) - 0.3) * 2.4;
-            tone = Math.min(Math.max(tone, 0), 1);
-            if (tone < 0.06) continue;
-            // the lightest dots thin out at random, which gives the scattered edges
-            if (tone < 0.4 && speckle() > tone / 0.4) continue;
-            // a dot's area follows its tone, the way a halftone screen works, and even the darkest keep a sliver of gap
-            const r = half * Math.min(0.86, 0.16 + tone * 0.74);
+            const tone = Math.min(Math.max((picture_tone((x - left) / scale, (y - top) / scale) - 0.06) / 0.78, 0), 1);
+            if (tone < 0.07) continue;
+            const r = half * Math.min(0.9, Math.sqrt(tone) * 0.95);
             ctx.beginPath();
             ctx.moveTo(x, y - r);
             ctx.lineTo(x + r, y);

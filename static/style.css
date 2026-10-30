@@ -1806,53 +1806,71 @@ body.signed-out .toasts {
     margin-bottom: 1.25rem;
 }
 
-.auth-providers[hidden],
-.auth-apple[hidden] {
+.auth-providers[hidden] {
     display: none;
 }
 
-#google-button {
-    display: flex;
-    justify-content: center;
-    min-height: 44px;
-}
-
-.auth-apple {
+/* google and apple as outlined ovals in rahah's colours, like the reference */
+.auth-provider {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.6rem;
+    gap: 0.65rem;
     width: 100%;
     min-height: 44px;
     border: none;
     border-radius: var(--pill);
-    background: #202124;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--border);
     font: inherit;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 500;
-    color: #fff;
+    color: var(--text);
     cursor: pointer;
+    transition: box-shadow 0.2s var(--ease-out), background 0.2s var(--ease-out);
 }
 
-.auth-apple:hover {
-    background: #2a2b2e;
+.auth-provider[hidden] {
+    display: none;
 }
 
-[data-theme="light"] .auth-apple {
-    background: #fff;
-    box-shadow: inset 0 0 0 1px #dadce0;
-    color: #1f1f1f;
+.auth-provider:hover,
+.auth-provider:focus-within,
+.auth-provider:focus-visible {
+    outline: none;
+    background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+    box-shadow: inset 0 0 0 1px var(--text-2);
 }
 
-[data-theme="light"] .auth-apple:hover {
-    background: #f6f9fc;
+.auth-provider-face {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    pointer-events: none;
 }
 
-.auth-apple svg {
+.auth-provider svg {
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
+}
+
+.apple-logo {
     fill: currentColor;
     stroke: none;
+}
+
+/* google's own button sits over ours, unseen, and takes the click */
+.auth-google-hit {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: inherit;
+    opacity: 0.001;
 }
 
 .auth-or {

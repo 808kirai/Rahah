@@ -79,7 +79,7 @@ Look and feel
 - Faint see through cards and boxes, with a soft shadow in light mode
 - The tabs and message box float over the page with a fade underneath, like a streaming app
 - Popups close with a click outside them
-- The sign in page has the form on the left with Google and Apple buttons, outlined boxes, a Forgot password link and a link to switch between signing in and making an account, and a black and white halftone on the right, a big flowing shape of diamond dots on a diagonal grid whose sizes carry the shading, with dark masses, light washes, holes and scattered edges, drawn to fit the screen. Phones get the form alone
+- The sign in page has the form on the left with Google and Apple as matching outlined ovals (Google's own button sits unseen over ours, so the click still goes to Google), outlined boxes, a Forgot password link and a link to switch between signing in and making an account, and the halftone picture from the reference design on the right. It's kept as a small shading map (static/img/auth-art.png, 17 KB) and redrawn as crisp diamond dots at the screen's own size, dark on the light page and light on the dark one. Phones get the form alone
 - Settings, the gear at the top, kept on the device:
   - Answer language, from 18 including Kiswahili, Arabic, French, Amharic, Somali, Hindi and Chinese. Rahah answers and makes tests and decks in it, gives the English term in brackets for key subject words, and Listen reads in that language
   - Low-data mode for slow or costly connections: shorter answers, no web searches unless asked, smaller photos, no downloaded font, and diagrams shown as text with a Draw button
