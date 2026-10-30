@@ -306,7 +306,7 @@ async function show_auth() {
     el("auth").hidden = false;
     set_auth_mode(auth.mode);
     set_up_providers();
-    (document.fonts?.ready || Promise.resolve()).then(() => requestAnimationFrame(draw_auth_art));
+    requestAnimationFrame(draw_auth_art);
     (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
 }
 
@@ -446,43 +446,14 @@ el("auth-forgot").addEventListener("click", () => {
     el("auth-forgot-note").hidden = !el("auth-forgot-note").hidden;
 });
 
-// the halftone beside the form, a big R for rahah made of diamond dots
-// the letter is drawn blurred on a small hidden canvas, then each dot's size follows how much of the letter is under it,
-// so the strokes are dense, the edges scatter, and a little noise breaks it up like print. a seeded random keeps the
-// same picture on every visit
+// the halftone beside the form, diamond dots that thicken into soft shapes, drawn once per size
+// a seeded random keeps the same picture on every visit, it only stretches to fit
 function auth_random(seed) {
     return () => {
         seed = (seed + 0x6d2b79f5) | 0;
         let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-function letter_map(width, height) {
-    // a quarter size is plenty, since it's only read for how dark each spot is
-    const scale = 0.25;
-    const w = Math.max(1, Math.round(width * scale));
-    const h = Math.max(1, Math.round(height * scale));
-    const off = document.createElement("canvas");
-    off.width = w;
-    off.height = h;
-    const octx = off.getContext("2d");
-    const size = h * 1.3;
-    octx.filter = `blur(${Math.max(1, size * 0.022)}px)`;
-    octx.fillStyle = "#000";
-    octx.font = `800 ${size}px Inter, "Segoe UI", Arial, sans-serif`;
-    octx.textBaseline = "alphabetic";
-    // tilted a little and pushed right and down, so the letter runs off the edges like a cropped print
-    octx.translate(w * 0.6, h * 1.02);
-    octx.rotate(-0.12);
-    octx.textAlign = "center";
-    octx.fillText("R", 0, 0);
-    const data = octx.getImageData(0, 0, w, h).data;
-    return (x, y) => {
-        const px = Math.min(w - 1, Math.max(0, Math.floor(x * scale)));
-        const py = Math.min(h - 1, Math.max(0, Math.floor(y * scale)));
-        return data[(py * w + px) * 4 + 3] / 255;
     };
 }
 
@@ -499,12 +470,11 @@ function draw_auth_art() {
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent-text").trim() || "#3b9edb";
     // a little dimmer than the accent, so it sits behind the form rather than competing with it
-    ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = 0.7;
 
-    const letter = letter_map(width, height);
-    // smooth value noise for the print texture
+    // smooth value noise on a coarse grid, layered twice for softer edges
     const rand = auth_random(7);
-    const size = 11;
+    const size = 9;
     const grid = Array.from({ length: size * size }, rand);
     const at = (x, y) => grid[((y % size) + size) % size * size + ((x % size) + size) % size];
     const smooth = (t) => t * t * (3 - 2 * t);
@@ -520,12 +490,13 @@ function draw_auth_art() {
     for (let y = step / 2; y < height; y += step) {
         for (let x = step / 2; x < width; x += step) {
             const u = x / width, v = y / height;
-            const grain = 0.6 * noise(u * 6, v * 6) + 0.4 * noise(u * 14 + 5, v * 14 + 5);
-            // the letter shaded by the grain, light and dark patches inside the strokes, and a faint scatter around it
-            const value = letter(x, y) * (0.45 + 0.85 * grain) + 0.1 * grain;
-            const density = Math.min(Math.max((value - 0.2) * 1.7, 0), 1);
-            if (density <= 0 || dots() > Math.pow(density, 0.7)) continue;
-            const r = (step / 2) * (0.4 + 0.55 * density);
+            // a band that sweeps from the top right down through the middle, broken up by the noise
+            const sweep = 1 - Math.abs(u - (0.82 - 0.42 * v + 0.12 * Math.sin(v * 6))) * 1.5;
+            const value = 0.45 * sweep + 0.55 * (0.6 * noise(u * 3.5, v * 3.5) + 0.4 * noise(u * 8 + 3, v * 8 + 3));
+            const density = Math.min(Math.max((value - 0.4) * 2.8, 0), 1);
+            // sparse dots scatter at the edges, dense ones join up in the middle
+            if (density <= 0 || dots() > Math.pow(density, 0.8)) continue;
+            const r = (step / 2) * (0.45 + 0.5 * density);
             ctx.beginPath();
             ctx.moveTo(x, y - r);
             ctx.lineTo(x + r, y);
