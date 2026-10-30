@@ -3436,28 +3436,6 @@ body.signed-out .toasts {
     transition-duration: 0.22s;
 }
 
-/* a new page fades and lifts in */
-.thread.view-in > * {
-    animation: view-in 0.38s var(--ease-out) both;
-}
-
-@keyframes view-in {
-    from {
-        opacity: 0;
-        transform: translateY(12px);
-    }
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .thread.view-in > * {
-        animation: none;
-    }
-}
-
 @starting-style {
     .sheet[open]::backdrop {
         background: rgba(2, 6, 12, 0);

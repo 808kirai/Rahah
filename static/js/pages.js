@@ -315,7 +315,7 @@ async function load_notes() {
         return;
     }
     el("notes-option").hidden = !state.notes.length;
-    render_chats();
+    if (changed("notes", state.notes)) render_chats();
 }
 
 // adding notes, each file uploads once and shows how it went
@@ -614,7 +614,7 @@ async function load_recommendations() {
         state.recs = { items: [], has_activity: true, created: null, fresh: false };
         state.recs_error = error.message;
     }
-    render_recommendations();
+    if (changed("recs", [state.recs, state.recs_error])) render_recommendations();
     // new picks are asked for when there are none, or when something new was studied and the last ones are half a day old
     const stale = !state.recs.created || Date.now() / 1000 - state.recs.created > 12 * 3600;
     if (state.recs.has_activity && !state.recs.fresh && !state.recs_error && (!state.recs.items.length || stale)) make_recommendations();

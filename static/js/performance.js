@@ -60,6 +60,7 @@ async function load_performance() {
     } catch (error) {
         return;
     }
+    if (!changed("performance", state.performance)) return;
     render_performance_row();
     render_performance();
 }
@@ -168,7 +169,7 @@ async function load_usage() {
     } catch (error) {
         return;
     }
-    render_usage();
+    if (changed("usage", [state.me, state.usage, state.feedback])) render_usage();
 }
 
 function hours_text(seconds) {

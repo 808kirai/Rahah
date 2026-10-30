@@ -199,9 +199,11 @@ async function load_reminders() {
     } catch (error) {
         return;
     }
-    render_reminders();
-    render_reminder_row();
-    sync_reminder_badge();
+    if (changed("reminders", state.reminders)) {
+        render_reminders();
+        render_reminder_row();
+        sync_reminder_badge();
+    }
     check_reminders();
 }
 
@@ -335,7 +337,7 @@ async function load_timetable() {
     } catch (error) {
         return;
     }
-    render_timetable();
+    if (changed("classes", state.classes)) render_timetable();
 }
 
 // the class under now moves on as the day goes, so the list is redrawn each minute while it's open

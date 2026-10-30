@@ -28,6 +28,7 @@ async function load_history() {
     } catch (error) {
         return;
     }
+    if (!changed("conversations", state.conversations)) return;
     render_continue();
     render_chats();
 }

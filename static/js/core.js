@@ -123,6 +123,16 @@ document.addEventListener("cancel", (event) => {
 // the rahah logo exactly as designed, the dark circle with its three chevrons
 const logo_mark = '<img class="logo-img" src="/static/img/logo.svg" alt="" aria-hidden="true">';
 
+// pages draw straight away from what's saved, then the server's answer arrives. drawing again only when
+// that answer is different keeps a page from flickering as its cards fade in a second time
+const last_seen = {};
+function changed(key, value) {
+    const text = JSON.stringify(value);
+    if (last_seen[key] === text) return false;
+    last_seen[key] = text;
+    return true;
+}
+
 async function api(path, options = {}) {
     const response = await fetch(path, options);
     // a session that ran out or was signed out elsewhere goes back to the sign in screen

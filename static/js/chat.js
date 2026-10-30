@@ -107,13 +107,16 @@ function current_view() {
 
 // a new page eases in, a fade and a small lift, whenever what's shown changes
 let shown_view = "";
+// a new page fades and lifts in, starting partly shown so there's no blank moment between pages.
+// it's laid on top of each part's own fade in, so when it ends nothing starts over and blinks
 function ease_in_view() {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    thread.classList.remove("view-in");
-    void thread.offsetWidth; // starts the animation again even if it just ran
-    thread.classList.add("view-in");
-    clearTimeout(ease_in_view.timer);
-    ease_in_view.timer = setTimeout(() => thread.classList.remove("view-in"), 600);
+    for (const part of thread.children) {
+        part.animate(
+            [{ opacity: 0.45, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }],
+            { duration: 450, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        );
+    }
 }
 
 function sync_view() {
@@ -158,7 +161,7 @@ async function load_today() {
     } catch (error) {
         return;
     }
-    render_today();
+    if (changed("today", state.today)) render_today();
 }
 
 function render_today() {

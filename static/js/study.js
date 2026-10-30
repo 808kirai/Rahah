@@ -94,6 +94,7 @@ async function load_sets() {
     } catch (error) {
         return;
     }
+    if (!changed("sets", state.sets)) return;
     render_set_rows();
     render_chats();
     save_sets_for_offline();
