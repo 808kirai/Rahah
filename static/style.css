@@ -1843,6 +1843,25 @@ body.signed-out .toasts {
     font-size: 0.75rem;
 }
 
+.usage-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 8rem;
+}
+
+.usage-bar .allowance-track {
+    flex: 1;
+}
+
+.usage-bar-value {
+    min-width: 2.6rem;
+    text-align: right;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
 /* the students page */
 .admin-table td small {
     display: block;

@@ -168,8 +168,16 @@ def test_usage_is_counted_per_student_and_the_admin_sees_it_all(make):
     for web in (admin, student):
         chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
         web.post(f"/api/conversations/{chat}/messages", json={"text": "hi"})
-    assert student.get("/api/usage").json()["all"]["requests"] == 1
+    # only the admin sees money
+    assert student.get("/api/usage").status_code == 403
+    assert student.get("/api/feedback").status_code == 403
     assert admin.get("/api/usage").json()["all"]["requests"] == 2
+    rows = {u["username"]: u for u in admin.get("/api/admin/users").json()["users"]}
+    brian = rows["brian"]
+    assert brian["today"] > 0 and brian["cap"] == 0.5 and brian["left"] == round(0.5 - brian["today"], 4)
+    assert brian["percent"] == round(100 * brian["today"] / 0.5)
+    assert rows["runie"]["cap"] is None and rows["runie"]["percent"] is None
+    assert student.get("/api/me").json()["allowance"]["percent"] == brian["percent"]
 
 
 def test_changing_the_password_signs_out_other_devices(make):
@@ -201,8 +209,9 @@ def test_each_student_has_a_daily_allowance_and_the_admin_has_none(make):
     admin, student = TestClient(app), TestClient(app)
     sign_up(admin, "runie")
     me = sign_up(student, "brian").json()
-    assert me["allowance"]["cap"] == 0.5 and me["allowance"]["used"] == 0
-    assert admin.get("/api/me").json()["allowance"]["cap"] is None
+    # a student sees only the share of today's limit used, the admin has no limit
+    assert me["allowance"] == {"limited": True, "percent": 0, "resets_in": me["allowance"]["resets_in"]}
+    assert admin.get("/api/me").json()["allowance"] == {"limited": False}
 
     # the admin sets brian's limit below what one answer costs, so the second question is turned away
     admin.patch(f"/api/admin/users/{me['id']}", json={"daily_cap": 0.000001})

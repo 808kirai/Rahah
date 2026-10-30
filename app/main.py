@@ -317,6 +317,16 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             wait = f"{hours} hours" if hours >= 2 else f"{hours * 60 + minutes} minutes"
             raise HTTPException(429, f"You've used today's study allowance. It resets in about {wait}. Your flashcards and saved tests still work.")
 
+    def used_percent(used: float, cap: float) -> int:
+        return 100 if cap <= 0 else min(100, round(100 * used / cap))
+
+    def allowance_out(user: dict) -> dict:
+        # a student sees only how much of today's limit is used, never what it costs
+        a = allowance(user)
+        if a["cap"] is None:
+            return {"limited": False}
+        return {"limited": True, "percent": used_percent(a["used"], a["cap"]), "resets_in": a["resets_in"]}
+
     def own_subjects(user: dict) -> set[str]:
         return {s["id"] for s in db.list_subjects(user["id"])}
 
@@ -330,7 +340,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
-            "allowance": allowance(user),
+            "allowance": allowance_out(user),
         }
 
     def start_session(request: Request, response: Response, user: dict) -> None:
@@ -478,7 +488,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     # the admin page, every student with what they've used, their limit and whether they can sign in
 
     def admin_row(user: dict, costs: dict) -> dict:
+        today = costs["today"].get(user["id"], 0)
+        cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
         return {
+            "cap": cap,
+            "left": None if cap is None else round(max(cap - today, 0), 4),
+            "percent": None if cap is None else used_percent(today, cap),
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "disabled": user["disabled"], "created": user["created"],
             "last_seen": user["last_seen"], "daily_cap": user["daily_cap"],
@@ -596,17 +611,17 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return {"rating": body.rating}
 
     @app.get("/api/feedback")
-    def feedback_report(user: dict = Depends(signed_in)):
-        # the admin sees every student's ratings, a student their own
-        return db.feedback_summary(None if user["is_admin"] else user["id"])
+    def feedback_report(user: dict = Depends(admin_only)):
+        # every student's answer ratings, for the admin to see where rahah's instructions need work
+        return db.feedback_summary(None)
 
     @app.get("/api/usage")
-    def usage_report(user: dict = Depends(signed_in)):
+    def usage_report(user: dict = Depends(admin_only)):
         now = time.time()
         today = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
         since = {"today": today, "week": now - 7 * 86400, "all": 0}
-        # the admin sees what rahah costs in all, a student what they've used
-        return summarise_usage(db.usage_since(0, None if user["is_admin"] else user["id"]), since)
+        # what rahah costs in all, only the admin sees money
+        return summarise_usage(db.usage_since(0), since)
 
     # this server's saved subjects join the list as it starts
     sync_custom(db.list_subjects())

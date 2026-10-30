@@ -150,16 +150,20 @@ function render_week() {
 
 const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions", plan: "Revision plans" };
 
+// money is always shown to the cent
 function dollars(value) {
-    return `$${value >= 1 ? value.toFixed(2) : value.toFixed(4)}`;
+    return `$${(value || 0).toFixed(2)}`;
 }
 
 async function load_usage() {
     try {
-        const [usage, feedback, me] = await Promise.all([api("/api/usage"), api("/api/feedback"), api("/api/me")]);
-        state.usage = await usage.json();
-        state.feedback = await feedback.json();
-        state.me = await me.json();
+        state.me = await (await api("/api/me")).json();
+        // costs and ratings are only for the admin
+        if (state.me.is_admin) {
+            const [usage, feedback] = await Promise.all([api("/api/usage"), api("/api/feedback")]);
+            state.usage = await usage.json();
+            state.feedback = await feedback.json();
+        }
     } catch (error) {
         return;
     }
@@ -171,15 +175,27 @@ function hours_text(seconds) {
     return hours >= 1 ? plural(hours, "hour") : plural(Math.max(1, Math.round(seconds / 60)), "minute");
 }
 
-// today's allowance as a bar, how much of it is used and when it starts again
+// a horizontal bar with the share used, for a student's own limit and each student on the admin page
+function usage_bar(percent) {
+    return `<span class="usage-bar" role="img" aria-label="${percent}% used">
+        <span class="allowance-track"><span class="allowance-bar${percent >= 100 ? " full" : ""}" style="width: ${percent}%"></span></span>
+        <span class="usage-bar-value">${percent}%</span>
+    </span>`;
+}
+
+// a student's own box, how much of today's limit is used and when it starts again, never what it costs
 function allowance_html(a) {
-    if (!a || a.cap === null) return "";
-    const share = a.cap ? Math.min(100, Math.round((100 * a.used) / a.cap)) : 100;
-    return `<div class="allowance">
-        <div class="allowance-head"><span>Today's allowance</span><strong>${dollars(a.used)} of $${a.cap.toFixed(2)}</strong></div>
-        <span class="allowance-track"><span class="allowance-bar${share >= 100 ? " full" : ""}" style="width: ${share}%"></span></span>
-        <small>${share >= 100 ? "Used up for today." : `${100 - share}% left.`} It starts again in ${hours_text(a.resets_in)}.</small>
-    </div>`;
+    if (!a?.limited) return "";
+    return `<section class="perf-card usage-card">
+        <div class="perf-head">
+            <h3>Today's limit</h3>
+            <p>How much of today's study limit you've used</p>
+        </div>
+        <div class="allowance">
+            ${usage_bar(a.percent)}
+            <small>${a.percent >= 100 ? "Used up for today. Saved flashcards and tests still work." : `${100 - a.percent}% left.`} It starts again in ${hours_text(a.resets_in)}.</small>
+        </div>
+    </section>`;
 }
 
 // what students thought of the answers, with the unhelpful ones to look at
@@ -198,21 +214,24 @@ function feedback_html(f) {
 
 function render_usage() {
     const slot = el("usage-slot");
+    if (!slot || !state.me) return;
+    if (!state.me.is_admin) {
+        slot.innerHTML = allowance_html(state.me.allowance);
+        return;
+    }
     const u = state.usage;
-    if (!slot || !u) return;
+    if (!u) return;
     const column = (label, w) => `<div class="usage-col">
         <span>${label}</span>
         <strong>${dollars(w.cost)}</strong>
         <small>${plural(w.requests, "request")}${w.searches ? ` · ${plural(w.searches, "search")}` : ""}</small>
     </div>`;
     const all = u.all;
-    const admin = state.me?.is_admin;
     slot.innerHTML = `<section class="perf-card usage-card">
         <div class="perf-head">
             <h3>Usage and cost</h3>
-            <p>${admin ? "What Rahah has cost on this API key across every student, worked out from Claude's prices" : "What your studying has used, worked out from Claude's prices"}</p>
+            <p>What Rahah has cost on this API key across every student, worked out from Claude's prices</p>
         </div>
-        ${allowance_html(state.me?.allowance)}
         <div class="usage-cols">${column("Today", u.today)}${column("Last 7 days", u.week)}${column("All time", all)}</div>
         <p class="usage-note">${!all.requests ? "Nothing used yet." : all.cache_share ? `Caching saved ${dollars(all.saved)}, and ${all.cache_share}% of what Claude read came from the cache.` : "Nothing came from the cache yet. Caching starts saving once chats get longer."}</p>
         ${all.kinds.length ? `<div class="usage-kinds">${all.kinds.map((k) => `<span>${usage_kinds[k.kind] || k.kind} <strong>${dollars(k.cost)}</strong></span>`).join("")}</div>` : ""}
@@ -384,12 +403,13 @@ function render_admin() {
                 <p>A blank limit uses the default of ${`$${a.default_cap.toFixed(2)}`} a day. Limits reset at midnight UTC</p>
             </div>
             <div class="table-wrap"><table class="admin-table">
-                <thead><tr><th>Student</th><th>Joined</th><th>Last seen</th><th class="num">Today</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>
+                <thead><tr><th>Student</th><th>Last seen</th><th class="num">Today</th><th class="num">Left today</th><th>Limit used</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>
                 <tbody>${a.users.map((u) => `<tr class="${u.disabled ? "is-off" : ""}">
                     <td><strong>${escape_html(u.name || u.username)}</strong><small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small></td>
-                    <td>${short_date(u.created)}</td>
-                    <td>${seen(u)}</td>
+                    <td>${seen(u)}<small>Joined ${short_date(u.created)}</small></td>
                     <td class="num">${dollars(u.today)}</td>
+                    <td class="num">${u.cap === null ? "–" : dollars(u.left)}</td>
+                    <td>${u.percent === null ? '<span class="admin-tag">No limit</span>' : usage_bar(u.percent)}</td>
                     <td class="num">${dollars(u.week)}</td>
                     <td class="num">${dollars(u.all)}</td>
                     <td>${limit(u)}</td>
