@@ -351,30 +351,39 @@ svg {
 
 .model-pick {
     display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
+    align-items: baseline;
+    gap: 0.4rem;
     height: 34px;
-    padding: 0 0.6rem 0 0.8rem;
+    padding: 0 0.6rem;
     border: none;
     border-radius: var(--pill);
-    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+    background: transparent;
     font: inherit;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-2);
+    font-size: 0.85rem;
+    line-height: 34px;
     cursor: pointer;
-    transition: color 0.2s, background 0.2s;
+    white-space: nowrap;
+    transition: background 0.2s;
 }
 
 .model-pick:hover,
 .model-pick[aria-expanded="true"] {
-    color: var(--text);
-    background: var(--surface-2);
+    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
 }
 
-.model-pick svg {
-    width: 14px;
-    height: 14px;
+.model-pick-name {
+    font-weight: 500;
+    color: var(--text);
+}
+
+.model-pick-word {
+    color: var(--text-2);
+}
+
+@media (max-width: 480px) {
+    .model-pick-word {
+        display: none;
+    }
 }
 
 .model-menu {

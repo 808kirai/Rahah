@@ -23,10 +23,10 @@ deep_subjects = {"maths", "science", "coding"}
 
 # what the picker shows, in order, archmage only for the admin
 choices = [
-    {"id": "auto", "name": "Auto", "hint": "Rahah picks: Acolyte for everyday questions, Mage for maths, science and code"},
-    {"id": "acolyte", "name": "Acolyte", "hint": "Quick answers for everyday questions"},
-    {"id": "mage", "name": "Mage", "hint": "Careful thinking for maths, science, code and essays"},
-    {"id": "archmage", "name": "Archmage", "hint": "The deepest thinking, for the hardest problems", "admin": True},
+    {"id": "auto", "name": "Auto", "word": "Rahah picks", "hint": "Acolyte for everyday questions, Mage for maths, science and code"},
+    {"id": "acolyte", "name": "Acolyte", "word": "Quick", "hint": "Quick answers for everyday questions"},
+    {"id": "mage", "name": "Mage", "word": "Careful", "hint": "Careful thinking for maths, science, code and essays"},
+    {"id": "archmage", "name": "Archmage", "word": "Deepest", "hint": "The deepest thinking, for the hardest problems", "admin": True},
 ]
 choice_ids = {c["id"] for c in choices}
 

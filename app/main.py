@@ -350,8 +350,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
             "allowance": allowance_out(user),
-            # with one model set for everything in .env there's nothing to pick, so the page hides the picker
-            "models": [] if cfg.model else choices_for(user["is_admin"]),
+            "models": choices_for(user["is_admin"]),
         }
 
     def start_session(request: Request, response: Response, user: dict) -> None:

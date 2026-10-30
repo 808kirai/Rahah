@@ -45,10 +45,13 @@ def test_auto_picks_by_subject():
     assert chat_tier("acolyte", "maths", False) == "acolyte"
 
 
-def test_the_picker_hides_when_one_model_is_set(setup):
+def test_the_picker_only_shows_the_names(setup):
     app, _ = setup(model="claude-haiku-5-5")
     web = signed_in(TestClient(app))
-    assert web.get("/api/me").json()["models"] == []
+    choices = web.get("/api/me").json()["models"]
+    assert [c["name"] for c in choices] == ["Auto", "Acolyte", "Mage", "Archmage"]
+    # students never see which claude model sits behind a name
+    assert "claude" not in str(choices).lower() and "haiku" not in str(choices).lower()
 
 
 def test_one_model_for_everything_when_set():

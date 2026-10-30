@@ -213,9 +213,9 @@ function feedback_html(f) {
     </div>`;
 }
 
-// a claude model by its picker name, with the model in brackets
+// a claude model by its picker name, the model behind it isn't shown
 function model_label(model) {
-    const names = { "claude-haiku": "Acolyte (Haiku)", "claude-sonnet": "Mage (Sonnet)", "claude-opus": "Archmage (Opus)" };
+    const names = { "claude-haiku": "Acolyte", "claude-sonnet": "Mage", "claude-opus": "Archmage" };
     const found = Object.keys(names).find((key) => model.startsWith(key));
     return found ? names[found] : model || "Other";
 }

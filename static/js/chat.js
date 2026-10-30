@@ -856,7 +856,7 @@ el("composer-chips").addEventListener("click", (event) => {
 const tier_names = { acolyte: "Acolyte", mage: "Mage", archmage: "Archmage" };
 
 function model_choices() {
-    return state.me?.models?.length ? state.me.models : [{ id: "auto", name: "Auto", hint: "Rahah picks" }];
+    return state.me?.models?.length ? state.me.models : [{ id: "auto", name: "Auto", word: "Rahah picks", hint: "Rahah picks" }];
 }
 
 // a choice that's no longer offered, like archmage for someone who stopped being admin, goes back to auto
@@ -866,9 +866,9 @@ function model_choice() {
 }
 
 function render_model_pick() {
-    el("model-pick").closest(".model-tools").hidden = !state.me?.models?.length;
     const current = model_choices().find((c) => c.id === model_choice());
     el("model-pick-name").textContent = current.name;
+    el("model-pick-word").textContent = current.word || "";
     el("model-pick").title = current.hint;
 }
 
