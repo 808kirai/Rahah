@@ -675,11 +675,7 @@ button.picker-heading:focus-visible {
     height: var(--dock-h, 8rem);
 }
 
-/* a deck or quiz has nothing to type into, and the subject picker doesn't apply */
-.is-study .composer {
-    display: none;
-}
-
+/* a deck or quiz doesn't use the subject picker, and the message box fades away with the other pages below */
 .is-study .mode-picker {
     display: none;
 }
@@ -4908,6 +4904,36 @@ body.signed-out .toasts {
     flex: 1;
     min-width: 0;
     max-width: 760px;
+    max-height: 30rem;
+    transition: max-width 0.5s var(--ease-out), max-height 0.5s var(--ease-out), opacity 0.3s var(--ease-out) 0.1s,
+        transform 0.5s var(--ease-out), visibility 0s;
+}
+
+/* the message box is only for home, chats and tests, and a chat. elsewhere it fades and shrinks away,
+   and the tabs glide to the middle as it goes, then back when it returns */
+.is-reminders .composer,
+.is-performance .composer,
+.is-account .composer,
+.is-study .composer {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(24px);
+    overflow: hidden;
+    visibility: hidden;
+    pointer-events: none;
+    transition: max-width 0.5s var(--ease-out), max-height 0.5s var(--ease-out), opacity 0.2s ease-in,
+        transform 0.5s var(--ease-out), visibility 0s 0.5s;
+}
+
+.dock {
+    transition: gap 0.5s var(--ease-out);
+}
+
+.is-reminders .dock,
+.is-performance .dock,
+.is-account .dock,
+.is-study .dock {
+    gap: 0;
 }
 
 .composer-box {
@@ -5374,6 +5400,15 @@ body.signed-out .toasts {
 
     .composer {
         max-width: none;
+    }
+
+    .is-reminders .composer,
+    .is-performance .composer,
+    .is-account .composer,
+    .is-study .composer {
+        max-width: none;
+        max-height: 0;
+        transform: translateY(12px);
     }
 
     .tabs {
