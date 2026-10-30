@@ -110,8 +110,8 @@ document.addEventListener("cancel", (event) => {
     event.target.close();
 }, true);
 
-// the rahah logo, three rising chevrons, drawn in the page's own colours
-const logo_mark = '<svg class="logo-mark" viewBox="0 0 100 102" aria-hidden="true"><path class="logo-top" d="M4 25.8 L47 0 L47 16 L4 41.8Z M53 0 L96 25.8 L96 41.8 L53 16Z"/><path d="M4 55.8 L47 30 L47 46 L4 71.8Z M53 30 L96 55.8 L96 71.8 L53 46Z"/><path d="M4 85.8 L47 60 L47 76 L4 101.8Z M53 60 L96 85.8 L96 101.8 L53 76Z" fill-opacity="0.45"/></svg>';
+// the rahah logo exactly as designed, the dark circle with its three chevrons
+const logo_mark = '<img class="logo-img" src="/static/img/logo.svg" alt="" aria-hidden="true">';
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
