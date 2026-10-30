@@ -1704,50 +1704,97 @@ body.signed-out .toasts {
 .auth {
     min-height: 100dvh;
     display: grid;
-    place-items: center;
-    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
 }
 
 .auth[hidden] {
     display: none;
 }
 
+.auth-side {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px calc(48px + env(safe-area-inset-bottom));
+}
+
 .auth-card {
-    width: min(420px, 100%);
-    padding: 2rem 1.75rem 1.5rem;
-    border: 1px solid var(--panel-line);
-    border-radius: 28px;
-    background: var(--panel-bg);
-    box-shadow: 0 24px 60px -44px rgba(8, 105, 154, 0.18);
+    width: min(360px, 100%);
 }
 
 .auth-brand {
-    margin: 0 0 1.25rem;
+    margin: 0 0 2rem;
 }
 
 .auth-title {
-    margin: 0 0 1.1rem;
-    font-size: 1.6rem;
-    font-weight: 800;
+    margin: 0 0 1.5rem;
+    font-size: 1.85rem;
+    font-weight: 700;
     letter-spacing: -0.02em;
 }
 
-.auth-tabs {
-    margin-bottom: 1.1rem;
+.auth-art {
+    display: block;
+    width: 100%;
+    height: 100dvh;
+    position: sticky;
+    top: 0;
 }
 
 .auth-form {
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 1rem;
 }
 
-.auth-form .field[hidden] {
+.auth-form .field[hidden],
+.auth-link[hidden] {
     display: none;
 }
 
+/* outlined boxes on the sign in page, like the reference, instead of the filled ones in the app */
+.auth .auth-input {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.auth .auth-input:focus {
+    box-shadow: inset 0 0 0 1px var(--accent-text), 0 0 0 3px var(--accent-soft);
+}
+
+.auth-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.auth-link {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.auth-link:hover {
+    color: var(--accent-text);
+}
+
+.auth-hint {
+    margin: 0.4rem 0 0;
+    color: var(--text-2);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
 .auth-submit {
-    margin-top: 0.35rem;
+    margin-top: 0.4rem;
     width: 100%;
     justify-content: center;
 }
@@ -1755,8 +1802,8 @@ body.signed-out .toasts {
 .auth-providers {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    margin-bottom: 0.9rem;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
 }
 
 .auth-providers[hidden],
@@ -1764,17 +1811,46 @@ body.signed-out .toasts {
     display: none;
 }
 
-.auth-apple {
-    width: 100%;
-    max-width: 360px;
-    align-self: center;
+#google-button {
+    display: flex;
     justify-content: center;
-    min-height: 40px;
-    background: var(--surface-2);
-    color: var(--text);
+    min-height: 44px;
+}
+
+.auth-apple {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 44px;
+    border: none;
+    border-radius: var(--pill);
+    background: #202124;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+}
+
+.auth-apple:hover {
+    background: #2a2b2e;
+}
+
+[data-theme="light"] .auth-apple {
+    background: #fff;
+    box-shadow: inset 0 0 0 1px #dadce0;
+    color: #1f1f1f;
+}
+
+[data-theme="light"] .auth-apple:hover {
+    background: #f6f9fc;
 }
 
 .auth-apple svg {
+    width: 18px;
+    height: 18px;
     fill: currentColor;
     stroke: none;
 }
@@ -1783,9 +1859,11 @@ body.signed-out .toasts {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin: 0.3rem 0 0;
+    margin: 0.5rem 0 0;
     color: var(--text-2);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .auth-or::before,
@@ -1793,147 +1871,28 @@ body.signed-out .toasts {
     content: "";
     flex: 1;
     height: 1px;
-    background: var(--panel-line);
+    background: var(--border);
 }
 
-/* the suggested for you row on home, with its refresh button beside the heading */
-.category-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.rec-refresh svg {
-    width: 15px;
-    height: 15px;
-}
-
-/* the account tab */
-.account-page .perf-card + .perf-card,
-.account-page #usage-slot .perf-card {
-    margin-top: 1rem;
-}
-
-.account-fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 0.75rem;
-    margin-top: 1rem;
-}
-
-.account-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-top: 0.85rem;
-}
-
-.account-actions .field-hint {
-    margin: 0;
-}
-
-/* today's allowance in the usage box */
-.allowance {
+.auth-switch {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.35rem;
-    margin-bottom: 1rem;
-    padding: 0.85rem 1rem;
-    border: 1px solid var(--panel-line);
-    border-radius: 18px;
-    background: var(--card-bg);
-}
-
-.allowance-head {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.85rem;
+    margin: 1.75rem 0 0;
     color: var(--text-2);
-}
-
-.allowance-head strong {
-    color: var(--text);
-}
-
-.allowance-track {
-    height: 8px;
-    border-radius: var(--pill);
-    background: var(--surface-2);
-    overflow: hidden;
-}
-
-.allowance-bar {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--accent);
-}
-
-.allowance-bar.full {
-    background: var(--mauve-text);
-}
-
-.allowance small {
-    color: var(--text-2);
-    font-size: 0.75rem;
-}
-
-.usage-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-width: 8rem;
-}
-
-.usage-bar .allowance-track {
-    flex: 1;
-}
-
-.usage-bar-value {
-    min-width: 2.6rem;
-    text-align: right;
-    font-size: 0.82rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--text);
-}
-
-/* the students page */
-.admin-table td small {
-    display: block;
-    color: var(--text-2);
-    font-size: 0.75rem;
-}
-
-.admin-table tr.is-off td {
-    opacity: 0.55;
-}
-
-.admin-cap {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    color: var(--text-2);
-}
-
-.admin-cap .text-input {
-    width: 6.5rem;
-    padding: 0.4rem 0.75rem;
     font-size: 0.85rem;
 }
 
-.admin-tag {
-    color: var(--text-2);
-    font-size: 0.82rem;
-}
+/* phones get the form alone */
+@media (max-width: 900px) {
+    .auth {
+        grid-template-columns: minmax(0, 1fr);
+    }
 
-.admin-actions {
-    white-space: nowrap;
-    text-align: right;
-}
-
-.account-admin {
-    margin-top: 0.6rem;
+    .auth-art {
+        display: none;
+    }
 }
 
 /* who's signed in, at the top of settings */
@@ -2013,12 +1972,6 @@ body.signed-out .toasts {
     width: 15px;
     height: 15px;
     color: var(--accent-text);
-}
-
-#google-button {
-    display: flex;
-    justify-content: center;
-    min-height: 44px;
 }
 
 /* settings */

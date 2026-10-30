@@ -306,19 +306,23 @@ async function show_auth() {
     el("auth").hidden = false;
     set_auth_mode(auth.mode);
     set_up_providers();
+    requestAnimationFrame(draw_auth_art);
     (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
 }
 
 function set_auth_mode(mode) {
     auth.mode = mode;
     const signup = mode === "signup";
-    document.querySelectorAll("[data-auth-tab]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.authTab === mode)));
     document.querySelectorAll(".auth-signup-only").forEach((n) => (n.hidden = !signup));
     document.querySelectorAll(".auth-login-only").forEach((n) => (n.hidden = signup));
-    el("auth-title").textContent = signup ? "Make your account" : "Welcome back";
+    el("auth-forgot-note").hidden = true;
+    el("auth-title").textContent = signup ? "Create an account" : "Sign in";
+    el("auth-switch-text").textContent = signup ? "Already have an account?" : "Don't have an account?";
+    el("auth-switch").textContent = signup ? "Sign in" : "Create an account";
+    el("apple-button").lastChild.textContent = signup ? " Sign up with Apple" : " Sign in with Apple";
     el("auth-submit").textContent = signup ? "Create account" : "Sign in";
     el("auth-password").autocomplete = signup ? "new-password" : "current-password";
-    el("auth-password").placeholder = signup ? "8 or more characters, with a symbol like !" : "";
+    el("auth-password").placeholder = signup ? "8 or more characters with a symbol like !" : "Enter your password";
     show_auth_error("");
 }
 
@@ -434,7 +438,81 @@ async function finish_sign_in(me) {
     location.reload();
 }
 
-document.querySelectorAll("[data-auth-tab]").forEach((tab) => tab.addEventListener("click", () => set_auth_mode(tab.dataset.authTab)));
+el("auth-switch").addEventListener("click", () => {
+    set_auth_mode(auth.mode === "signup" ? "login" : "signup");
+    (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
+});
+el("auth-forgot").addEventListener("click", () => {
+    el("auth-forgot-note").hidden = !el("auth-forgot-note").hidden;
+});
+
+// the halftone beside the form, diamond dots that thicken into soft shapes, drawn once per size
+// a seeded random keeps the same picture on every visit, it only stretches to fit
+function auth_random(seed) {
+    return () => {
+        seed = (seed + 0x6d2b79f5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function draw_auth_art() {
+    const canvas = el("auth-art");
+    if (!canvas || el("auth").hidden || getComputedStyle(canvas).display === "none") return;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(ratio, ratio);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent-text").trim() || "#3b9edb";
+    // a little dimmer than the accent, so it sits behind the form rather than competing with it
+    ctx.globalAlpha = 0.7;
+
+    // smooth value noise on a coarse grid, layered twice for softer edges
+    const rand = auth_random(7);
+    const size = 9;
+    const grid = Array.from({ length: size * size }, rand);
+    const at = (x, y) => grid[((y % size) + size) % size * size + ((x % size) + size) % size];
+    const smooth = (t) => t * t * (3 - 2 * t);
+    const noise = (x, y) => {
+        const x0 = Math.floor(x), y0 = Math.floor(y);
+        const sx = smooth(x - x0), sy = smooth(y - y0);
+        const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx;
+        const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
+        return top + (bottom - top) * sy;
+    };
+    const step = 9;
+    const dots = auth_random(11);
+    for (let y = step / 2; y < height; y += step) {
+        for (let x = step / 2; x < width; x += step) {
+            const u = x / width, v = y / height;
+            // a band that sweeps from the top right down through the middle, broken up by the noise
+            const sweep = 1 - Math.abs(u - (0.82 - 0.42 * v + 0.12 * Math.sin(v * 6))) * 1.5;
+            const value = 0.45 * sweep + 0.55 * (0.6 * noise(u * 3.5, v * 3.5) + 0.4 * noise(u * 8 + 3, v * 8 + 3));
+            const density = Math.min(Math.max((value - 0.4) * 2.8, 0), 1);
+            // sparse dots scatter at the edges, dense ones join up in the middle
+            if (density <= 0 || dots() > Math.pow(density, 0.8)) continue;
+            const r = (step / 2) * (0.45 + 0.5 * density);
+            ctx.beginPath();
+            ctx.moveTo(x, y - r);
+            ctx.lineTo(x + r, y);
+            ctx.lineTo(x, y + r);
+            ctx.lineTo(x - r, y);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+}
+
+let auth_art_timer = 0;
+window.addEventListener("resize", () => {
+    clearTimeout(auth_art_timer);
+    auth_art_timer = setTimeout(draw_auth_art, 150);
+});
 
 el("auth-form").addEventListener("submit", async (event) => {
     event.preventDefault();
