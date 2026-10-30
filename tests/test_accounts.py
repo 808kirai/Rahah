@@ -39,7 +39,7 @@ def test_passwords_are_hashed_and_checked():
 def test_every_api_route_needs_a_signed_in_student(make):
     app, _ = make()
     web = TestClient(app)
-    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout"}
+    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple"}
     checked = 0
     for route in app.routes:
         path = getattr(route, "path", "")
@@ -247,3 +247,114 @@ def test_the_admin_page_lists_students_and_can_turn_them_off(make):
     # the admin can't lock themselves out
     assert admin.patch(f"/api/admin/users/{me['id']}", json={"disabled": True}).status_code == 400
     assert admin.patch(f"/api/admin/users/{me['id']}", json={"is_admin": False}).status_code == 400
+
+
+
+def provider_app(tmp_path, people):
+    """an app with google and apple set up, where a token is the name of someone in people"""
+    from app.providers import identity, provider_error
+
+    def check(token, name=""):
+        if token not in people:
+            raise provider_error("That sign in couldn't be checked. Try again.")
+        sub, email, full = people[token]
+        return identity(sub=sub, email=email, name=name or full)
+
+    cfg = settings(db_path=tmp_path / "providers.db", google_client_id="google-id", apple_client_id="apple-id")
+    return create_app(cfg, client=fake_client(), verifiers={"google": check, "apple": check})
+
+
+def test_signing_in_with_google_makes_an_account_then_signs_into_it(tmp_path):
+    app = provider_app(tmp_path, {"amina": ("g-1", "Amina.O@gmail.com", "Amina Otieno"), "fake": ("x", None, "")})
+    web = TestClient(app)
+    assert web.get("/api/auth/config").json() == {"google_client_id": "google-id", "apple_client_id": "apple-id"}
+    assert web.post("/api/auth/google", json={"credential": "fake-token"}).status_code == 401
+
+    made = web.post("/api/auth/google", json={"credential": "amina"}).json()
+    assert made["username"] == "amina.o" and made["email"] == "amina.o@gmail.com" and made["google"] and not made["has_password"]
+    assert made["name"] == "Amina Otieno"
+    web.post("/api/auth/logout")
+    again = web.post("/api/auth/google", json={"credential": "amina"}).json()
+    assert again["id"] == made["id"]
+
+    # a google account can add a password later, without a current one
+    assert web.post("/api/me/password", json={"new": "correct horse"}).status_code == 200
+    web.post("/api/auth/logout")
+    assert web.post("/api/auth/login", json={"login": "amina.o", "password": "correct horse"}).status_code == 200
+
+
+def test_google_never_takes_over_an_account_with_the_same_email(tmp_path):
+    app = provider_app(tmp_path, {"amina": ("g-1", "amina@example.com", "Amina")})
+    owner = TestClient(app)
+    sign_up(owner, "amina")
+    owner.post("/api/auth/logout")
+    refused = TestClient(app).post("/api/auth/google", json={"credential": "amina"})
+    assert refused.status_code == 400 and "connect Google in Settings" in refused.json()["detail"]
+
+    # signed in with the password, the same google account connects to it
+    owner.post("/api/auth/login", json={"login": "amina", "password": "correct horse"})
+    linked = owner.post("/api/auth/google", json={"credential": "amina"}).json()
+    assert linked["google"] and linked["username"] == "amina"
+    owner.post("/api/auth/logout")
+    assert TestClient(app).post("/api/auth/google", json={"credential": "amina"}).json()["username"] == "amina"
+
+
+def test_one_google_account_belongs_to_one_rahah_account(tmp_path):
+    app = provider_app(tmp_path, {"amina": ("g-1", None, "Amina")})
+    first = TestClient(app)
+    first.post("/api/auth/google", json={"credential": "amina"})
+    second = TestClient(app)
+    sign_up(second, "brian")
+    clash = second.post("/api/auth/google", json={"credential": "amina"})
+    assert clash.status_code == 400 and "another Rahah account" in clash.json()["detail"]
+
+
+def test_apple_sign_in_and_usernames_that_are_taken(tmp_path):
+    app = provider_app(tmp_path, {"one": ("a-1", None, ""), "two": ("a-2", None, "")})
+    first = TestClient(app).post("/api/auth/apple", json={"id_token": "one", "name": "Amina Otieno"}).json()
+    assert first["apple"] and first["name"] == "Amina Otieno" and first["username"] == "aminaotieno"
+    second = TestClient(app).post("/api/auth/apple", json={"id_token": "two", "name": "Amina Otieno"}).json()
+    assert second["username"] == "aminaotieno2"
+
+
+def test_google_and_apple_stay_off_until_set_up(make):
+    app, _ = make()
+    web = TestClient(app)
+    assert web.get("/api/auth/config").json() == {"google_client_id": "", "apple_client_id": ""}
+    assert web.post("/api/auth/google", json={"credential": "x"}).status_code == 404
+    assert web.post("/api/auth/apple", json={"id_token": "x"}).status_code == 404
+
+
+def test_provider_tokens_are_checked_for_signature_app_issuer_and_expiry(monkeypatch):
+    import time as _time
+    from types import SimpleNamespace
+
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from app import providers
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    monkeypatch.setitem(providers._key_clients, providers.google_keys_url,
+                        SimpleNamespace(get_signing_key_from_jwt=lambda token: SimpleNamespace(key=key.public_key())))
+    monkeypatch.setitem(providers._key_clients, providers.apple_keys_url,
+                        SimpleNamespace(get_signing_key_from_jwt=lambda token: SimpleNamespace(key=key.public_key())))
+
+    def token(signer=key, **change):
+        claims = {"sub": "123", "aud": "my-app", "iss": "https://accounts.google.com", "exp": int(_time.time()) + 600,
+                  "email": "amina@gmail.com", "email_verified": True, "name": "Amina"}
+        claims.update(change)
+        return jwt.encode(claims, signer, algorithm="RS256")
+
+    found = providers.verify_google(token(), "my-app")
+    assert (found.sub, found.email, found.name) == ("123", "amina@gmail.com", "Amina")
+    assert providers.verify_google(token(email_verified=False), "my-app").email is None
+    for bad in (token(aud="someone-else"), token(iss="https://evil.example"), token(exp=int(_time.time()) - 3600), token(signer=other)):
+        with pytest.raises(providers.provider_error):
+            providers.verify_google(bad, "my-app")
+
+    apple = providers.verify_apple(token(iss="https://appleid.apple.com", email_verified="true"), "my-app", "Amina O")
+    assert apple.email == "amina@gmail.com" and apple.name == "Amina O"
+    with pytest.raises(providers.provider_error):
+        providers.verify_apple(token(), "my-app")  # a google token isn't an apple one

@@ -1767,7 +1767,12 @@ body.signed-out .toasts {
 
 .auth-apple {
     width: 100%;
+    max-width: 360px;
+    align-self: center;
     justify-content: center;
+    min-height: 40px;
+    background: var(--surface-2);
+    color: var(--text);
 }
 
 .auth-apple svg {
@@ -1934,6 +1939,38 @@ body.signed-out .toasts {
 
 .account-box:empty {
     display: none;
+}
+
+.account-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+}
+
+.account-links:empty {
+    display: none;
+}
+
+.account-linked {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-2);
+    font-size: 0.82rem;
+}
+
+.account-linked svg {
+    width: 15px;
+    height: 15px;
+    color: var(--accent-text);
+}
+
+#google-button {
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
 }
 
 /* settings */

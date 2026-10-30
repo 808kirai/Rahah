@@ -301,14 +301,7 @@ async function show_auth() {
     document.body.classList.add("signed-out");
     el("auth").hidden = false;
     set_auth_mode(auth.mode);
-    if (!auth.config) {
-        try {
-            auth.config = await (await fetch("/api/auth/config")).json();
-        } catch (e) {
-            auth.config = {};
-        }
-        set_up_providers();
-    }
+    set_up_providers();
     (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
 }
 
@@ -332,10 +325,103 @@ function show_auth_error(text) {
 }
 
 // google and apple buttons appear once their keys are set on the server
-function set_up_providers() {
-    const config = auth.config || {};
-    el("auth-providers").hidden = !config.google_client_id && !config.apple_client_id;
+// their scripts load only when they're set up, so nobody's browser talks to them otherwise
+
+function load_script(src) {
+    return new Promise((resolve, reject) => {
+        const found = document.querySelector(`script[src="${src}"]`);
+        if (found) return found.dataset.loaded ? resolve() : found.addEventListener("load", () => resolve());
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.onload = () => {
+            script.dataset.loaded = "1";
+            resolve();
+        };
+        script.onerror = () => reject(new Error("couldn't load"));
+        document.head.appendChild(script);
+    });
 }
+
+async function auth_config() {
+    if (!auth.config) {
+        try {
+            auth.config = await (await fetch("/api/auth/config")).json();
+        } catch (e) {
+            auth.config = {};
+        }
+    }
+    return auth.config;
+}
+
+// the token from google or apple goes to the server, which checks it and signs in, or connects it when already signed in
+async function send_provider_token(path, body, on_error) {
+    try {
+        const response = await api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const me = await response.json();
+        if (state.me) {
+            state.me = me;
+            render_account();
+            return;
+        }
+        await finish_sign_in(me);
+    } catch (error) {
+        on_error(error.message);
+    }
+}
+
+let google_ready = null;
+function set_up_google(client_id) {
+    if (!google_ready) {
+        google_ready = load_script("https://accounts.google.com/gsi/client").then(() => {
+            google.accounts.id.initialize({
+                client_id,
+                ux_mode: "popup",
+                callback: (reply) => send_provider_token("/api/auth/google", { credential: reply.credential }, state.me ? (text) => alert(text) : show_auth_error),
+            });
+        });
+    }
+    return google_ready;
+}
+
+// google draws its own button, in an oval to match the rest of rahah
+async function draw_google_button(slot, text = "continue_with") {
+    const config = await auth_config();
+    if (!config.google_client_id || !slot) return;
+    try {
+        await set_up_google(config.google_client_id);
+        const light = document.documentElement.getAttribute("data-theme") === "light";
+        google.accounts.id.renderButton(slot, {
+            theme: light ? "outline" : "filled_black", size: "large", shape: "pill", text, logo_alignment: "center",
+            width: Math.min(360, slot.clientWidth || 360),
+        });
+    } catch (e) {
+        slot.innerHTML = '<p class="field-hint">Google sign in couldn\'t load. Check the connection.</p>';
+    }
+}
+
+async function apple_sign_in(on_error) {
+    const config = await auth_config();
+    try {
+        await load_script("https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js");
+        AppleID.auth.init({ clientId: config.apple_client_id, scope: "name email", redirectURI: `${location.origin}/`, usePopup: true });
+        const reply = await AppleID.auth.signIn();
+        const name = reply.user?.name ? `${reply.user.name.firstName || ""} ${reply.user.name.lastName || ""}`.trim() : "";
+        await send_provider_token("/api/auth/apple", { id_token: reply.authorization.id_token, name }, on_error);
+    } catch (error) {
+        // closing apple's window isn't an error worth showing
+        if (error?.error !== "popup_closed_by_user") on_error("Sign in with Apple didn't finish. Try again.");
+    }
+}
+
+async function set_up_providers() {
+    const config = await auth_config();
+    el("auth-providers").hidden = !config.google_client_id && !config.apple_client_id;
+    el("apple-button").hidden = !config.apple_client_id;
+    if (config.google_client_id) draw_google_button(el("google-button"));
+}
+
+el("apple-button").addEventListener("click", () => apple_sign_in(show_auth_error));
 
 async function finish_sign_in(me) {
     if (remember_me(me)) await forget_saved_data();
@@ -401,6 +487,7 @@ function render_account() {
             <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
         </div>
         ${me.is_admin ? `<a class="btn btn-soft btn-small account-admin" href="#/admin" data-detail-close>Manage students</a>` : ""}
+        <div class="account-links" id="account-links"></div>
         <details class="perf-details account-password">
             <summary>${me.has_password ? "Change password" : "Add a password"}</summary>
             <div class="account-password-form">
@@ -410,9 +497,24 @@ function render_account() {
                 <p class="field-hint" id="password-note" hidden></p>
             </div>
         </details>`;
+    render_account_links();
+}
+
+// connected accounts, and a way to connect google or apple to an account made with a password
+async function render_account_links() {
+    const me = state.me;
+    const slot = el("account-links");
+    const config = await auth_config();
+    if (!slot || !me || (!config.google_client_id && !config.apple_client_id)) return;
+    const done = (name) => `<span class="account-linked">${icons.check}${name} connected</span>`;
+    slot.innerHTML = `
+        ${config.google_client_id ? (me.google ? done("Google") : '<div class="account-google" id="google-connect"></div>') : ""}
+        ${config.apple_client_id ? (me.apple ? done("Apple") : '<button class="btn btn-ghost btn-small" type="button" data-connect-apple>Connect Apple</button>') : ""}`;
+    if (config.google_client_id && !me.google) draw_google_button(el("google-connect"), "signin_with");
 }
 
 el("account-box").addEventListener("click", async (event) => {
+    if (event.target.closest("[data-connect-apple]")) apple_sign_in((text) => alert(text));
     if (event.target.closest("[data-sign-out]")) sign_out();
     if (event.target.closest(".account-admin")) el("settings-sheet").close();
     if (!event.target.closest("[data-save-password]")) return;

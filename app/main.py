@@ -18,8 +18,9 @@ from pydantic import BaseModel, Field, field_validator
 from .config import load_settings, settings
 from .accounts import (
     check_password, clean_email, clean_username, email_problem, hash_password, password_problem, session_cookie,
-    session_days, sign_in_guard, username_problem,
+    session_days, sign_in_guard, username_from, username_problem,
 )
+from .providers import identity, provider_error, verify_apple, verify_google
 from .modes import (
     allowed_mode, custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom,
 )
@@ -87,6 +88,15 @@ class profile_in(BaseModel):
     name: str | None = Field(default=None, max_length=60)
     email: str | None = Field(default=None, max_length=200)
     settings: dict | None = None
+
+
+class google_in(BaseModel):
+    credential: str = Field(min_length=1, max_length=5000)
+
+
+class apple_in(BaseModel):
+    id_token: str = Field(min_length=1, max_length=5000)
+    name: str = Field(default="", max_length=60)
 
 
 class password_in(BaseModel):
@@ -235,8 +245,13 @@ def safe_filename(name: str) -> str:
     return re.sub(r"[^\w.\- ]", "_", Path(name).name)[:120] or "file"
 
 
-def create_app(cfg: settings | None = None, client=None) -> FastAPI:
+def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None) -> FastAPI:
     cfg = cfg or load_settings()
+    # how google and apple tokens are checked, tests swap in their own
+    verifiers = verifiers or {
+        "google": lambda token, name="": verify_google(token, cfg.google_client_id),
+        "apple": lambda token, name="": verify_apple(token, cfg.apple_client_id, name),
+    }
     db = store(cfg.db_path)
 
     @asynccontextmanager
@@ -371,6 +386,57 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             db.end_session(token)
         response.delete_cookie(session_cookie, path="/")
         return {"ok": True}
+
+    provider_names = {"google": "Google", "apple": "Apple"}
+
+    def provider_sign_in(request: Request, response: Response, provider: str, found_id: identity) -> dict:
+        """signs in the account linked to this google or apple id, links it to the student signed in now,
+        or makes a new account, but never joins an existing account just because the email matches"""
+        field = f"{provider}_sub"
+        label = provider_names[provider]
+        token = request.cookies.get(session_cookie)
+        current = db.session_user(token) if token else None
+        linked = db.find_user_by(field, found_id.sub)
+        if current:
+            # connecting from settings
+            if linked and linked["id"] != current["id"]:
+                raise HTTPException(400, f"That {label} account is already used by another Rahah account.")
+            return user_out(db.update_user(current["id"], **{field: found_id.sub}))
+        if linked:
+            if linked["disabled"]:
+                raise HTTPException(403, "This account has been turned off. Ask the person who runs Rahah.")
+            start_session(request, response, linked)
+            return user_out(linked)
+        email = clean_email(found_id.email) if found_id.email else None
+        if email and db.taken("email", email):
+            raise HTTPException(400, f"An account already uses {email}. Sign in with your password, then connect {label} in Settings.")
+        base = username_from(email or found_id.name or "student")
+        username, n = base, 2
+        while db.taken("username", username):
+            username, n = f"{base}{n}", n + 1
+        user = db.create_user(username, email, None, " ".join(found_id.name.split())[:60], **{field: found_id.sub})
+        start_session(request, response, user)
+        return user_out(user)
+
+    @app.post("/api/auth/google")
+    def google_sign_in(body: google_in, request: Request, response: Response):
+        if not cfg.google_client_id:
+            raise HTTPException(404, "Sign in with Google isn't set up yet.")
+        try:
+            found_id = verifiers["google"](body.credential)
+        except provider_error as error:
+            raise HTTPException(401, str(error))
+        return provider_sign_in(request, response, "google", found_id)
+
+    @app.post("/api/auth/apple")
+    def apple_sign_in(body: apple_in, request: Request, response: Response):
+        if not cfg.apple_client_id:
+            raise HTTPException(404, "Sign in with Apple isn't set up yet.")
+        try:
+            found_id = verifiers["apple"](body.id_token, body.name)
+        except provider_error as error:
+            raise HTTPException(401, str(error))
+        return provider_sign_in(request, response, "apple", found_id)
 
     @app.get("/api/me")
     def who_am_i(user: dict = Depends(signed_in)):

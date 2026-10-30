@@ -66,6 +66,8 @@ Accounts
 - Signing out, or someone else signing in on the same device, clears the copies saved for offline use, so one student never sees another's decks
 - Each student has a daily allowance, 50 cents by default (RAHAH_DAILY_CAP), counted from the usage log and reset at midnight UTC. Once it's used, anything that calls Claude says so and when it starts again, while saved flashcards and tests still work. The usage box shows the allowance as a bar. The admin has no limit
 - The admin's Students page, from Manage students in Settings, lists every student with when they joined and were last seen, what they've cost today, this week and in all, and totals. The admin can set a student's own daily limit, give a new password to a student who forgot theirs, and turn an account off, which signs them out and stops them signing in
+- Sign in with Google and Apple, once their ids are set. A Google or Apple sign in either signs into the account it's linked to or makes a new one, with a username from the email or name. It never joins an account just because the email matches, since emails aren't checked at sign up, so a student with a password account connects Google or Apple from Settings while signed in. Accounts made this way can add a password later
+- Google and Apple tokens are checked on the server against the provider's published keys, for this app's id, from the right issuer and not expired, before anything in them is used
 - Not yet: password reset by email and email checks need an email service, which comes with deployment
 
 Look and feel
@@ -102,6 +104,17 @@ You need Python 3.12 and an API key from platform.claude.com.
 
 5. Open http://127.0.0.1:8000 in a browser and create your account. The first account made becomes the admin and takes over every chat, test, note and reminder made before accounts existed, so make yours before anyone else signs up
 
+Sign in with Google
+
+1. Go to console.cloud.google.com, make a project, then APIs and services, OAuth consent screen, and fill in the app name and your email
+2. Under Credentials, create an OAuth client ID of type Web application
+3. Add http://localhost:8000 and http://localhost to Authorized JavaScript origins, plus the real address once Rahah is online. Google doesn't accept 127.0.0.1, so open Rahah at http://localhost:8000 to use it
+4. Copy the client ID into .env as GOOGLE_CLIENT_ID= and restart the server
+
+Sign in with Apple
+
+Apple needs a paid Apple Developer account (99 dollars a year) and a real https address, so it waits for deployment. Make a Services ID with Sign in with Apple turned on, add the site's domain and its address as the return URL, and put the Services ID in .env as APPLE_CLIENT_ID=.
+
 Running the tests
 
 The tests use a fake Claude client, so they need no key and cost nothing.
@@ -123,6 +136,7 @@ Project layout
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
 - `app/store.py` - Local SQLite storage for chats, files, notes, study sets, reminders, classes and subjects
 - `app/accounts.py` - Password hashing, sign up checks, sessions and the slow down after wrong passwords
+- `app/providers.py` - Checking Google and Apple sign in tokens
 - `app/config.py` - Settings read from the environment
 - `static/` - The page, its styles, the app manifest, the service worker and the offline page
 - `static/js/` - The page's script in seven plain files with no build step, loaded in order and sharing one scope: `core.js` (shared helpers, markdown, diagrams), `chat.js` (answers, voice, printing, attachments, settings), `pages.js` (home, chats and tests, notes, suggestions), `reminders.js` (reminders, timetable, revision plans), `study.js` (tool sheets, flashcards, tests), `performance.js` (scores, weekly report, usage) and `main.js` (conversations, theme, message box, start). Code that runs as a file loads can only use what earlier files define
@@ -136,6 +150,8 @@ Settings
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
 - `RAHAH_DAILY_CAP` - What each student can spend a day in dollars, defaults to `0.50`. The admin can change it per student
+- `GOOGLE_CLIENT_ID` - Turns on Sign in with Google, see above
+- `APPLE_CLIENT_ID` - Turns on Sign in with Apple, see above
 
 How it works
 
@@ -175,5 +191,5 @@ Every question is billed to the API key. Opus 5.5 costs 4 dollars per million in
 
 Roadmap
 
-- Sign in with Google and Apple
 - Deployment to a public web address, with a calendar link that updates by itself and push notifications
+- With deployment: password reset and email checks by email, Sign in with Apple turned on, sharing tests with friends and a teacher view
