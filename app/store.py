@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from .accounts import session_days, token_hash
+from .accounts import new_token, session_days, token_hash
 
 schema = """
 create table if not exists users (
@@ -35,6 +35,23 @@ create table if not exists users (
     settings text not null default '{}',
     created real not null,
     last_seen real
+);
+create table if not exists app_keys (
+    name text primary key,
+    value text not null
+);
+create table if not exists push_subs (
+    endpoint text primary key,
+    user_id text not null references users(id) on delete cascade,
+    p256dh text not null,
+    auth text not null,
+    zone text not null default '',
+    created real not null
+);
+create table if not exists push_sent (
+    reminder_id text not null references reminders(id) on delete cascade,
+    day text not null,
+    primary key (reminder_id, day)
 );
 create table if not exists password_resets (
     token text primary key,
@@ -215,6 +232,10 @@ class store:
             columns = {r["name"] for r in db.execute("pragma table_info(users)").fetchall()}
             if "agreed" not in columns:
                 db.execute("alter table users add column agreed real")
+            # the secret part of each student's calendar feed address
+            if "calendar_token" not in columns:
+                db.execute("alter table users add column calendar_token text")
+                db.execute("create unique index if not exists users_by_calendar on users(calendar_token)")
             # rows from before accounts have no owner until the first account claims them
             for table in owned_tables:
                 columns = {r["name"] for r in db.execute(f"pragma table_info({table})").fetchall()}
@@ -391,6 +412,65 @@ class store:
     def end_session(self, token: str) -> None:
         with self._connect() as db:
             db.execute("delete from sessions where token = ?", (token_hash(token),))
+
+    # keys rahah makes for itself once, like the one that signs phone notifications
+
+    def get_key(self, name: str) -> str | None:
+        with self._connect() as db:
+            row = db.execute("select value from app_keys where name = ?", (name,)).fetchone()
+        return row[0] if row else None
+
+    def set_key(self, name: str, value: str) -> None:
+        with self._connect() as db:
+            db.execute("insert or replace into app_keys (name, value) values (?, ?)", (name, value))
+
+    # phones and browsers that get notifications, and which reminder days were already sent
+
+    def add_push(self, user_id: str, endpoint: str, p256dh: str, auth: str, zone: str) -> None:
+        # a phone belongs to whoever turned notifications on last
+        with self._connect() as db:
+            db.execute(
+                "insert or replace into push_subs (endpoint, user_id, p256dh, auth, zone, created) values (?, ?, ?, ?, ?, ?)",
+                (endpoint, user_id, p256dh, auth, zone, time.time()),
+            )
+
+    def remove_push(self, endpoint: str, user_id: str | None = None) -> None:
+        with self._connect() as db:
+            if user_id:
+                db.execute("delete from push_subs where endpoint = ? and user_id = ?", (endpoint, user_id))
+            else:
+                db.execute("delete from push_subs where endpoint = ?", (endpoint,))
+
+    def count_pushes(self, user_id: str) -> int:
+        with self._connect() as db:
+            return db.execute("select count(*) from push_subs where user_id = ?", (user_id,)).fetchone()[0]
+
+    def pushes_by_user(self) -> dict[str, list[dict]]:
+        with self._connect() as db:
+            rows = db.execute("select * from push_subs order by created").fetchall()
+        grouped: dict[str, list[dict]] = {}
+        for row in rows:
+            grouped.setdefault(row["user_id"], []).append(dict(row))
+        return grouped
+
+    def mark_pushed(self, reminder_id: str, day: str) -> bool:
+        # true the first time a reminder day is marked, so each one is only sent once
+        with self._connect() as db:
+            return db.execute("insert or ignore into push_sent (reminder_id, day) values (?, ?)", (reminder_id, day)).rowcount == 1
+
+    def calendar_token(self, user_id: str, fresh: bool = False) -> str:
+        # the secret in a student's calendar feed address, a fresh one stops the old address working
+        with self._connect() as db:
+            row = db.execute("select calendar_token from users where id = ?", (user_id,)).fetchone()
+            if row and row[0] and not fresh:
+                return row[0]
+            token = new_token()
+            db.execute("update users set calendar_token = ? where id = ?", (token, user_id))
+            return token
+
+    def user_by_calendar(self, token: str) -> dict | None:
+        with self._connect() as db:
+            return self._user(db.execute("select * from users where calendar_token = ?", (token,)).fetchone())
 
     def add_reset(self, user_id: str, token: str, expires: float) -> None:
         # only the newest link works, asking again cancels the one before

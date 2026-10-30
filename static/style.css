@@ -1886,6 +1886,18 @@ body.signed-out .toasts {
     color: var(--mauve-text);
 }
 
+/* adding the calendar link, one button per calendar app */
+.calendar-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.9rem 0;
+}
+
+.calendar-note {
+    font-size: 0.8rem;
+}
+
 .help-choices {
     display: flex;
     flex-wrap: wrap;

@@ -54,7 +54,8 @@ Pages
 - The tabs are Home, Chats & Tests, Reminders, Performance and Account
 - Chats & Tests lists your saved tests with a New test card, then your chats grouped by day. Search looks inside every message of every chat, older ones too, and shows where the words were found. New chat drops down a box with your 5 newest chats
 - Reminders and Timetable splits the page in half. Reminders cover exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, and a pop up and a desktop notification while Rahah is open. An exam, CAT or midterm can get a revision plan: a day by day plan up to the day before, with a focus and a few tasks each day, buttons that open the right tool for each task, days to tick off, and a calendar file. The weekly timetable lists classes day by day from today, with the class happening now marked
-- Calendar files for reminders and for the timetable, so a phone's own calendar reminds you even when Rahah is closed. Each class repeats weekly with an alert 15 minutes before it starts
+- Phone notifications for reminders, even when Rahah is closed: Turn on notifications on the Reminders page signs that phone or browser up, and on each reminder day a notification arrives at 9am in the student's own time zone. Tapping it opens Reminders. Each day is sent once, a phone that turns notifications off is forgotten, and signing out stops them on that device. Rahah only sends to the real push services of Google, Apple, Mozilla and Microsoft, and signs each notification with a key pair it makes once and keeps in its database. On iPhone, notifications need Rahah added to the home screen first, and the page says so
+- Add to calendar gives each student a private calendar link with every upcoming reminder and their weekly classes, with alerts. An iPhone or Mac adds it in one tap, Google Calendar opens it to add, and the calendar checks it for changes, so new reminders and classes show up by themselves. Make a new link stops the old one working, and single reminders and revision plans can still be downloaded as calendar files
 - Every card has a small hand drawn sketch of what it's about, which draws itself in once when the card first shows
 
 Accounts
@@ -171,6 +172,9 @@ Project layout
 - `app/study.py` - Flashcards and tests, asked for as structured JSON and checked before saving, and the marking of written answers
 - `app/performance.py` - Test attempts turned into percentages, grades and summaries
 - `app/reminders.py` - Reminder dates, checks and calendar files
+- `app/push.py` - Phone notifications for reminders and the calendar link's feed
+- `app/alerts.py` - Emails the admin when something breaks, gathered into one email at most every half hour
+- `app/mailer.py` - Sends email through Gmail, for password resets, backups and alerts
 - `app/plans.py` - Revision plans for exams, asked for as structured JSON and checked, and their calendar file
 - `app/timetable.py` - Weekly classes and their repeating calendar file
 - `app/recommend.py` - Suggestions of what to study next, asked for as structured JSON from the study history
@@ -225,7 +229,7 @@ Code runs on Anthropic's servers with Claude's code execution tool, in a sandbox
 
 The student's own subjects are saved in the database and joined to the built in ones while the app runs, so every check, prompt and calendar accepts them. For now they are shared by everyone using the same copy of Rahah, and they become per student with student accounts.
 
-Reminders and classes are worked out from the student's own calendar dates and times, so they land on the right day wherever the page is opened. A web page can only remind you while it's open, so reminders and the timetable can also be added to a calendar app with the alerts built in. Once Rahah is online, a calendar link that updates by itself and push notifications become possible.
+Reminders and classes are worked out from the student's own calendar dates and times, so they land on the right day wherever the page is opened. Phone notifications go through each browser's own push service, so they arrive while Rahah is closed, and the calendar link lets a phone's calendar keep its own copy that stays up to date.
 
 Tests are scored in marks. A multiple choice question is worth one mark and is checked on the page. A written question is worth what its mark scheme says, and each answer is sent to Claude with the question, the mark scheme and the model answer, plus the photo when there is one. Claude replies with a score and feedback as structured JSON, and the score is kept within the question's marks.
 
@@ -247,5 +251,4 @@ Every question is billed to the API key. Rahah spreads the work across three mod
 
 Roadmap
 
-- A calendar link that updates by itself and push notifications, now that Rahah can go online
-- With deployment: password reset and email checks by email, Sign in with Apple turned on, sharing tests with friends and a teacher view
+- Sign in with Apple once there is a custom domain, and a teacher view

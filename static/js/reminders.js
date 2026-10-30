@@ -128,7 +128,13 @@ function reminder_card(r) {
     </div>`;
 }
 
+// notifications reach the phone even when rahah is closed, through the browser's push service
+const push_works = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+// an iphone only allows them once rahah is added to the home screen
+const iphone_browser = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !matchMedia("(display-mode: standalone)").matches && !navigator.standalone;
+
 function notification_tools() {
+    if (iphone_browser) return '<span class="page-note">For notifications on iPhone, add Rahah to your home screen first: Share, then Add to Home Screen</span>';
     if (!("Notification" in window)) return "";
     if (Notification.permission === "default") {
         return `<button class="btn btn-soft btn-small" type="button" data-notify>${icons.bell}Turn on notifications</button>`;
@@ -136,6 +142,86 @@ function notification_tools() {
     if (Notification.permission === "denied") return '<span class="page-note">Notifications are blocked in this browser\'s settings</span>';
     return `<span class="page-note on">${icons.check}Notifications on</span>`;
 }
+
+function push_key_bytes(text) {
+    const padded = (text + "=".repeat((4 - (text.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+    return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+}
+
+// signs this phone up for reminder notifications, or checks it still is. quiet if anything's missing
+async function sign_up_for_push() {
+    if (!push_works || Notification.permission !== "granted") return;
+    try {
+        const ready = await navigator.serviceWorker.ready;
+        const { key } = await (await api("/api/push")).json();
+        const phone = (await ready.pushManager.getSubscription()) || (await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: push_key_bytes(key) }));
+        const { endpoint, keys } = phone.toJSON();
+        await api("/api/push", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth, zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "" }),
+        });
+    } catch (e) {}
+}
+
+// signing out stops this phone getting the last student's notifications
+async function sign_out_of_push() {
+    if (!push_works) return;
+    try {
+        const ready = await navigator.serviceWorker.ready;
+        const phone = await ready.pushManager.getSubscription();
+        if (!phone) return;
+        await fetch("/api/push/off", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: phone.endpoint }) });
+        await phone.unsubscribe();
+    } catch (e) {}
+}
+
+// the calendar link, a phone's calendar adds it once and keeps it up to date
+async function open_calendar_sheet() {
+    let url = "";
+    try {
+        url = (await (await api("/api/calendar")).json()).url;
+    } catch (error) {
+        alert(error.message);
+        return;
+    }
+    const webcal = url.replace(/^https?:/, "webcal:");
+    el("detail-title").textContent = "Add to your calendar";
+    el("detail-body").innerHTML = `
+        <p class="detail-sub">Your exams, deadlines and classes show up in your phone's calendar and stay up to date as you change them here.</p>
+        <div class="calendar-choices">
+            <a class="btn btn-soft" href="${escape_html(webcal)}">${icons.calendar}iPhone or Mac calendar</a>
+            <a class="btn btn-soft" href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}" target="_blank" rel="noopener">${icons.calendar}Google Calendar</a>
+            <button class="btn btn-ghost" type="button" data-calendar-copy="${escape_html(url)}">Copy the link</button>
+        </div>
+        <p class="detail-sub calendar-note">Google Calendar can take a few hours to show changes and may not pass on alerts, so set a notification on the Rahah calendar there. Keep this link to yourself, anyone with it can see your calendar.</p>
+        <div class="sheet-actions">
+            <button class="btn btn-ghost btn-small" type="button" data-calendar-new>Make a new link</button>
+            <button class="btn btn-accent" type="button" data-detail-close>Done</button>
+        </div>`;
+    open_box(detail_sheet);
+}
+
+el("detail-sheet").addEventListener("click", async (event) => {
+    const copy = event.target.closest("[data-calendar-copy]");
+    if (copy) {
+        try {
+            await navigator.clipboard.writeText(copy.dataset.calendarCopy);
+            copy.textContent = "Copied";
+        } catch (e) {
+            prompt("Copy this link:", copy.dataset.calendarCopy);
+        }
+    }
+    if (event.target.closest("[data-calendar-new]")) {
+        if (!confirm("Make a new link? Calendars using the old one stop updating, so you'll need to add the new one.")) return;
+        try {
+            await api("/api/calendar/new", { method: "POST" });
+            open_calendar_sheet();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+});
 
 function render_reminders() {
     const page = el("reminders");
@@ -148,12 +234,12 @@ function render_reminders() {
     const tools = `<div class="planner-head">
         <h2 class="planner-title">Reminders</h2>
         <div class="tool-buttons">
-            ${upcoming.length ? `<a class="btn btn-soft btn-small" href="/api/reminders/calendar.ics" download title="Every upcoming reminder goes into your calendar with its alerts">${icons.calendar}Add to calendar</a>` : ""}
+            ${upcoming.length ? `<button class="btn btn-soft btn-small" type="button" data-calendar>${icons.calendar}Add to calendar</button>` : ""}
             <button class="btn btn-accent btn-small" type="button" data-rem-add>${icons.plus}Add reminder</button>
         </div>
     </div>
     <div class="planner-note-row">
-        <p class="planner-note">Alerts only show while Rahah is open. Add them to your calendar to get them anytime.</p>
+        <p class="planner-note">${!push_works ? "Alerts only show while Rahah is open. Add them to your calendar to get them anytime." : Notification.permission === "granted" ? "You'll get a notification at 9am on each reminder day, even when Rahah is closed." : "Turn on notifications to hear about reminders even when Rahah is closed."}</p>
         ${notification_tools()}
     </div>`;
     if (!state.reminders.length) {
@@ -198,6 +284,11 @@ async function load_reminders() {
         if (body.kinds) state.reminder_kinds = body.kinds;
     } catch (error) {
         return;
+    }
+    // a phone that already allowed notifications stays signed up, even after signing in again
+    if (!load_reminders.pushed) {
+        load_reminders.pushed = true;
+        sign_up_for_push();
     }
     if (changed("reminders", state.reminders)) {
         render_reminders();
@@ -302,7 +393,7 @@ function render_timetable() {
     const head = `<div class="planner-head">
         <h2 class="planner-title">Timetable</h2>
         <div class="tool-buttons">
-            ${state.classes.length ? `<a class="btn btn-soft btn-small" href="/api/timetable/calendar.ics" download title="Every class repeats weekly in your calendar, with an alert 15 minutes before">${icons.calendar}Add to calendar</a>` : ""}
+            ${state.classes.length ? `<button class="btn btn-soft btn-small" type="button" data-calendar>${icons.calendar}Add to calendar</button>` : ""}
             <button class="btn btn-accent btn-small" type="button" data-class-add>${icons.plus}Add class</button>
         </div>
     </div>
@@ -684,7 +775,12 @@ document.addEventListener("click", async (event) => {
     }
     if (find("notify")) {
         await Notification.requestPermission();
+        await sign_up_for_push();
         render_reminders();
+        return;
+    }
+    if (find("calendar")) {
+        open_calendar_sheet();
         return;
     }
     const help = find("rem-help");

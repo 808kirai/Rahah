@@ -102,3 +102,33 @@ self.addEventListener("fetch", (event) => {
         event.respondWith(library(request));
     }
 });
+
+// a reminder notification from rahah's server, shown even when rahah is closed
+self.addEventListener("push", (event) => {
+    let note = {};
+    try {
+        note = event.data ? event.data.json() : {};
+    } catch (e) {}
+    event.waitUntil(
+        self.registration.showNotification(note.title || "Rahah", {
+            body: note.body || "",
+            tag: note.tag,
+            icon: "/static/img/icon-192.png",
+            badge: "/static/img/icon-64.png",
+            data: { url: note.url || "/" },
+        }),
+    );
+});
+
+// tapping the notification opens rahah on the reminders page, in a tab that's already open if there is one
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+    event.waitUntil(
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((tabs) => {
+            const tab = tabs.find((t) => t.url.startsWith(self.location.origin));
+            if (tab) return tab.navigate(url).then((t) => (t || tab).focus());
+            return self.clients.openWindow(url);
+        }),
+    );
+});

@@ -6,3 +6,5 @@ python-dotenv>=1.2
 pytest>=9.1
 httpx>=0.28
 pyjwt[crypto]>=2.10
+pywebpush>=2.5
+tzdata>=2026.1

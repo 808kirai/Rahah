@@ -757,6 +757,7 @@ async function save_new_password() {
 }
 
 async function sign_out() {
+    await sign_out_of_push();
     try {
         await fetch("/api/auth/logout", { method: "POST" });
     } catch (e) {}

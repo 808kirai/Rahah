@@ -2,7 +2,7 @@
 
 import asyncio
 import gzip
-from datetime import date
+from datetime import date, datetime, timezone
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -23,6 +23,7 @@ from .accounts import (
 )
 from .alerts import alert_box, alert_handler
 from .mailer import send_email
+from .push import allowed_endpoint, due_today, feed_file, message_for, new_keys, send_push, zone
 from .providers import identity, provider_error, verify_apple, verify_google
 from .modes import (
     allowed_mode, custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom,
@@ -93,6 +94,13 @@ class forgot_in(BaseModel):
 class reset_in(BaseModel):
     token: str = Field(min_length=20, max_length=200)
     password: str = Field(min_length=1, max_length=200)
+
+
+class push_in(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=1000)
+    p256dh: str = Field(default="", max_length=200)
+    auth: str = Field(default="", max_length=100)
+    zone: str = Field(default="", max_length=64)
 
 
 class delete_me_in(BaseModel):
@@ -271,7 +279,7 @@ def safe_filename(name: str) -> str:
     return re.sub(r"[^\w.\- ]", "_", Path(name).name)[:120] or "file"
 
 
-def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None, mailer=None) -> FastAPI:
+def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None, mailer=None, pusher=None) -> FastAPI:
     cfg = cfg or load_settings()
     # how google and apple tokens are checked, tests swap in their own
     verifiers = verifiers or {
@@ -292,6 +300,36 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     backup_to = email_to(cfg.backup_email, cfg.smtp_user)
     alert_to = email_to(cfg.alert_email, cfg.admin_email or cfg.smtp_user)
     alerts = alert_box(lambda subject, text: mailer(alert_to, subject, text))
+
+    # phone notifications are signed with a key pair rahah makes once and keeps in its database
+    push_private = db.get_key("push_private")
+    push_public = db.get_key("push_public")
+    if not push_private or not push_public:
+        push_private, push_public = new_keys()
+        db.set_key("push_private", push_private)
+        db.set_key("push_public", push_public)
+    push_contact = cfg.admin_email or cfg.smtp_user or cfg.support_email
+    pusher = pusher or (lambda subscription, payload: send_push(push_private, subscription, payload, push_contact))
+
+    def send_due_pushes(now: datetime | None = None) -> int:
+        """sends each reminder day's notification once, from 9 in the morning where the student is"""
+        now = now or datetime.now(timezone.utc)
+        sent = 0
+        for user_id, phones in db.pushes_by_user().items():
+            local = now.astimezone(zone(phones[-1]["zone"]))
+            for reminder, days in due_today(db.list_reminders(user_id), local):
+                if not db.mark_pushed(reminder["id"], local.date().isoformat()):
+                    continue
+                payload = message_for(reminder, days)
+                for phone in phones:
+                    result = pusher(phone, payload)
+                    if result == "gone":
+                        db.remove_push(phone["endpoint"])
+                    elif result == "failed":
+                        log.warning("a reminder notification couldn't be sent")
+                    else:
+                        sent += 1
+        return sent
     reset_minutes = 30
     # the account with the admin email is the admin whenever rahah starts, so fixing a mistyped
     # admin email after the account was made takes effect on the next start
@@ -326,11 +364,20 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                 if alerts.due():
                     await asyncio.to_thread(alerts.flush)
 
+        async def keep_notifying():
+            # reminders due today go out as phone notifications, checked every few minutes
+            while True:
+                try:
+                    await asyncio.to_thread(send_due_pushes)
+                except Exception as error:
+                    log.warning("sending reminder notifications failed: %s", error)
+                await asyncio.sleep(300)
+
         handler = alert_handler(alerts) if alert_to else None
         if handler:
             log.addHandler(handler)
         await back_up()
-        tasks = [asyncio.create_task(keep_backed_up())]
+        tasks = [asyncio.create_task(keep_backed_up()), asyncio.create_task(keep_notifying())]
         if handler:
             tasks.append(asyncio.create_task(keep_alerting()))
         yield
@@ -357,6 +404,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     # the automatic api pages are left off, nobody outside needs a map of the routes
     app = FastAPI(title="Rahah", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    # tests run the notification check themselves
+    app.state.send_due_pushes = send_due_pushes
     install_security(app, cfg, max(cfg.max_upload_mb, max_set_mb) + 5)
 
     @app.middleware("http")
@@ -1380,6 +1429,48 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             calendar_file(reminders),
             media_type="text/calendar; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{safe_filename(name)}.ics"'},
+        )
+
+    # phone notifications for reminders, and the calendar feed
+
+    @app.get("/api/push")
+    def push_status(user: dict = Depends(signed_in)):
+        return {"key": push_public, "phones": db.count_pushes(user["id"])}
+
+    @app.post("/api/push")
+    def push_on(body: push_in, user: dict = Depends(signed_in)):
+        if not allowed_endpoint(body.endpoint) or not body.p256dh or not body.auth:
+            raise HTTPException(400, "This browser's notifications can't be used.")
+        db.add_push(user["id"], body.endpoint, body.p256dh, body.auth, body.zone)
+        return {"ok": True}
+
+    @app.post("/api/push/off")
+    def push_off(body: push_in, user: dict = Depends(signed_in)):
+        db.remove_push(body.endpoint, user["id"])
+        return {"ok": True}
+
+    def feed_address(request: Request, token: str) -> str:
+        base = cfg.public_url or str(request.base_url).rstrip("/")
+        return f"{base}/cal/{token}.ics"
+
+    @app.get("/api/calendar")
+    def calendar_link(request: Request, user: dict = Depends(signed_in)):
+        return {"url": feed_address(request, db.calendar_token(user["id"]))}
+
+    @app.post("/api/calendar/new")
+    def new_calendar_link(request: Request, user: dict = Depends(signed_in)):
+        # a new address, the old one stops working, for when it was shared by mistake
+        return {"url": feed_address(request, db.calendar_token(user["id"], fresh=True))}
+
+    @app.get("/cal/{token}.ics")
+    def calendar_feed(token: str):
+        user = db.user_by_calendar(token) if len(token) >= 20 else None
+        if not user or user["disabled"]:
+            raise HTTPException(404, "That calendar link doesn't work any more.")
+        return Response(
+            feed_file(db.list_reminders(user["id"]), db.list_classes(user["id"])),
+            media_type="text/calendar; charset=utf-8",
+            headers={"Cache-Control": "no-cache", "Content-Disposition": 'inline; filename="rahah.ics"'},
         )
 
     @app.get("/api/reminders")
