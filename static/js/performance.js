@@ -72,7 +72,7 @@ function render_performance_row() {
     }
     slot.innerHTML = row_html("Your performance", [
         stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(state.performance.timeline)),
-        stat_card("GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`),
+        stat_card("Average GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`),
         stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`),
         `<button class="stat-card more" type="button" data-performance>See all your results ${icons.next}</button>`,
     ].join(""));
@@ -261,7 +261,7 @@ function render_performance() {
     page.innerHTML = `
         <div class="kpis">
             ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(p.timeline))}
-            ${stat_card("GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`)}
+            ${stat_card("Average GPA", gpa_text(o.gpa), `The average of your subject GPAs, out of 4.0, across ${plural(o.subjects, "subject")}`)}
             ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`)}
             ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
         </div>

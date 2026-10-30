@@ -81,7 +81,8 @@ def summarise(attempts: list[dict]) -> dict:
         "correct": correct,
         "average": average,
         "grade": grade_for(average),
-        "gpa": gpa([q["grade"] for q in quizzes.values()]),
+        # the average of the subject gpas, so each subject counts the same however many tests it has
+        "gpa": round(sum(s["gpa"] for s in subjects.values()) / len(subjects), 2),
         "subjects": len(subjects),
         "latest": latest["percent"],
         "latest_title": latest["title"],

@@ -128,3 +128,16 @@ def test_the_report_endpoint(web):
     r = web.get("/api/report?offset=180").json()
     assert r["this"]["tests"] == 1 and r["streak"] == 1 and r["days"][-1]["active"]
     assert web.get("/api/report?offset=99999").status_code == 422
+
+
+def test_the_average_gpa_counts_each_subject_the_same():
+    # maths has three A tests and science one D, so the average of subjects is 2.5, not the 3.25 of all tests
+    result = summarise([
+        attempt("m1", "maths", 9, 10, 1),
+        attempt("m2", "maths", 9, 10, 2),
+        attempt("m3", "maths", 9, 10, 3),
+        attempt("s1", "science", 5, 10, 4),
+    ])
+    gpas = {s["mode"]: s["gpa"] for s in result["subjects"]}
+    assert gpas == {"maths": 4.0, "science": 1.0}
+    assert result["overall"]["gpa"] == 2.5
