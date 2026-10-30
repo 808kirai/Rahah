@@ -69,7 +69,7 @@ function add_assistant_message(text = null, sources = [], runs = []) {
     leave_home();
     const message_el = document.createElement("div");
     message_el.className = "message assistant";
-    message_el.innerHTML = '<p class="label"><span class="logo" aria-hidden="true"></span>Rahah</p><div class="answer"></div>';
+    message_el.innerHTML = `<p class="label"><span class="logo" aria-hidden="true">${logo_mark}</span>Rahah</p><div class="answer"></div>`;
     const answer = message_el.querySelector(".answer");
     if (text === null) {
         show_thinking(answer);

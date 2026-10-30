@@ -75,6 +75,7 @@ Accounts
 
 Look and feel
 
+- The logo is three rising chevrons, the top one in Rahah's blue. It sits beside the name in the top bar and on the sign in page, marks each answer, and is the browser tab icon (static/img/logo.svg) and the app icon on phones and computers
 - A near black navy theme with soft teal glows and a solid blue accent, after a Dribbble reference, and a matching light theme
 - Faint see through cards and boxes, with a soft shadow in light mode
 - The tabs and message box float over the page with a fade underneath, like a streaming app
