@@ -84,7 +84,7 @@ function chat_card(c) {
         <div class="chat-card-info">
             <div class="chat-card-text">
                 <strong title="${escape_html(c.title)}">${escape_html(c.title)}</strong>
-                <span class="card-meta"><span class="meta-what">${escape_html(mode_name(c.mode))}</span><span class="meta-when"> · ${time_ago(c.updated, true)}</span></span>
+                <span class="card-meta"><span class="meta-what">${escape_html(mode_name(c.mode))}</span><span class="meta-when"><span class="meta-dot"> · </span>${time_ago(c.updated, true)}</span></span>
             </div>
             <button class="icon-btn" type="button" data-remove="${c.id}" aria-label="Delete ${escape_html(c.title)}">${icons.trash}</button>
         </div>

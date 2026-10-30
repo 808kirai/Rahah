@@ -340,7 +340,7 @@ svg {
 
 /* the logo is two masks so the R follows the text colour and the diamond stays mauve */
 /* the model picker in the message box, a small pill that opens a list upwards.
-   the list hangs from the message box row, not the pill, so its right edge lines up with the box
+   the list hangs from the message box, not the pill, so its right edge lines up with the box
    the way the + menu lines up on the left */
 .model-tools {
     flex-shrink: 0;
@@ -390,7 +390,7 @@ svg {
 /* wide enough that each description sits on one line, and never wider than the screen */
 .input-menu.model-menu {
     left: auto;
-    right: -5px;
+    right: -1px;
     width: max-content;
     min-width: 16rem;
     max-width: min(24rem, calc(100vw - 24px));
@@ -1146,15 +1146,15 @@ button.picker-heading:focus-visible {
 }
 
 /* what's on today, under the greeting */
-.today {
+.today-strip {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
     margin-top: 0.8rem;
 }
 
-.today[hidden],
-.today:empty {
+.today-strip[hidden],
+.today-strip:empty {
     display: none;
 }
 
@@ -2019,6 +2019,12 @@ body.signed-out .toasts {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    padding-right: var(--gutter);
+}
+
+/* a waiting or error line under a category title sits in line with the title */
+.category > .page-note {
+    padding: 0 var(--gutter);
 }
 
 .rec-refresh svg {
@@ -2798,9 +2804,14 @@ body.signed-out .toasts {
     text-overflow: ellipsis;
 }
 
+/* a long class name wraps onto a second line rather than being cut off */
 .class-info strong {
     font-size: 0.92rem;
     font-weight: 600;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .class-info span {
@@ -2914,9 +2925,9 @@ body.signed-out .toasts {
     flex-shrink: 0;
 }
 
-/* the + button and its menu of files, photo and voice, opening upwards from the message box */
+/* the + button and its menu of files, photo and voice, opening upwards from the message box.
+   both menus hang from the whole box, so they open above any chips or files sitting over the text */
 .input-tools {
-    position: relative;
     flex-shrink: 0;
 }
 
@@ -2950,8 +2961,8 @@ body.signed-out .toasts {
 
 .input-menu {
     position: absolute;
-    bottom: calc(100% + 14px);
-    left: -5px;
+    bottom: calc(100% + 10px);
+    left: -1px;
     z-index: 60;
     display: flex;
     flex-direction: column;
@@ -3210,6 +3221,12 @@ body.signed-out .toasts {
     color: var(--text-2);
     font-size: 0.8rem;
     min-width: 3.5rem;
+}
+
+/* a long subject name wraps onto a second line rather than being cut off */
+.gpa-list .detail-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* a suggestion card, what to do on top, then the topic and why */
@@ -5044,6 +5061,7 @@ body.signed-out .toasts {
 }
 
 .composer-box {
+    position: relative;
     padding: 4px;
     border-radius: 26px;
     background: var(--dock-bg);
@@ -5130,7 +5148,6 @@ body.signed-out .toasts {
 }
 
 .composer-row {
-    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 0.25rem;
@@ -5355,6 +5372,33 @@ body.signed-out .toasts {
 
     .card-grid.reminder-grid {
         grid-template-columns: 1fr;
+    }
+
+    /* cards are narrow on a phone, so a title gets two lines and the details wrap instead of being cut */
+    .chat-card-text strong {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        line-height: 1.3;
+    }
+
+    /* the details and the time each get their own line, so the dot between them goes */
+    .card-meta {
+        flex-direction: column;
+        white-space: normal;
+    }
+
+    .card-meta .meta-what {
+        overflow: visible;
+    }
+
+    .card-meta .meta-dot {
+        display: none;
+    }
+
+    .gpa-list .gpa-track {
+        flex-basis: 3.5rem;
     }
 
     .sketch {

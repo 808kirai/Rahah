@@ -62,7 +62,7 @@ function set_card(s) {
         <div class="chat-card-info">
             <div class="chat-card-text">
                 <strong title="${escape_html(s.title)}">${escape_html(s.title)}</strong>
-                <span class="card-meta"><span class="meta-what">${set_detail(s)}</span><span class="meta-when"> · ${time_ago(s.updated, true)}</span></span>
+                <span class="card-meta"><span class="meta-what">${set_detail(s)}</span><span class="meta-when"><span class="meta-dot"> · </span>${time_ago(s.updated, true)}</span></span>
             </div>
             <button class="icon-btn" type="button" data-remove-set="${s.id}" aria-label="Delete ${escape_html(s.title)}">${icons.trash}</button>
         </div>
