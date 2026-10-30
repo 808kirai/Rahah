@@ -386,14 +386,32 @@ svg {
     }
 }
 
-.model-menu {
+/* wide enough that each description sits on one line, and never wider than the screen */
+.input-menu.model-menu {
     left: auto;
     right: 0;
-    min-width: 17rem;
+    width: max-content;
+    min-width: 16rem;
+    max-width: min(24rem, calc(100vw - 24px));
 }
 
 .model-option {
     justify-content: space-between;
+    gap: 1rem;
+}
+
+.model-option > span {
+    min-width: 0;
+}
+
+.model-option small {
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .model-option small {
+        white-space: normal;
+    }
 }
 
 .model-option svg {
