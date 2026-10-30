@@ -642,6 +642,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         # what rahah keeps and why, linked from sign in and the account tab, and given to google for sign in
         return FileResponse(static_dir / "privacy.html")
 
+    @app.get("/terms")
+    def terms():
+        # the rules for using rahah, linked beside the privacy page
+        return FileResponse(static_dir / "terms.html")
+
     @app.get("/sw.js")
     def service_worker():
         # served from the root so it covers the whole app, and checked on every load so updates land

@@ -158,3 +158,5 @@ def test_the_privacy_page_is_open_to_everyone(make):
     page = TestClient(make()).get("/privacy")
     assert page.status_code == 200 and "What Rahah keeps" in page.text
     assert "content-security-policy" in page.headers
+    terms = TestClient(make(path="terms.db")).get("/terms")
+    assert terms.status_code == 200 and "Using Rahah fairly" in terms.text

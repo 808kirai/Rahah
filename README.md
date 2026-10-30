@@ -138,7 +138,7 @@ render.yaml in the repo sets everything up: a Starter server that stays on, a 1 
 
 A backup of the database is made on the same disk each day and kept for a week.
 
-The privacy page at /privacy says what Rahah keeps, why, who else sees it and how to have it removed. It's linked from the sign in page and the Account tab, and Google asks for its address, with the homepage, before Sign in with Google can be published for everyone.
+The privacy page at /privacy says what Rahah keeps, why, who else sees it and how to have it removed. The terms at /terms set the rules: one account each, fair use of the allowance, answers can be wrong, the student's work stays theirs. Both are linked from the sign in page and the Account tab, and Google asks for the privacy address, with the homepage, before Sign in with Google can be published for everyone.
 
 Sign in with Google
 
