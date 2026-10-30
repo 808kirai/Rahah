@@ -446,7 +446,7 @@ el("auth-forgot").addEventListener("click", () => {
     el("auth-forgot-note").hidden = !el("auth-forgot-note").hidden;
 });
 
-// the halftone beside the form, diamond dots that thicken into soft shapes, drawn once per size
+// the halftone beside the form, a big flowing shape of diamond dots like a printed picture, drawn once per size
 // a seeded random keeps the same picture on every visit, it only stretches to fit
 function auth_random(seed) {
     return () => {
@@ -468,13 +468,13 @@ function draw_auth_art() {
     const ctx = canvas.getContext("2d");
     ctx.scale(ratio, ratio);
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent-text").trim() || "#3b9edb";
-    // a little dimmer than the accent, so it sits behind the form rather than competing with it
-    ctx.globalAlpha = 0.7;
+    // black and white like a printed halftone, the page's own text colour on its background
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#edf5fa";
+    ctx.globalAlpha = 0.92;
 
-    // smooth value noise on a coarse grid, layered twice for softer edges
+    // layered value noise for the light and dark patches
     const rand = auth_random(7);
-    const size = 9;
+    const size = 16;
     const grid = Array.from({ length: size * size }, rand);
     const at = (x, y) => grid[((y % size) + size) % size * size + ((x % size) + size) % size];
     const smooth = (t) => t * t * (3 - 2 * t);
@@ -485,18 +485,31 @@ function draw_auth_art() {
         const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
         return top + (bottom - top) * sy;
     };
-    const step = 9;
-    const dots = auth_random(11);
-    for (let y = step / 2; y < height; y += step) {
-        for (let x = step / 2; x < width; x += step) {
+    const fbm = (x, y) => 0.55 * noise(x, y) + 0.3 * noise(x * 2.1 + 7, y * 2.1 + 3) + 0.15 * noise(x * 4.3 + 1, y * 4.3 + 9);
+    const ease = (a, b, t) => smooth(Math.min(Math.max((t - a) / (b - a), 0), 1));
+
+    // the left edge of the shape down the panel, close to the left at the top, bulging out
+    // around the middle, then pulling back right towards the bottom
+    const edge = (v) => 0.1 + 0.32 * v - 0.2 * Math.exp(-(((v - 0.52) / 0.16) ** 2)) + 0.32 * ease(0.66, 0.95, v) + 0.04 * Math.sin(v * 11);
+
+    // dots on a diagonal grid, every other row shifted half a step, so full dots join up into solid patches
+    const step = 13;
+    const half = step / 2;
+    const speckle = auth_random(11);
+    for (let row = 0, y = 0; y < height + step; row += 1, y += half) {
+        for (let x = (row % 2) * half; x < width + step; x += step) {
             const u = x / width, v = y / height;
-            // a band that sweeps from the top right down through the middle, broken up by the noise
-            const sweep = 1 - Math.abs(u - (0.82 - 0.42 * v + 0.12 * Math.sin(v * 6))) * 1.5;
-            const value = 0.45 * sweep + 0.55 * (0.6 * noise(u * 3.5, v * 3.5) + 0.4 * noise(u * 8 + 3, v * 8 + 3));
-            const density = Math.min(Math.max((value - 0.4) * 2.8, 0), 1);
-            // sparse dots scatter at the edges, dense ones join up in the middle
-            if (density <= 0 || dots() > Math.pow(density, 0.8)) continue;
-            const r = (step / 2) * (0.45 + 0.5 * density);
+            const ragged = 0.14 * (noise(u * 7 + 2, v * 7) - 0.5) + 0.05 * (noise(u * 22, v * 22 + 4) - 0.5);
+            const inside = ease(-0.05, 0.08, u - edge(v) + ragged);
+            if (inside <= 0) continue;
+            // dark cores, light washes and the odd hole, the shape fades a little near its edge
+            let tone = inside * (fbm(u * 4.2, v * 4.2) - 0.3) * 2.4;
+            tone = Math.min(Math.max(tone, 0), 1);
+            if (tone < 0.06) continue;
+            // the lightest dots thin out at random, which gives the scattered edges
+            if (tone < 0.4 && speckle() > tone / 0.4) continue;
+            // a dot's area follows its tone, the way a halftone screen works, and even the darkest keep a sliver of gap
+            const r = half * Math.min(0.86, 0.16 + tone * 0.74);
             ctx.beginPath();
             ctx.moveTo(x, y - r);
             ctx.lineTo(x + r, y);
