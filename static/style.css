@@ -1872,6 +1872,13 @@ body.signed-out .toasts {
     color: var(--accent-text);
 }
 
+.support-link {
+    color: var(--accent-text);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 .auth-hint {
     margin: 0.4rem 0 0;
     color: var(--text-2);

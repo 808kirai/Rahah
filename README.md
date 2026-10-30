@@ -72,6 +72,7 @@ Accounts
 - The admin's Students page, from Manage students on the Account tab, lists every student with when they joined and were last seen, what they've cost today, what's left of their limit and the share used as a bar, their cost this week and in all, and totals. Money is shown to the cent. The admin can set a student's own daily limit, give a new password to a student who forgot theirs, and turn an account off, which signs them out and stops them signing in
 - Sign in with Google and Apple, once their ids are set. A Google or Apple sign in either signs into the account it's linked to or makes a new one, with a username from the email or name. It never joins an account just because the email matches, since emails aren't checked at sign up, so a student with a password account connects Google or Apple from Settings while signed in. Accounts made this way can add a password later
 - Google and Apple tokens are checked on the server against the provider's published keys, for this app's id, from the right issuer and not expired, before anything in them is used
+- Help goes to studywithrahah@gmail.com (RAHAH_SUPPORT_EMAIL). Forgot password on the sign in page, the password card and a Help card on the Account tab all link to it, with a subject filled in, and a turned off account is told to write there. A forgotten password is reset by the admin from the Students page after the student emails in from the address on their account
 - Not yet: password reset by email and email checks need an email service, which comes with deployment
 
 Security
@@ -173,6 +174,7 @@ Settings
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
 - `RAHAH_DAILY_CAP` - What each student can spend a day in dollars, defaults to `0.50`. The admin can change it per student
+- `RAHAH_SUPPORT_EMAIL` - Where students write for help and password resets, defaults to `studywithrahah@gmail.com`
 - `RAHAH_ADMIN_EMAIL` - The admin's email, set it before going online so nobody else can become admin
 - `RAHAH_DAILY_BUDGET` - What all students together can spend a day in dollars, defaults to `10`, `0` turns it off
 - `RAHAH_SIGNUPS_PER_IP` - Accounts one connection can make a day, defaults to `20`

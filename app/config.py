@@ -36,6 +36,8 @@ class settings:
     signups_per_ip: int = 20
     # answers one student can have running at once
     max_running: int = 2
+    # where students write for help, password resets and other requests
+    support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
     google_client_id: str = ""
     apple_client_id: str = ""
@@ -57,6 +59,7 @@ def load_settings() -> settings:
         max_upload_mb=int(os.getenv("RAHAH_MAX_UPLOAD_MB", "30")),
         daily_cap=float(os.getenv("RAHAH_DAILY_CAP", "0.50")),
         https=os.getenv("RAHAH_HTTPS", "").strip().lower() in ("1", "true", "yes"),
+        support_email=os.getenv("RAHAH_SUPPORT_EMAIL", "studywithrahah@gmail.com").strip() or "studywithrahah@gmail.com",
         admin_email=os.getenv("RAHAH_ADMIN_EMAIL", "").strip().lower(),
         daily_budget=float(os.getenv("RAHAH_DAILY_BUDGET", "10")),
         signups_per_ip=int(os.getenv("RAHAH_SIGNUPS_PER_IP", "20")),

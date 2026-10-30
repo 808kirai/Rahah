@@ -248,7 +248,9 @@ def test_the_admin_page_lists_students_and_can_turn_them_off(make):
     # turning brian off signs him out and stops him signing in
     assert admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": True}).json()["disabled"]
     assert student.get("/api/me").status_code == 401
-    assert student.post("/api/auth/login", json={"login": "brian", "password": "correct horse!"}).status_code == 403
+    turned_off = student.post("/api/auth/login", json={"login": "brian", "password": "correct horse!"})
+    # a turned off student is told where to write for help
+    assert turned_off.status_code == 403 and "studywithrahah@gmail.com" in turned_off.json()["detail"]
     admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": False})
 
     # a new password for a student who forgot theirs
@@ -278,7 +280,7 @@ def provider_app(tmp_path, people):
 def test_signing_in_with_google_makes_an_account_then_signs_into_it(tmp_path):
     app = provider_app(tmp_path, {"amina": ("g-1", "Amina.O@gmail.com", "Amina Otieno"), "fake": ("x", None, "")})
     web = TestClient(app)
-    assert web.get("/api/auth/config").json() == {"google_client_id": "google-id", "apple_client_id": "apple-id"}
+    assert web.get("/api/auth/config").json() == {"google_client_id": "google-id", "apple_client_id": "apple-id", "support_email": "studywithrahah@gmail.com"}
     assert web.post("/api/auth/google", json={"credential": "fake-token"}).status_code == 401
 
     made = web.post("/api/auth/google", json={"credential": "amina"}).json()
@@ -331,7 +333,7 @@ def test_apple_sign_in_and_usernames_that_are_taken(tmp_path):
 def test_google_and_apple_stay_off_until_set_up(make):
     app, _ = make()
     web = TestClient(app)
-    assert web.get("/api/auth/config").json() == {"google_client_id": "", "apple_client_id": ""}
+    assert web.get("/api/auth/config").json() == {"google_client_id": "", "apple_client_id": "", "support_email": "studywithrahah@gmail.com"}
     assert web.post("/api/auth/google", json={"credential": "x"}).status_code == 404
     assert web.post("/api/auth/apple", json={"id_token": "x"}).status_code == 404
 

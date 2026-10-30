@@ -424,7 +424,19 @@ async function apple_sign_in(on_error) {
     }
 }
 
+// where students write for help, from the server's settings
+function support_email() {
+    return auth.config?.support_email || "studywithrahah@gmail.com";
+}
+
 async function set_up_providers() {
+    const config_for_help = await auth_config();
+    if (config_for_help.support_email) {
+        el("auth-forgot-note").querySelectorAll(".support-link").forEach((link) => {
+            link.textContent = config_for_help.support_email;
+            link.href = `mailto:${config_for_help.support_email}?subject=Password%20reset`;
+        });
+    }
     const config = await auth_config();
     el("auth-providers").hidden = !config.google_client_id && !config.apple_client_id;
     el("apple-button").hidden = !config.apple_client_id;
@@ -629,7 +641,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>${me.has_password ? "Password" : "Add a password"}</h3>
-                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? Ask the person who runs Rahah for a new one.</p>
+                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? Email <a class="support-link" href="mailto:${escape_html(support_email())}?subject=Password%20reset">${escape_html(support_email())}</a>.</p>
             </div>
             <div class="account-fields">
                 ${me.has_password ? '<input class="text-input" type="password" id="password-current" autocomplete="current-password" placeholder="Current password">' : ""}
@@ -642,6 +654,13 @@ function render_account() {
             </div>
         </section>
         </div>
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>Help</h3>
+                <p>Questions, a password reset, or anything else you need</p>
+            </div>
+            <a class="btn btn-soft btn-small" href="mailto:${escape_html(support_email())}?subject=${encodeURIComponent("Rahah help, @" + me.username)}">Email ${escape_html(support_email())}</a>
+        </section>
         ${me.is_admin ? `<section class="perf-card">
             <div class="perf-head">
                 <h3>Students</h3>
@@ -721,6 +740,7 @@ async function start() {
         return;
     }
     state.me = me;
+    await auth_config();
     if (remember_me(me)) await forget_saved_data();
     remember_me(me);
     render_account();

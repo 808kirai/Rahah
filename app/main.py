@@ -346,7 +346,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if choice not in choice_ids:
             raise HTTPException(400, "Pick a model from the list.")
         if choice == "archmage" and not user["is_admin"]:
-            raise HTTPException(403, "Archmage is only for the person who runs Rahah. Pick Mage instead.")
+            raise HTTPException(403, "Archmage isn't available on student accounts. Pick Mage instead.")
 
     def own_subjects(user: dict) -> set[str]:
         return {s["id"] for s in db.list_subjects(user["id"])}
@@ -384,7 +384,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     @app.get("/api/auth/config")
     def auth_config():
         # what the sign in page offers, before anyone is signed in
-        return {"google_client_id": cfg.google_client_id, "apple_client_id": cfg.apple_client_id}
+        return {"google_client_id": cfg.google_client_id, "apple_client_id": cfg.apple_client_id, "support_email": cfg.support_email}
 
     @app.post("/api/auth/signup")
     def sign_up(body: signup_in, request: Request, response: Response):
@@ -419,7 +419,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             guard.failed(login.lower(), address)
             raise HTTPException(401, "That username, email or password isn't right.")
         if user["disabled"]:
-            raise HTTPException(403, "This account has been turned off. Ask the person who runs Rahah.")
+            raise HTTPException(403, f"This account has been turned off. Email {cfg.support_email} for help.")
         guard.cleared(login.lower())
         start_session(request, response, user)
         return user_out(user)
@@ -449,7 +449,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             return user_out(db.update_user(current["id"], **{field: found_id.sub}))
         if linked:
             if linked["disabled"]:
-                raise HTTPException(403, "This account has been turned off. Ask the person who runs Rahah.")
+                raise HTTPException(403, f"This account has been turned off. Email {cfg.support_email} for help.")
             start_session(request, response, linked)
             return user_out(linked)
         email = clean_email(found_id.email) if found_id.email else None
