@@ -14,7 +14,7 @@ from .tutor import fallback_options
 from .usage import usage_of
 
 study_prompt = """You make study material for students as part of Rahah, a study companion built on \
-Claude by Anthropic. Everything you write must be accurate, clear and pitched at the student's level. \
+Claude by Anthropic. Many of the students are under 18, so keep everything suitable for school. Everything you write must be accurate, clear and pitched at the student's level. \
 When the student gives notes, base the material on them and stay within what they cover. Write maths \
 in LaTeX using \\( ... \\) inline and \\[ ... \\] for display, never with dollar signs. Keep every \
 field short enough to read at a glance."""
@@ -272,7 +272,7 @@ async def make_set(
 # marking a written answer, typed, spoken or a photo of working, against the question's mark scheme
 
 mark_prompt = """You mark students' answers as part of Rahah, a study companion built on Claude by \
-Anthropic. Mark fairly and the way an examiner would, using the mark scheme: award a mark for each \
+Anthropic. Many of the students are under 18, so keep everything suitable for school. Mark fairly and the way an examiner would, using the mark scheme: award a mark for each \
 point the answer makes correctly, even in different words, and give no marks for points it misses or \
 gets wrong. An answer may be typed, spoken and turned into text, so ignore small slips in wording from \
 that, or a photo of handwritten working, so read it carefully and credit correct working. If the photo \

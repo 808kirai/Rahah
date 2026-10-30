@@ -79,6 +79,8 @@ class signup_in(BaseModel):
     email: str = Field(min_length=1, max_length=200)
     password: str = Field(min_length=1, max_length=200)
     name: str = Field(default="", max_length=60)
+    # the box for the terms and privacy, with a parent or guardian's ok for anyone under 18
+    agreed: bool = False
 
 
 class login_in(BaseModel):
@@ -94,11 +96,13 @@ class profile_in(BaseModel):
 
 class google_in(BaseModel):
     credential: str = Field(min_length=1, max_length=5000)
+    agreed: bool = False
 
 
 class apple_in(BaseModel):
     id_token: str = Field(min_length=1, max_length=5000)
     name: str = Field(default="", max_length=60)
+    agreed: bool = False
 
 
 class password_in(BaseModel):
@@ -378,6 +382,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             secure=cfg.https or request.url.scheme == "https", path="/",
         )
 
+    agree_first = "Tick the box to agree to the terms and privacy page first."
+
     def admin_for(email: str | None) -> bool | None:
         # with an admin email set, only that account is the admin, so nobody else can claim it first
         if not cfg.admin_email:
@@ -426,10 +432,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(400, "That username is taken. Try another.")
         if db.taken("email", email):
             raise HTTPException(400, "An account already uses that email. Sign in instead.")
+        if not body.agreed:
+            raise HTTPException(400, agree_first)
         address = client_address(request)
         if signups.full(address):
             raise HTTPException(429, "Too many accounts were made from this connection today. Try again tomorrow.")
-        user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()), admin=admin_for(email))
+        user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()), admin=admin_for(email), agreed=True)
         signups.add(address)
         start_session(request, response, user)
         return user_out(user)
@@ -463,7 +471,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     provider_names = {"google": "Google", "apple": "Apple"}
 
-    def provider_sign_in(request: Request, response: Response, provider: str, found_id: identity) -> dict:
+    def provider_sign_in(request: Request, response: Response, provider: str, found_id: identity, agreed: bool = False) -> dict:
         """signs in the account linked to this google or apple id, links it to the student signed in now,
         or makes a new account, but never joins an existing account just because the email matches"""
         field = f"{provider}_sub"
@@ -484,6 +492,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         email = clean_email(found_id.email) if found_id.email else None
         if email and db.taken("email", email):
             raise HTTPException(400, f"An account already uses {email}. Sign in with your password, then connect {label} in Settings.")
+        if not agreed:
+            raise HTTPException(400, f"New to Rahah? Tick the box to agree to the terms, then choose Sign up with {label} again.")
         address = client_address(request)
         if signups.full(address):
             raise HTTPException(429, "Too many accounts were made from this connection today. Try again tomorrow.")
@@ -491,7 +501,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         username, n = base, 2
         while db.taken("username", username):
             username, n = f"{base}{n}", n + 1
-        user = db.create_user(username, email, None, " ".join(found_id.name.split())[:60], admin=admin_for(email), **{field: found_id.sub})
+        user = db.create_user(username, email, None, " ".join(found_id.name.split())[:60], admin=admin_for(email), agreed=True, **{field: found_id.sub})
         signups.add(address)
         start_session(request, response, user)
         return user_out(user)
@@ -504,7 +514,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             found_id = verifiers["google"](body.credential)
         except provider_error as error:
             raise HTTPException(401, str(error))
-        return provider_sign_in(request, response, "google", found_id)
+        return provider_sign_in(request, response, "google", found_id, body.agreed)
 
     @app.post("/api/auth/apple")
     def apple_sign_in(body: apple_in, request: Request, response: Response):
@@ -514,7 +524,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             found_id = verifiers["apple"](body.id_token, body.name)
         except provider_error as error:
             raise HTTPException(401, str(error))
-        return provider_sign_in(request, response, "apple", found_id)
+        return provider_sign_in(request, response, "apple", found_id, body.agreed)
 
     @app.get("/api/me")
     def who_am_i(user: dict = Depends(signed_in)):

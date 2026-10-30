@@ -1992,6 +1992,35 @@ body.signed-out .toasts {
     background: var(--border);
 }
 
+/* the terms box on sign up, with a guardian's ok for anyone under 18 */
+.auth-agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0.25rem 0 0.9rem;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text-2);
+    cursor: pointer;
+}
+
+.auth-agree input {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
+    margin: 0.1rem 0 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.auth-agree a {
+    color: var(--text);
+}
+
+.auth-agree[hidden] {
+    display: none;
+}
+
 .auth-legal {
     margin: 1rem 0 0;
     text-align: center;

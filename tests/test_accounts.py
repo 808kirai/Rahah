@@ -22,7 +22,7 @@ def make(tmp_path):
 
 
 def sign_up(web, username, password="correct horse!", email=None):
-    return web.post("/api/auth/signup", json={"username": username, "email": email or f"{username}@example.com", "password": password})
+    return web.post("/api/auth/signup", json={"username": username, "email": email or f"{username}@example.com", "password": password, "agreed": True})
 
 
 def test_passwords_are_hashed_and_checked():
@@ -68,10 +68,10 @@ def test_signing_up_in_and_out(make):
     assert web.get("/api/me").status_code == 401
 
     # the username needs its exact capitals, the email can be any case
-    assert web.post("/api/auth/login", json={"login": "amina_o", "password": "correct horse!"}).status_code == 401
-    assert web.post("/api/auth/login", json={"login": "Amina_O", "password": "correct horse!"}).status_code == 200
+    assert web.post("/api/auth/login", json={"login": "amina_o", "password": "correct horse!", "agreed": True}).status_code == 401
+    assert web.post("/api/auth/login", json={"login": "Amina_O", "password": "correct horse!", "agreed": True}).status_code == 200
     web.post("/api/auth/logout")
-    assert web.post("/api/auth/login", json={"login": "AMINA_O@example.com", "password": "correct horse!"}).status_code == 200
+    assert web.post("/api/auth/login", json={"login": "AMINA_O@example.com", "password": "correct horse!", "agreed": True}).status_code == 200
     bad = web.post("/api/auth/login", json={"login": "Amina_O", "password": "nope nope"})
     assert bad.status_code == 401 and "isn't right" in bad.json()["detail"]
 
@@ -84,8 +84,8 @@ def test_sign_up_rules(make):
     assert "8 characters" in sign_up(web, "amina", password="short").json()["detail"]
     assert "special character" in sign_up(web, "amina", password="no symbols here 123").json()["detail"]
     assert sign_up(web, "amina").status_code == 200
-    assert "taken" in TestClient(app).post("/api/auth/signup", json={"username": "AMINA", "email": "other@example.com", "password": "correct horse!"}).json()["detail"]
-    assert "already uses" in TestClient(app).post("/api/auth/signup", json={"username": "brian", "email": "Amina@Example.com", "password": "correct horse!"}).json()["detail"]
+    assert "taken" in TestClient(app).post("/api/auth/signup", json={"username": "AMINA", "email": "other@example.com", "password": "correct horse!", "agreed": True}).json()["detail"]
+    assert "already uses" in TestClient(app).post("/api/auth/signup", json={"username": "brian", "email": "Amina@Example.com", "password": "correct horse!", "agreed": True}).json()["detail"]
 
 
 def test_too_many_wrong_passwords_wait_a_while(make):
@@ -96,7 +96,7 @@ def test_too_many_wrong_passwords_wait_a_while(make):
     for _ in range(5):
         assert web.post("/api/auth/login", json={"login": "amina", "password": "wrong guess"}).status_code == 401
     # even the right password waits now
-    blocked = web.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
+    blocked = web.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})
     assert blocked.status_code == 429
 
 
@@ -186,7 +186,7 @@ def test_changing_the_password_signs_out_other_devices(make):
     app, _ = make()
     phone, laptop = TestClient(app), TestClient(app)
     sign_up(phone, "amina")
-    laptop.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
+    laptop.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})
     wrong = phone.post("/api/me/password", json={"current": "nope", "new": "new horse battery!"})
     assert wrong.status_code == 400
     assert phone.post("/api/me/password", json={"current": "correct horse!", "new": "new horse battery!"}).status_code == 200
@@ -248,7 +248,7 @@ def test_the_admin_page_lists_students_and_can_turn_them_off(make):
     # turning brian off signs him out and stops him signing in
     assert admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": True}).json()["disabled"]
     assert student.get("/api/me").status_code == 401
-    turned_off = student.post("/api/auth/login", json={"login": "brian", "password": "correct horse!"})
+    turned_off = student.post("/api/auth/login", json={"login": "brian", "password": "correct horse!", "agreed": True})
     # a turned off student is told where to write for help
     assert turned_off.status_code == 403 and "studywithrahah@gmail.com" in turned_off.json()["detail"]
     admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": False})
@@ -283,17 +283,17 @@ def test_signing_in_with_google_makes_an_account_then_signs_into_it(tmp_path):
     assert web.get("/api/auth/config").json() == {"google_client_id": "google-id", "apple_client_id": "apple-id", "support_email": "studywithrahah@gmail.com"}
     assert web.post("/api/auth/google", json={"credential": "fake-token"}).status_code == 401
 
-    made = web.post("/api/auth/google", json={"credential": "amina"}).json()
+    made = web.post("/api/auth/google", json={"credential": "amina", "agreed": True}).json()
     assert made["username"] == "amina.o" and made["email"] == "amina.o@gmail.com" and made["google"] and not made["has_password"]
     assert made["name"] == "Amina Otieno"
     web.post("/api/auth/logout")
-    again = web.post("/api/auth/google", json={"credential": "amina"}).json()
+    again = web.post("/api/auth/google", json={"credential": "amina", "agreed": True}).json()
     assert again["id"] == made["id"]
 
     # a google account can add a password later, without a current one
     assert web.post("/api/me/password", json={"new": "correct horse!"}).status_code == 200
     web.post("/api/auth/logout")
-    assert web.post("/api/auth/login", json={"login": "amina.o", "password": "correct horse!"}).status_code == 200
+    assert web.post("/api/auth/login", json={"login": "amina.o", "password": "correct horse!", "agreed": True}).status_code == 200
 
 
 def test_google_never_takes_over_an_account_with_the_same_email(tmp_path):
@@ -301,32 +301,32 @@ def test_google_never_takes_over_an_account_with_the_same_email(tmp_path):
     owner = TestClient(app)
     sign_up(owner, "amina")
     owner.post("/api/auth/logout")
-    refused = TestClient(app).post("/api/auth/google", json={"credential": "amina"})
+    refused = TestClient(app).post("/api/auth/google", json={"credential": "amina", "agreed": True})
     assert refused.status_code == 400 and "connect Google in Settings" in refused.json()["detail"]
 
     # signed in with the password, the same google account connects to it
-    owner.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
-    linked = owner.post("/api/auth/google", json={"credential": "amina"}).json()
+    owner.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})
+    linked = owner.post("/api/auth/google", json={"credential": "amina", "agreed": True}).json()
     assert linked["google"] and linked["username"] == "amina"
     owner.post("/api/auth/logout")
-    assert TestClient(app).post("/api/auth/google", json={"credential": "amina"}).json()["username"] == "amina"
+    assert TestClient(app).post("/api/auth/google", json={"credential": "amina", "agreed": True}).json()["username"] == "amina"
 
 
 def test_one_google_account_belongs_to_one_rahah_account(tmp_path):
     app = provider_app(tmp_path, {"amina": ("g-1", None, "Amina")})
     first = TestClient(app)
-    first.post("/api/auth/google", json={"credential": "amina"})
+    first.post("/api/auth/google", json={"credential": "amina", "agreed": True})
     second = TestClient(app)
     sign_up(second, "brian")
-    clash = second.post("/api/auth/google", json={"credential": "amina"})
+    clash = second.post("/api/auth/google", json={"credential": "amina", "agreed": True})
     assert clash.status_code == 400 and "another Rahah account" in clash.json()["detail"]
 
 
 def test_apple_sign_in_and_usernames_that_are_taken(tmp_path):
     app = provider_app(tmp_path, {"one": ("a-1", None, ""), "two": ("a-2", None, "")})
-    first = TestClient(app).post("/api/auth/apple", json={"id_token": "one", "name": "Amina Otieno"}).json()
+    first = TestClient(app).post("/api/auth/apple", json={"id_token": "one", "name": "Amina Otieno", "agreed": True}).json()
     assert first["apple"] and first["name"] == "Amina Otieno" and first["username"] == "aminaotieno"
-    second = TestClient(app).post("/api/auth/apple", json={"id_token": "two", "name": "Amina Otieno"}).json()
+    second = TestClient(app).post("/api/auth/apple", json={"id_token": "two", "name": "Amina Otieno", "agreed": True}).json()
     assert second["username"] == "aminaotieno2"
 
 
@@ -371,3 +371,15 @@ def test_provider_tokens_are_checked_for_signature_app_issuer_and_expiry(monkeyp
     assert apple.email == "amina@gmail.com" and apple.name == "Amina O"
     with pytest.raises(providers.provider_error):
         providers.verify_apple(token(), "my-app")  # a google token isn't an apple one
+
+
+def test_a_new_account_needs_the_terms_box_ticked(make, tmp_path):
+    app, _ = make()
+    refused = TestClient(app).post("/api/auth/signup", json={"username": "amina", "email": "amina@example.com", "password": "correct horse!"})
+    assert refused.status_code == 400 and "Tick the box" in refused.json()["detail"]
+    # a new google account needs it too, but signing back in to a linked one doesn't
+    app = provider_app(tmp_path, {"amina": ("g-1", "amina@gmail.com", "Amina Otieno")})
+    new = TestClient(app).post("/api/auth/google", json={"credential": "amina"})
+    assert new.status_code == 400 and "Tick the box" in new.json()["detail"]
+    assert TestClient(app).post("/api/auth/google", json={"credential": "amina", "agreed": True}).status_code == 200
+    assert TestClient(app).post("/api/auth/google", json={"credential": "amina"}).status_code == 200

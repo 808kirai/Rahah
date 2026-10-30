@@ -17,7 +17,7 @@ max_days = 21
 task_kinds = ("read", "flashcards", "test", "practice", "rest")
 
 plan_prompt = """You plan revision for students as part of Rahah, a study companion built on Claude by \
-Anthropic. Make a realistic plan a student will actually follow: a clear focus each day, two or three short \
+Anthropic. Many of the students are under 18, so keep everything suitable for school. Make a realistic plan a student will actually follow: a clear focus each day, two or three short \
 tasks, harder topics earlier so there is time to come back to them, active practice like tests and flashcards \
 over rereading, a lighter day now and then, and the last day before the exam for a calm review. Keep every \
 field short."""

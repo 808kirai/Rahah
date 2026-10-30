@@ -205,6 +205,10 @@ class store:
             columns = {r["name"] for r in db.execute("pragma table_info(reminders)").fetchall()}
             if "plan" not in columns:
                 db.execute("alter table reminders add column plan text not null default ''")
+            # when the student ticked the box for the terms, privacy and a guardian's ok if under 18
+            columns = {r["name"] for r in db.execute("pragma table_info(users)").fetchall()}
+            if "agreed" not in columns:
+                db.execute("alter table users add column agreed real")
             # rows from before accounts have no owner until the first account claims them
             for table in owned_tables:
                 columns = {r["name"] for r in db.execute(f"pragma table_info({table})").fetchall()}
@@ -235,7 +239,8 @@ class store:
         return user
 
     def create_user(self, username: str, email: str | None, password: str | None, name: str = "",
-                    google_sub: str | None = None, apple_sub: str | None = None, admin: bool | None = None) -> dict:
+                    google_sub: str | None = None, apple_sub: str | None = None, admin: bool | None = None,
+                    agreed: bool = False) -> dict:
         """a new account, admin when admin is true, or when it's left out and this is the very first account,
         and the admin takes everything made before accounts"""
         user_id = uuid.uuid4().hex
@@ -243,9 +248,9 @@ class store:
         with self._connect() as db:
             first = db.execute("select count(*) from users").fetchone()[0] == 0 if admin is None else admin
             db.execute(
-                "insert into users (id, username, email, password, name, google_sub, apple_sub, is_admin, created, last_seen) "
-                "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, username, email, password, name, google_sub, apple_sub, int(first), now, now),
+                "insert into users (id, username, email, password, name, google_sub, apple_sub, is_admin, created, last_seen, agreed) "
+                "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, username, email, password, name, google_sub, apple_sub, int(first), now, now, now if agreed else None),
             )
             if first:
                 self._claim_unowned(db, user_id)

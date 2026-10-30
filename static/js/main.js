@@ -329,6 +329,13 @@ function set_auth_mode(mode) {
     show_auth_error("");
 }
 
+// a brand new google or apple account needs the terms box first, so the form switches to sign up and points at it
+function show_provider_error(text) {
+    if (text.includes("Tick the box") && auth.mode !== "signup") set_auth_mode("signup");
+    show_auth_error(text);
+    if (text.includes("Tick the box")) el("auth-agree").focus();
+}
+
 function show_auth_error(text) {
     const box = el("auth-error");
     box.textContent = text;
@@ -391,7 +398,7 @@ function set_up_google(client_id) {
             google.accounts.id.initialize({
                 client_id,
                 ux_mode: "popup",
-                callback: (reply) => send_provider_token("/api/auth/google", { credential: reply.credential }, state.me ? (text) => alert(text) : show_auth_error),
+                callback: (reply) => send_provider_token("/api/auth/google", { credential: reply.credential, agreed: !!el("auth-agree")?.checked }, state.me ? (text) => alert(text) : show_provider_error),
             });
         });
     }
@@ -421,7 +428,7 @@ async function apple_sign_in(on_error) {
         AppleID.auth.init({ clientId: config.apple_client_id, scope: "name email", redirectURI: `${location.origin}/`, usePopup: true });
         const reply = await AppleID.auth.signIn();
         const name = reply.user?.name ? `${reply.user.name.firstName || ""} ${reply.user.name.lastName || ""}`.trim() : "";
-        await send_provider_token("/api/auth/apple", { id_token: reply.authorization.id_token, name }, on_error);
+        await send_provider_token("/api/auth/apple", { id_token: reply.authorization.id_token, name, agreed: !!el("auth-agree")?.checked }, on_error);
     } catch (error) {
         // closing apple's window isn't an error worth showing
         if (error?.error !== "popup_closed_by_user") on_error("Sign in with Apple didn't finish. Try again.");
@@ -437,6 +444,7 @@ function support_email() {
 // chip is the label on the account tab's help card, the others come from their own links
 const help_messages = {
     broken: { chip: "Something isn't working", subject: "Something isn't working", lines: ["Something in Rahah isn't working for me.", "", "What I was doing:", "What happened:"], device: true },
+    unsafe: { chip: "Report something unsafe", subject: "Reporting something unsafe", lines: ["I want to report something unsafe or upsetting in Rahah.", "", "What happened:", "The chat or test it was in:"] },
     limit: { chip: "My daily limit", subject: "Question about my daily limit", lines: ["I've run out of my daily study limit and would like to ask about it."] },
     reset: { chip: "Password reset", subject: "Password reset", lines: ["I've forgotten my password and need a new one. I'm writing from the email on my account."] },
     account: { chip: "Account question", subject: "Account question", lines: ["I have a question about my account:"] },
@@ -510,7 +518,7 @@ async function set_up_providers() {
     if (config.google_client_id) draw_google_button(el("google-button"));
 }
 
-el("apple-button").addEventListener("click", () => apple_sign_in(show_auth_error));
+el("apple-button").addEventListener("click", () => apple_sign_in(show_provider_error));
 
 async function finish_sign_in(me) {
     if (remember_me(me)) await forget_saved_data();
@@ -624,7 +632,7 @@ el("auth-form").addEventListener("submit", async (event) => {
     const signup = auth.mode === "signup";
     const password = el("auth-password").value;
     const body = signup
-        ? { username: el("auth-username").value.trim(), email: el("auth-email").value.trim(), password }
+        ? { username: el("auth-username").value.trim(), email: el("auth-email").value.trim(), password, agreed: el("auth-agree").checked }
         : { login: el("auth-login").value.trim(), password };
     if (signup ? !body.username || !body.email || !password : !body.login || !password) {
         show_auth_error(signup ? "Fill in a username, email and password." : "Fill in your username or email and password.");
@@ -634,6 +642,11 @@ el("auth-form").addEventListener("submit", async (event) => {
     if (signup && password !== el("auth-password-again").value) {
         show_auth_error("The passwords don't match.");
         el("auth-password-again").focus();
+        return;
+    }
+    if (signup && !el("auth-agree").checked) {
+        show_auth_error("Tick the box to agree to the terms and privacy page first.");
+        el("auth-agree").focus();
         return;
     }
     el("auth-submit").disabled = true;

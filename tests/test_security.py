@@ -23,7 +23,7 @@ def make(tmp_path):
 
 
 def sign_up(web, username, email=None):
-    return web.post("/api/auth/signup", json={"username": username, "email": email or f"{username}@example.com", "password": "correct horse!"})
+    return web.post("/api/auth/signup", json={"username": username, "email": email or f"{username}@example.com", "password": "correct horse!", "agreed": True})
 
 
 def test_every_response_tells_the_browser_what_is_allowed(make):
@@ -126,7 +126,7 @@ def test_a_wrong_name_and_a_wrong_password_look_the_same(make):
     web = TestClient(make())
     sign_up(web, "amina")
     web.post("/api/auth/logout")
-    wrong_name = web.post("/api/auth/login", json={"login": "nobody", "password": "correct horse!"})
+    wrong_name = web.post("/api/auth/login", json={"login": "nobody", "password": "correct horse!", "agreed": True})
     wrong_password = web.post("/api/auth/login", json={"login": "amina", "password": "wrong horse!"})
     assert wrong_name.status_code == wrong_password.status_code == 401
     assert wrong_name.json() == wrong_password.json()
@@ -170,8 +170,8 @@ def test_fixing_a_mistyped_admin_email_makes_that_account_admin_on_the_next_star
     # the setting is corrected and rahah restarts
     fixed = create_app(settings(db_path=tmp_path / "fix.db", admin_email="boss@gmail.com"), client=fake_client())
     again = TestClient(fixed)
-    again.post("/api/auth/login", json={"login": "boss", "password": "correct horse!"})
+    again.post("/api/auth/login", json={"login": "boss", "password": "correct horse!", "agreed": True})
     assert again.get("/api/me").json()["is_admin"] is True
     amina = TestClient(fixed)
-    amina.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
+    amina.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})
     assert amina.get("/api/me").json()["is_admin"] is False

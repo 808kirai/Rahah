@@ -89,6 +89,10 @@
                         <label class="field-label" for="auth-password-again">Repeat password</label>
                         <input class="text-input auth-input" id="auth-password-again" type="password" autocomplete="new-password" maxlength="200" placeholder="Enter it again">
                     </div>
+                    <label class="auth-agree auth-signup-only" hidden>
+                        <input type="checkbox" id="auth-agree">
+                        <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> and <a href="/privacy" target="_blank" rel="noopener">privacy page</a>. If I'm under 18, a parent or guardian has said I can use Rahah.</span>
+                    </label>
                     <p class="sheet-error" id="auth-error" role="alert" hidden></p>
                     <button class="btn btn-accent auth-submit" type="submit" id="auth-submit">Sign in</button>
                 </form>
@@ -221,7 +225,7 @@
                     </div>
                 </form>
             </div>
-            <p class="disclaimer">Rahah can make mistakes. Check important facts against your course material.</p>
+            <p class="disclaimer">Rahah is an AI and can make mistakes. Check important facts against your course material.</p>
         </div>
     </main>
 
