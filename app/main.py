@@ -379,7 +379,30 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return bool(email) and email == cfg.admin_email
 
     def client_address(request: Request) -> str:
+        # online every request seems to come from the host's proxy, so the visitor's address is read
+        # from the one header the host sets itself. x-forwarded-for isn't used, visitors can write into it
+        if cfg.client_ip_header:
+            given = request.headers.get(cfg.client_ip_header, "").split(",")[0].strip()
+            if given:
+                return given
         return request.client.host if request.client else ""
+
+    @app.get("/api/health")
+    def health():
+        # the host checks this to know rahah is up and can reach its database
+        with db._connect() as raw:
+            raw.execute("select 1")
+        return {"ok": True}
+
+    @app.get("/api/admin/address")
+    def admin_address(request: Request, user: dict = Depends(admin_only)):
+        # after going online, shows the admin which address headers arrive, to check the limits see real visitors
+        seen = {h: request.headers.get(h, "") for h in ("true-client-ip", "cf-connecting-ip", "x-real-ip", "x-forwarded-for")}
+        return {
+            "address": client_address(request), "header": cfg.client_ip_header,
+            "from_header": bool(cfg.client_ip_header and request.headers.get(cfg.client_ip_header)),
+            "connection": request.client.host if request.client else "", "headers": seen,
+        }
 
     @app.get("/api/auth/config")
     def auth_config():

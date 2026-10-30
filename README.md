@@ -85,7 +85,8 @@ Security
 - Answers from Claude are cleaned before they're shown, maths is drawn without running anything, diagrams go in as images, files from code runs download instead of opening on Rahah's address, and links in answers open in a new tab that can't reach back into Rahah
 - Sign in takes as long for a wrong name as for a wrong password, so it doesn't give away which usernames exist, and the record of wrong tries can't be grown without end
 - The automatic API pages (/docs, /openapi.json) are switched off
-- Once Rahah is on https, set RAHAH_HTTPS=1, so the session cookie is only sent over https and browsers are told to stay on it. Behind a proxy, start uvicorn with --proxy-headers
+- Once Rahah is on https, set RAHAH_HTTPS=1, so the session cookie is only sent over https and browsers are told to stay on it
+- Online, the sign up and sign in limits count each visitor by the address their host's proxy puts in its own header (RAHAH_CLIENT_IP_HEADER), not x-forwarded-for, which visitors can write into themselves. The admin can check which address headers arrive at /api/admin/address
 - Still to come with deployment: email checks and password reset by email, and keeping the per connection limits in a shared store if Rahah ever runs on more than one server
 
 Look and feel
@@ -123,6 +124,19 @@ You need Python 3.12 and an API key from platform.claude.com.
     C:\Users\altru\venvs\rahah\Scripts\python -m uvicorn app.main:create_app --factory --reload --port 8000
 
 5. Open http://127.0.0.1:8000 in a browser and create your account. The first account made becomes the admin and takes over every chat, test, note and reminder made before accounts existed, so make yours before anyone else signs up
+
+Going online with Render
+
+render.yaml in the repo sets everything up: a Starter server that stays on, a 1 GB disk holding the database at /var/data, a health check at /api/health, and https on an onrender.com address. It comes to about 7.25 dollars a month.
+
+1. On render.com, choose New, then Blueprint, and pick the Rahah repo on GitHub
+2. Check the region in render.yaml first, it can't be changed once the service is made. It's set to frankfurt
+3. Fill in the three secrets Render asks for: ANTHROPIC_API_KEY, RAHAH_ADMIN_EMAIL and GOOGLE_CLIENT_ID
+4. Once it's live, add the onrender.com address to Authorized JavaScript origins for the Google client ID, then sign up with the admin email before sharing the link
+5. Signed in as the admin, open /api/admin/address and check that from_header is true, so each visitor is counted by their own address
+6. Every push to main updates the site, with under a minute down while it restarts
+
+A backup of the database is made on the same disk each day and kept for a week.
 
 Sign in with Google
 
@@ -180,6 +194,7 @@ Settings
 - `RAHAH_SIGNUPS_PER_IP` - Accounts one connection can make a day, defaults to `20`
 - `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`
 - `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
+- `RAHAH_CLIENT_IP_HEADER` - Online behind a host's proxy, the header holding each visitor's own address, `true-client-ip` on Render. Left blank the address comes from the connection
 - `GOOGLE_CLIENT_ID` - Turns on Sign in with Google, see above
 - `APPLE_CLIENT_ID` - Turns on Sign in with Apple, see above
 
@@ -221,5 +236,5 @@ Every question is billed to the API key. Rahah spreads the work across three mod
 
 Roadmap
 
-- Deployment to a public web address, with a calendar link that updates by itself and push notifications
+- A calendar link that updates by itself and push notifications, now that Rahah can go online
 - With deployment: password reset and email checks by email, Sign in with Apple turned on, sharing tests with friends and a teacher view

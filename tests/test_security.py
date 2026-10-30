@@ -130,3 +130,25 @@ def test_a_wrong_name_and_a_wrong_password_look_the_same(make):
     wrong_password = web.post("/api/auth/login", json={"login": "amina", "password": "wrong horse!"})
     assert wrong_name.status_code == wrong_password.status_code == 401
     assert wrong_name.json() == wrong_password.json()
+
+
+def test_behind_a_proxy_the_address_comes_from_the_header_the_host_sets(make):
+    app = make(signups_per_ip=1, client_ip_header="true-client-ip")
+    # two visitors behind the same proxy are told apart by the host's header
+    assert sign_up(TestClient(app), "one").status_code == 200
+    assert sign_up(TestClient(app, headers={"true-client-ip": "203.0.113.9"}), "two").status_code == 200
+    # writing a different x-forwarded-for doesn't get round the limit
+    again = TestClient(app, headers={"true-client-ip": "203.0.113.9", "x-forwarded-for": "198.51.100.1"})
+    assert sign_up(again, "three").status_code == 429
+
+
+def test_the_health_check_and_the_admin_address_page(make):
+    app = make(client_ip_header="true-client-ip")
+    assert TestClient(app).get("/api/health").json() == {"ok": True}
+    admin = TestClient(app, headers={"true-client-ip": "203.0.113.9"})
+    sign_up(admin, "boss")
+    seen = admin.get("/api/admin/address").json()
+    assert seen["address"] == "203.0.113.9" and seen["from_header"] is True
+    student = TestClient(app)
+    sign_up(student, "amina")
+    assert student.get("/api/admin/address").status_code == 403

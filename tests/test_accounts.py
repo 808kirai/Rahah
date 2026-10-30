@@ -39,7 +39,7 @@ def test_passwords_are_hashed_and_checked():
 def test_every_api_route_needs_a_signed_in_student(make):
     app, _ = make()
     web = TestClient(app)
-    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple"}
+    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple", "/api/health"}
     checked = 0
     for route in app.routes:
         path = getattr(route, "path", "")

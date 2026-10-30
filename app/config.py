@@ -36,6 +36,9 @@ class settings:
     signups_per_ip: int = 20
     # answers one student can have running at once
     max_running: int = 2
+    # behind a host's proxy, the header the host fills with the visitor's own address, one visitors can't fake.
+    # left blank the address comes straight from the connection, right when nothing sits in front
+    client_ip_header: str = ""
     # where students write for help, password resets and other requests
     support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
@@ -64,6 +67,7 @@ def load_settings() -> settings:
         daily_budget=float(os.getenv("RAHAH_DAILY_BUDGET", "10")),
         signups_per_ip=int(os.getenv("RAHAH_SIGNUPS_PER_IP", "20")),
         max_running=int(os.getenv("RAHAH_MAX_RUNNING", "2")),
+        client_ip_header=os.getenv("RAHAH_CLIENT_IP_HEADER", "").strip().lower(),
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

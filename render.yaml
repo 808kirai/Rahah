@@ -1,0 +1,33 @@
+# rahah on render, read when the blueprint is first made from this repo
+# the region can't be changed after the service is made, so pick the one nearest the students
+services:
+  - type: web
+    name: rahah
+    runtime: python
+    plan: starter
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    # the database lives on this disk, so accounts and chats stay through restarts and updates
+    disk:
+      name: rahah-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.1"
+      - key: RAHAH_DB
+        value: /var/data/rahah.db
+      - key: RAHAH_HTTPS
+        value: "1"
+      # render's proxy fills this with the visitor's own address
+      - key: RAHAH_CLIENT_IP_HEADER
+        value: true-client-ip
+      # secrets, typed into render's dashboard when the blueprint is made, never kept in the repo
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RAHAH_ADMIN_EMAIL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
