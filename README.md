@@ -138,6 +138,8 @@ render.yaml in the repo sets everything up: a Starter server that stays on, a 1 
 
 A backup of the database is made on the same disk each day and kept for a week.
 
+The privacy page at /privacy says what Rahah keeps, why, who else sees it and how to have it removed. It's linked from the sign in page and the Account tab, and Google asks for its address, with the homepage, before Sign in with Google can be published for everyone.
+
 Sign in with Google
 
 1. Go to console.cloud.google.com, make a project, then APIs and services, OAuth consent screen, and fill in the app name and your email

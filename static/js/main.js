@@ -723,7 +723,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Help</h3>
-                <p>Pick what it's about and Gmail opens with a short message ready to send to ${escape_html(support_email())}</p>
+                <p>Pick what it's about and Gmail opens with a short message ready to send to ${escape_html(support_email())}. What Rahah keeps about you is on the <a class="support-link" href="/privacy" target="_blank" rel="noopener">privacy page</a></p>
             </div>
             <div class="help-choices">${Object.entries(help_messages).filter(([, m]) => m.chip).map(([kind, m]) =>
                 `<a class="btn btn-soft btn-small" href="mailto:${escape_html(support_email())}" data-help="${kind}">${escape_html(m.chip)}</a>`).join("")}</div>

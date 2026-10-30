@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Rahah privacy</title>
+    <meta name="description" content="What Rahah keeps about you, why, and how to have it removed.">
+    <meta name="theme-color" content="#04070c">
+    <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+    <style>
+        :root {
+            color-scheme: dark light;
+            --bg: #04070c; --text: #edf5fa; --text-2: #8d9db0; --line: #18232f; --accent: #5fb8e6;
+        }
+        @media (prefers-color-scheme: light) {
+            :root { --bg: #f3f7fa; --text: #0c1a26; --text-2: #5a6b7b; --line: #d8e2ea; --accent: #08699a; }
+        }
+        body {
+            margin: 0; background: var(--bg); color: var(--text);
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+        }
+        main { max-width: 720px; margin: 0 auto; padding: 48px 20px 80px; }
+        header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+        header img { width: 36px; height: 36px; }
+        header a { color: var(--text); text-decoration: none; font-weight: 700; font-size: 1.2rem; }
+        h1 { margin: 0 0 4px; font-size: 1.9rem; letter-spacing: -0.02em; }
+        h2 { margin: 32px 0 8px; font-size: 1.1rem; }
+        p, li { color: var(--text-2); }
+        p.lead { color: var(--text); }
+        ul { padding-left: 1.2rem; }
+        li { margin-bottom: 0.4rem; }
+        strong { color: var(--text); font-weight: 600; }
+        a { color: var(--accent); }
+        .updated { font-size: 0.85rem; }
+        .back {
+            display: inline-block; margin-top: 36px; padding: 0.65rem 1.4rem; border-radius: 999px;
+            border: 1px solid var(--line); color: var(--text); text-decoration: none; font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <img src="/static/img/logo.svg" alt="">
+            <a href="/">Rahah</a>
+        </header>
+
+        <h1>Privacy</h1>
+        <p class="updated">Last updated 30 October 2026</p>
+
+        <p class="lead">Rahah is a study helper made and run by Runie. This page says what Rahah keeps about you, why, who else sees it, and how to have it removed. Questions go to <a href="mailto:studywithrahah@gmail.com">studywithrahah@gmail.com</a>.</p>
+
+        <h2>What Rahah keeps</h2>
+        <ul>
+            <li><strong>Your account:</strong> your username, email, the name you give, and your password stored scrambled so nobody can read it. If you sign in with Google, Rahah keeps the ID Google gives your account, your email and name, nothing else from Google.</li>
+            <li><strong>What you study:</strong> your chats, the files and photos you add, notes, tests and your answers and scores, flashcard progress, reminders, timetable, and the subjects you add.</li>
+            <li><strong>Settings:</strong> like your answer language, saved with your account and in your browser.</li>
+            <li><strong>Usage:</strong> how much each request cost and how much of your daily allowance you've used, and any answers you mark helpful or not helpful.</li>
+            <li><strong>Sign in safety:</strong> the internet address of failed sign ins and new accounts, kept for a short time to stop people guessing passwords or making endless accounts.</li>
+        </ul>
+
+        <h2>Why</h2>
+        <p>Only to run Rahah for you: answering your questions, keeping your work, showing your progress, and keeping accounts and the service safe. Rahah has no ads, doesn't sell your information, and doesn't use it for anything else.</p>
+
+        <h2>Who else sees it</h2>
+        <ul>
+            <li><strong>Anthropic,</strong> which makes Claude, the AI behind Rahah. Your questions, the chat so far and the files you add are sent to Claude to write each answer, and files are kept with Anthropic so later questions can read them again. Anthropic doesn't use them to train its models.</li>
+            <li><strong>Render,</strong> which hosts Rahah on servers in Frankfurt, Germany, where everything is stored.</li>
+            <li><strong>Google,</strong> only if you choose Sign in with Google.</li>
+            <li><strong>Services that send the page its fonts and drawing tools</strong> (Google Fonts, jsDelivr and cdnjs) see your internet address when the page loads, like any website.</li>
+            <li><strong>Runie,</strong> as the admin, can see each account's username, email and usage to manage limits and help with problems.</li>
+        </ul>
+
+        <h2>Cookies</h2>
+        <p>Rahah uses one cookie, to keep you signed in. It lasts 30 days and isn't used for tracking. Your browser also keeps your settings and some decks and tests so they work offline.</p>
+
+        <h2>How long it's kept</h2>
+        <p>Your account and work are kept until you ask for them to be removed. Daily backups are kept for a week, so removed information is fully gone within seven days.</p>
+
+        <h2>Your choices</h2>
+        <ul>
+            <li>Change your name, email and password on the Account tab.</li>
+            <li>Delete chats, tests, notes and reminders yourself at any time.</li>
+            <li>To get a copy of what Rahah has about you, correct it, or delete your account and everything in it, email <a href="mailto:studywithrahah@gmail.com">studywithrahah@gmail.com</a> from the email on your account.</li>
+        </ul>
+
+        <h2>Keeping it safe</h2>
+        <p>Rahah is only served over https, passwords are stored scrambled, each account can only see its own work, and answers are cleaned of anything that could run on your device before they're shown. No service is perfectly safe, so don't put passwords, bank details or other secrets into your chats.</p>
+
+        <h2>Changes</h2>
+        <p>If this page changes, the date at the top changes with it.</p>
+
+        <a class="back" href="/">Back to Rahah</a>
+    </main>
+</body>
+</html>
