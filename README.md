@@ -191,7 +191,7 @@ Settings
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
 - `RAHAH_DAILY_CAP` - What each student can spend a day in dollars, defaults to `0.50`. The admin can change it per student
 - `RAHAH_SUPPORT_EMAIL` - Where students write for help and password resets, defaults to `studywithrahah@gmail.com`
-- `RAHAH_ADMIN_EMAIL` - The admin's email, set it before going online so nobody else can become admin
+- `RAHAH_ADMIN_EMAIL` - The admin's email, set it before going online so nobody else can become admin. Whenever Rahah starts, the account with this email is made admin, so a mistyped email can be fixed after the account exists
 - `RAHAH_DAILY_BUDGET` - What all students together can spend a day in dollars, defaults to `10`, `0` turns it off
 - `RAHAH_SIGNUPS_PER_IP` - Accounts one connection can make a day, defaults to `20`
 - `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`

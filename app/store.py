@@ -248,14 +248,24 @@ class store:
                 (user_id, username, email, password, name, google_sub, apple_sub, int(first), now, now),
             )
             if first:
-                for table in owned_tables:
-                    db.execute(f"update {table} set user_id = ? where user_id is null", (user_id,))
-                db.execute(
-                    "insert or ignore into suggestions (user_id, items, signature, created) "
-                    "select ?, items, signature, created from recommendations where id = 1",
-                    (user_id,),
-                )
+                self._claim_unowned(db, user_id)
         return self.get_user(user_id)
+
+    def make_admin(self, user_id: str) -> dict | None:
+        """turns an existing account into the admin, and it takes anything made before accounts"""
+        with self._connect() as db:
+            db.execute("update users set is_admin = 1 where id = ?", (user_id,))
+            self._claim_unowned(db, user_id)
+        return self.get_user(user_id)
+
+    def _claim_unowned(self, db, user_id: str) -> None:
+        for table in owned_tables:
+            db.execute(f"update {table} set user_id = ? where user_id is null", (user_id,))
+        db.execute(
+            "insert or ignore into suggestions (user_id, items, signature, created) "
+            "select ?, items, signature, created from recommendations where id = 1",
+            (user_id,),
+        )
 
     def get_user(self, user_id: str) -> dict | None:
         with self._connect() as db:

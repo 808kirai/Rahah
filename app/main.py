@@ -257,6 +257,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         "apple": lambda token, name="": verify_apple(token, cfg.apple_client_id, name),
     }
     db = store(cfg.db_path)
+    # the account with the admin email is the admin whenever rahah starts, so fixing a mistyped
+    # admin email after the account was made takes effect on the next start
+    if cfg.admin_email:
+        chosen = db.find_user_by("email", cfg.admin_email)
+        if chosen and not chosen["is_admin"]:
+            db.make_admin(chosen["id"])
 
     @asynccontextmanager
     async def lifespan(_):

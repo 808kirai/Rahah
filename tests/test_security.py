@@ -160,3 +160,18 @@ def test_the_privacy_page_is_open_to_everyone(make):
     assert "content-security-policy" in page.headers
     terms = TestClient(make(path="terms.db")).get("/terms")
     assert terms.status_code == 200 and "Using Rahah fairly" in terms.text
+
+
+def test_fixing_a_mistyped_admin_email_makes_that_account_admin_on_the_next_start(tmp_path):
+    wrong = create_app(settings(db_path=tmp_path / "fix.db", admin_email="boss@email.com"), client=fake_client())
+    owner = TestClient(wrong)
+    assert sign_up(owner, "boss", "boss@gmail.com").json()["is_admin"] is False
+    sign_up(TestClient(wrong), "amina")
+    # the setting is corrected and rahah restarts
+    fixed = create_app(settings(db_path=tmp_path / "fix.db", admin_email="boss@gmail.com"), client=fake_client())
+    again = TestClient(fixed)
+    again.post("/api/auth/login", json={"login": "boss", "password": "correct horse!"})
+    assert again.get("/api/me").json()["is_admin"] is True
+    amina = TestClient(fixed)
+    amina.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
+    assert amina.get("/api/me").json()["is_admin"] is False
