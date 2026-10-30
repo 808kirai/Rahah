@@ -399,7 +399,7 @@ function render_admin() {
     page.innerHTML = `
         <div class="kpis">
             ${stat_card("Students", a.users.length, `${a.users.filter((u) => u.last_seen && u.last_seen > Date.now() / 1000 - 7 * 86400).length} active in the last 7 days`)}
-            ${stat_card("Cost today", dollars(a.total.today), "Across every student")}
+            ${stat_card("Cost today", dollars(a.total.today), a.budget > 0 ? `Students used ${dollars(a.budget_used)} of the $${a.budget.toFixed(2)} daily budget` : "Across every student")}
             ${stat_card("Last 7 days", dollars(a.total.week), "Across every student")}
             ${stat_card("All time", dollars(a.total.all), `Default daily limit ${`$${a.default_cap.toFixed(2)}`} each`)}
         </div>

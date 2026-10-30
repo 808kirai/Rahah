@@ -109,6 +109,10 @@ class sign_in_guard:
         for k in keys:
             if k:
                 self._recent(k, now).append(now)
+        # endless made up names can't fill the server's memory, old entries are cleared out
+        if len(self.fails) > 50_000:
+            for k in [k for k, v in self.fails.items() if not v or now - v[-1] > self.window]:
+                del self.fails[k]
 
     def cleared(self, *keys: str) -> None:
         for k in keys:

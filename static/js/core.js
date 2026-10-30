@@ -68,6 +68,16 @@ const icons = {
     calendar: '<svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>',
 };
 
+// links in answers open in a new tab, and the page they open can't reach back into rahah
+if (window.DOMPurify) {
+    DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+        if (node.tagName === "A" && node.getAttribute("href") && !node.getAttribute("href").startsWith("#")) {
+            node.setAttribute("target", "_blank");
+            node.setAttribute("rel", "noopener noreferrer");
+        }
+    });
+}
+
 function escape_html(text) {
     return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
@@ -240,6 +250,9 @@ function load_mermaid() {
         mermaid_ready = new Promise((resolve, reject) => {
             const script = document.createElement("script");
             script.src = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js";
+            // the browser refuses the file if it isn't exactly the one checked here
+            script.integrity = "sha384-WmdflGW9aGfoBdHc4rRyWzYuAjEmDwMdGdiPNacbwfGKxBW/SO6guzuQ76qjnSlr";
+            script.crossOrigin = "anonymous";
             script.onload = () => resolve(window.mermaid);
             script.onerror = () => {
                 mermaid_ready = null;

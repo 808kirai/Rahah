@@ -74,6 +74,19 @@ Accounts
 - Google and Apple tokens are checked on the server against the provider's published keys, for this app's id, from the right issuer and not expired, before anything in them is used
 - Not yet: password reset by email and email checks need an email service, which comes with deployment
 
+Security
+
+- Money: each student has a daily allowance, and every student together has a daily budget (10 dollars by default, RAHAH_DAILY_BUDGET), so many accounts can't run up the bill. One internet connection can make 20 accounts a day (a school can share one connection), and a student can have only 2 answers running at once, so firing many at once can't outrun the allowance
+- Admin: set RAHAH_ADMIN_EMAIL before Rahah goes online, then only the account with that email is the admin and takes the data made before accounts. Without it the first account is the admin, which is fine on your own computer
+- The browser is told exactly which sites may run code, load styles and fonts, and show sign in frames, and nothing else runs, including anything slipped into the page. The one small script written into the page is allowed by its exact fingerprint. Another site can't show Rahah inside its own page, files aren't guessed at by type, and the camera and microphone are only for Rahah itself
+- The libraries Rahah loads from other sites are checked against their exact fingerprints, so a changed file is refused. Google's and Apple's sign in scripts change often and can't be fingerprinted
+- Changes have to come from Rahah's own pages, on top of the session cookie only being sent by Rahah's own pages, and oversized requests are turned away before they're read
+- Answers from Claude are cleaned before they're shown, maths is drawn without running anything, diagrams go in as images, files from code runs download instead of opening on Rahah's address, and links in answers open in a new tab that can't reach back into Rahah
+- Sign in takes as long for a wrong name as for a wrong password, so it doesn't give away which usernames exist, and the record of wrong tries can't be grown without end
+- The automatic API pages (/docs, /openapi.json) are switched off
+- Once Rahah is on https, set RAHAH_HTTPS=1, so the session cookie is only sent over https and browsers are told to stay on it. Behind a proxy, start uvicorn with --proxy-headers
+- Still to come with deployment: email checks and password reset by email, and keeping the per connection limits in a shared store if Rahah ever runs on more than one server
+
 Look and feel
 
 - The logo is three rising chevrons on a dark circle, the top one in Rahah's blue, used exactly as designed in every theme. It sits beside the name in the top bar and on the sign in page, marks each answer, and is the browser tab icon (static/img/logo.svg) and the app icon on phones and computers
@@ -142,6 +155,7 @@ Project layout
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
 - `app/store.py` - Local SQLite storage for chats, files, notes, study sets, reminders, classes and subjects
 - `app/routing.py` - Which model answers what: the picker's names, Auto, and the fixed models for making study material and marking
+- `app/security.py` - Browser rules and headers, the same site check, the request size cap, and the limits on sign ups and answers running at once
 - `app/accounts.py` - Password hashing, sign up checks, sessions and the slow down after wrong passwords
 - `app/providers.py` - Checking Google and Apple sign in tokens
 - `app/config.py` - Settings read from the environment
@@ -159,6 +173,11 @@ Settings
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
 - `RAHAH_DAILY_CAP` - What each student can spend a day in dollars, defaults to `0.50`. The admin can change it per student
+- `RAHAH_ADMIN_EMAIL` - The admin's email, set it before going online so nobody else can become admin
+- `RAHAH_DAILY_BUDGET` - What all students together can spend a day in dollars, defaults to `10`, `0` turns it off
+- `RAHAH_SIGNUPS_PER_IP` - Accounts one connection can make a day, defaults to `20`
+- `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`
+- `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
 - `GOOGLE_CLIENT_ID` - Turns on Sign in with Google, see above
 - `APPLE_CLIENT_ID` - Turns on Sign in with Apple, see above
 

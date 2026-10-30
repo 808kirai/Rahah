@@ -26,6 +26,16 @@ class settings:
     max_tokens: int = 64000
     # what each student can spend in a day, in dollars, unless the admin sets their own amount
     daily_cap: float = 0.50
+    # once rahah is served over https, cookies are only sent over it and browsers are told to stay on it
+    https: bool = False
+    # the account with this email is the admin, left blank the first account made is, fine on your own computer
+    admin_email: str = ""
+    # what every student together can spend in a day, in dollars, 0 turns it off, the admin isn't counted
+    daily_budget: float = 10.0
+    # new accounts one internet connection can make in a day, a school can share one connection
+    signups_per_ip: int = 20
+    # answers one student can have running at once
+    max_running: int = 2
     # sign in with google and apple stay hidden until these are set
     google_client_id: str = ""
     apple_client_id: str = ""
@@ -46,6 +56,11 @@ def load_settings() -> settings:
         db_path=Path(os.getenv("RAHAH_DB", str(project_root / "data" / "rahah.db"))),
         max_upload_mb=int(os.getenv("RAHAH_MAX_UPLOAD_MB", "30")),
         daily_cap=float(os.getenv("RAHAH_DAILY_CAP", "0.50")),
+        https=os.getenv("RAHAH_HTTPS", "").strip().lower() in ("1", "true", "yes"),
+        admin_email=os.getenv("RAHAH_ADMIN_EMAIL", "").strip().lower(),
+        daily_budget=float(os.getenv("RAHAH_DAILY_BUDGET", "10")),
+        signups_per_ip=int(os.getenv("RAHAH_SIGNUPS_PER_IP", "20")),
+        max_running=int(os.getenv("RAHAH_MAX_RUNNING", "2")),
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

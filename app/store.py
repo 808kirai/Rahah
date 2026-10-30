@@ -235,12 +235,13 @@ class store:
         return user
 
     def create_user(self, username: str, email: str | None, password: str | None, name: str = "",
-                    google_sub: str | None = None, apple_sub: str | None = None) -> dict:
-        """a new account, the very first one becomes the admin and takes everything made before accounts"""
+                    google_sub: str | None = None, apple_sub: str | None = None, admin: bool | None = None) -> dict:
+        """a new account, admin when admin is true, or when it's left out and this is the very first account,
+        and the admin takes everything made before accounts"""
         user_id = uuid.uuid4().hex
         now = time.time()
         with self._connect() as db:
-            first = db.execute("select count(*) from users").fetchone()[0] == 0
+            first = db.execute("select count(*) from users").fetchone()[0] == 0 if admin is None else admin
             db.execute(
                 "insert into users (id, username, email, password, name, google_sub, apple_sub, is_admin, created, last_seen) "
                 "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -310,6 +311,16 @@ class store:
     def user_cost_since(self, user_id: str, start: float) -> float:
         with self._connect() as db:
             row = db.execute("select coalesce(sum(cost), 0) from usage where user_id = ? and created >= ?", (user_id, start)).fetchone()
+        return row[0]
+
+    def student_cost_since(self, start: float) -> float:
+        # what every student together has spent, the admin's own use isn't counted
+        with self._connect() as db:
+            row = db.execute(
+                "select coalesce(sum(u.cost), 0) from usage u join users s on s.id = u.user_id "
+                "where u.created >= ? and s.is_admin = 0",
+                (start,),
+            ).fetchone()
         return row[0]
 
     def cost_by_user(self, start: float) -> dict[str, float]:

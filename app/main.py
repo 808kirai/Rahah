@@ -26,6 +26,7 @@ from .modes import (
 )
 from .performance import summarise
 from .report import weekly_report
+from .security import counter, in_flight, install as install_security
 from .routing import chat_route, choice_ids, choices_for, stall_backup
 from .plans import make_plan, plan_calendar
 from .recommend import has_activity, recommend, signature
@@ -278,7 +279,14 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         yield
         task.cancel()
 
-    app = FastAPI(title="Rahah", lifespan=lifespan)
+    # the automatic api pages are left off, nobody outside needs a map of the routes
+    app = FastAPI(title="Rahah", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    install_security(app, cfg, max(cfg.max_upload_mb, max_set_mb) + 5)
+    signups = counter(cfg.signups_per_ip, 86400)
+    running = in_flight(cfg.max_running)
+    # checked against when a name isn't found, so a wrong name takes as long as a wrong password
+    # and the time taken doesn't give away which usernames exist
+    stand_in_hash = hash_password("not anyone's password")
     state = {"client": client}
 
     def claude():
@@ -319,6 +327,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             hours, minutes = divmod(a["resets_in"] // 60, 60)
             wait = f"{hours} hours" if hours >= 2 else f"{hours * 60 + minutes} minutes"
             raise HTTPException(429, f"You've used today's study allowance. It resets in about {wait}. Your flashcards and saved tests still work.")
+        # a ceiling for everyone together, so many accounts can't run up the bill
+        if not user["is_admin"] and cfg.daily_budget > 0 and db.student_cost_since(day_start(time.time())) >= cfg.daily_budget:
+            hours = max(1, a["resets_in"] // 3600)
+            raise HTTPException(429, f"Rahah has reached its study limit for everyone today. It starts again in about {hours} hours. Your flashcards and saved tests still work.")
 
     def used_percent(used: float, cap: float) -> int:
         return 100 if cap <= 0 else min(100, round(100 * used / cap))
@@ -357,8 +369,14 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         token = db.new_session(user["id"])
         response.set_cookie(
             session_cookie, token, max_age=session_days * 86400, httponly=True, samesite="lax",
-            secure=request.url.scheme == "https", path="/",
+            secure=cfg.https or request.url.scheme == "https", path="/",
         )
+
+    def admin_for(email: str | None) -> bool | None:
+        # with an admin email set, only that account is the admin, so nobody else can claim it first
+        if not cfg.admin_email:
+            return None
+        return bool(email) and email == cfg.admin_email
 
     def client_address(request: Request) -> str:
         return request.client.host if request.client else ""
@@ -379,7 +397,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(400, "That username is taken. Try another.")
         if db.taken("email", email):
             raise HTTPException(400, "An account already uses that email. Sign in instead.")
-        user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()))
+        address = client_address(request)
+        if signups.full(address):
+            raise HTTPException(429, "Too many accounts were made from this connection today. Try again tomorrow.")
+        user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()), admin=admin_for(email))
+        signups.add(address)
         start_session(request, response, user)
         return user_out(user)
 
@@ -391,6 +413,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if guard.blocked(login.lower(), address):
             raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
         user = db.find_user(login)
+        if not user:
+            check_password(body.password, stand_in_hash)
         if not user or not check_password(body.password, user["password"]):
             guard.failed(login.lower(), address)
             raise HTTPException(401, "That username, email or password isn't right.")
@@ -431,11 +455,15 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         email = clean_email(found_id.email) if found_id.email else None
         if email and db.taken("email", email):
             raise HTTPException(400, f"An account already uses {email}. Sign in with your password, then connect {label} in Settings.")
+        address = client_address(request)
+        if signups.full(address):
+            raise HTTPException(429, "Too many accounts were made from this connection today. Try again tomorrow.")
         base = username_from(email or found_id.name or "student")
         username, n = base, 2
         while db.taken("username", username):
             username, n = f"{base}{n}", n + 1
-        user = db.create_user(username, email, None, " ".join(found_id.name.split())[:60], **{field: found_id.sub})
+        user = db.create_user(username, email, None, " ".join(found_id.name.split())[:60], admin=admin_for(email), **{field: found_id.sub})
+        signups.add(address)
         start_session(request, response, user)
         return user_out(user)
 
@@ -522,7 +550,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     def admin_users(user: dict = Depends(admin_only)):
         costs = all_costs()
         rows = [admin_row(u, costs) for u in db.list_users()]
-        return {"users": rows, "default_cap": cfg.daily_cap, "total": {k: round(sum(v.values()), 4) for k, v in costs.items()}}
+        return {
+            "users": rows, "default_cap": cfg.daily_cap, "total": {k: round(sum(v.values()), 4) for k, v in costs.items()},
+            "budget": cfg.daily_budget, "budget_used": round(db.student_cost_since(day_start(time.time())), 4),
+        }
 
     def other_user_or_404(user_id: str) -> dict:
         found = db.get_user(user_id)
@@ -780,7 +811,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if note:
             rows.append(note)
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
-        return answer_response(user, conversation_id, messages, rows, body.mode, text[:60], "chat", body.model)
+        return answer_response(user, conversation_id, messages, rows, body.mode, text[:60], "chat", body.model, running.start(user["id"]))
 
     @app.post("/api/conversations/{conversation_id}/retry")
     def retry_answer(conversation_id: str, body: retry_in, user: dict = Depends(signed_in)):
@@ -797,11 +828,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if note:
             rows.append(note)
             messages.append(note)
-        return answer_response(user, conversation_id, messages, rows, body.mode, "", "retry", body.model)
+        return answer_response(user, conversation_id, messages, rows, body.mode, "", "retry", body.model, running.start(user["id"]))
 
     def answer_response(
         user: dict, conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str,
-        choice: str = "auto",
+        choice: str = "auto", job: str = "",
     ):
         # once code has run in a chat the tool stays on, since the history holds its runs
         sandbox = db.get_container(conversation_id)
@@ -875,6 +906,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                 yield sse({"t": "error", "v": friendly_error(error)})
                 return
             finally:
+                running.finish(user["id"], job)
                 # the page going away mid answer cancels this generator, that's the stop button
                 if not ended and final is None:
                     save_stopped(partial, searches)
@@ -986,7 +1018,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
         count = max(1, min(count, max_items))
         try:
-            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(user, kind), language=language)
+            job = running.start(user["id"])
+            try:
+                made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(user, kind), language=language)
+            finally:
+                running.finish(user["id"], job)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -1031,7 +1067,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(400, "Write, say or photograph an answer first.")
         check_allowance(user)
         try:
-            return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage(user, "marking"))
+            job = running.start(user["id"])
+            try:
+                return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage(user, "marking"))
+            finally:
+                running.finish(user["id"], job)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -1100,7 +1140,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(400, "Study something first, then Rahah can suggest what comes next.")
         check_allowance(user)
         try:
-            items = await recommend(claude(), cfg, *history, on_usage=log_usage(user, "suggestions"))
+            job = running.start(user["id"])
+            try:
+                items = await recommend(claude(), cfg, *history, on_usage=log_usage(user, "suggestions"))
+            finally:
+                running.finish(user["id"], job)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -1169,7 +1213,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(422, "Pick a real date.")
         check_allowance(user)
         try:
-            days = await make_plan(claude(), cfg, reminder, today, body.topics.strip(), on_usage=log_usage(user, "plan"))
+            job = running.start(user["id"])
+            try:
+                days = await make_plan(claude(), cfg, reminder, today, body.topics.strip(), on_usage=log_usage(user, "plan"))
+            finally:
+                running.finish(user["id"], job)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
