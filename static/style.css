@@ -1797,6 +1797,43 @@ body.signed-out .toasts {
     text-align: center;
 }
 
+/* the suggested for you row on home, with its refresh button beside the heading */
+.category-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.rec-refresh svg {
+    width: 15px;
+    height: 15px;
+}
+
+/* the account tab */
+.account-page .perf-card + .perf-card,
+.account-page #usage-slot .perf-card {
+    margin-top: 1rem;
+}
+
+.account-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.account-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+}
+
+.account-actions .field-hint {
+    margin: 0;
+}
+
 /* today's allowance in the usage box */
 .allowance {
     display: flex;
@@ -4650,7 +4687,7 @@ body.signed-out .toasts {
 
 .is-home .tab[data-tab="home"],
 .is-chats .tab[data-tab="chats"],
-.is-recommendations .tab[data-tab="recommendations"],
+.is-account .tab[data-tab="account"],
 .is-reminders .tab[data-tab="reminders"],
 .is-performance .tab[data-tab="performance"] {
     background: var(--dock-active);

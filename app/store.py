@@ -261,9 +261,9 @@ class store:
             return self._user(db.execute("select * from users where id = ?", (user_id,)).fetchone())
 
     def find_user(self, login: str) -> dict | None:
-        # by username or email, both are kept lower case
+        # by username with its exact capitals, or by email in any case
         with self._connect() as db:
-            row = db.execute("select * from users where username = ? or email = ?", (login, login)).fetchone()
+            row = db.execute("select * from users where username = ? or email = ?", (login, login.lower())).fetchone()
         return self._user(row)
 
     def find_user_by(self, field: str, value: str) -> dict | None:
@@ -274,7 +274,8 @@ class store:
     def taken(self, field: str, value: str, besides: str | None = None) -> bool:
         assert field in ("username", "email")
         with self._connect() as db:
-            row = db.execute(f"select id from users where {field} = ? and id != ?", (value, besides or "")).fetchone()
+            # two usernames that differ only in capitals would be easy to mix up, so they count as the same here
+            row = db.execute(f"select id from users where lower({field}) = lower(?) and id != ?", (value, besides or "")).fetchone()
         return row is not None
 
     def update_user(self, user_id: str, **fields) -> dict | None:

@@ -84,7 +84,6 @@ function show_performance() {
     render_performance();
     sync_view();
     load_performance();
-    load_usage();
     load_week();
 }
 
@@ -250,10 +249,8 @@ function render_performance() {
             Take a test to see your scores and grades here.
             <div><button class="btn btn-accent" type="button" data-tool="quiz" data-mode="exam">Make a test</button></div>
         </div>
-        <div id="week-slot"></div>
-        <div id="usage-slot"></div>`;
+        <div id="week-slot"></div>`;
         render_week();
-        render_usage();
         return;
     }
     const best = p.subjects[0];
@@ -353,7 +350,6 @@ function render_performance() {
                 </tr>`).join("")}</tbody>
             </table></div>
         </section>
-        <div id="usage-slot"></div>
         <div class="chart-tip floating" id="perf-tip" hidden></div>`;
     draw_timeline();
     render_usage();

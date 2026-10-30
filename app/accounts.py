@@ -18,7 +18,7 @@ session_days = 30
 # scrypt settings, about a tenth of a second per check, which slows down guessing without slowing sign in
 scrypt_n, scrypt_r, scrypt_p = 2 ** 14, 8, 1
 
-username_rule = re.compile(r"^[a-z0-9_.]{3,24}$")
+username_rule = re.compile(r"^[A-Za-z0-9_.]{3,24}$")
 email_rule = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 min_password = 8
 
@@ -50,7 +50,8 @@ def token_hash(token: str) -> str:
 
 
 def clean_username(value: str) -> str:
-    return value.strip().lower()
+    # kept exactly as typed, so signing in needs the same capitals
+    return value.strip()
 
 
 def clean_email(value: str) -> str:
@@ -74,6 +75,8 @@ def password_problem(password: str) -> str | None:
         return f"Passwords need at least {min_password} characters."
     if len(password) > 200:
         return "That password is too long."
+    if not re.search(r"[^A-Za-z0-9\s]", password):
+        return "Passwords need at least one special character, like ! # @ or ?."
     return None
 
 

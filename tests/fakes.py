@@ -180,6 +180,6 @@ class fake_client:
 
 def signed_in(web, username="tester"):
     """a test client with a student account signed in, the first account is the admin"""
-    response = web.post("/api/auth/signup", json={"username": username, "email": f"{username}@example.com", "password": "correct horse"})
+    response = web.post("/api/auth/signup", json={"username": username, "email": f"{username}@example.com", "password": "correct horse!"})
     assert response.status_code == 200, response.text
     return web

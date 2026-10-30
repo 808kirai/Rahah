@@ -90,16 +90,16 @@ function add_notice(message_el, text) {
     message_el.appendChild(note);
 }
 
-// home, chats, recommendations and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
+// home, chats, reminders, performance and account are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats & Tests", recommendations: "Suggestions", reminders: "Reminders and Timetable", performance: "Performance", admin: "Students" };
+const page_titles = { home: "Home", chats: "Chats & Tests", reminders: "Reminders and Timetable", performance: "Performance", account: "Account", admin: "Students" };
 
 function current_view() {
     if (el("welcome")) return "home";
     if (el("chats")) return "chats";
-    if (el("recommendations")) return "recommendations";
     if (el("reminders")) return "reminders";
     if (el("performance")) return "performance";
+    if (el("account")) return "account";
     if (el("admin")) return "admin";
     if (el("study")) return "study";
     return "chat";
@@ -109,7 +109,7 @@ function sync_view() {
     const view = current_view();
     document.body.classList.toggle("is-home", view === "home");
     document.body.classList.toggle("is-chats", view === "chats");
-    document.body.classList.toggle("is-recommendations", view === "recommendations");
+    document.body.classList.toggle("is-account", view === "account" || view === "admin");
     document.body.classList.toggle("is-reminders", view === "reminders");
     document.body.classList.toggle("is-performance", view === "performance");
     document.body.classList.toggle("is-study", view === "study");
@@ -120,7 +120,7 @@ function sync_view() {
 
 function leave_home() {
     if (current_view() === "chat") return;
-    ["welcome", "chats", "recommendations", "reminders", "performance", "admin", "study"].forEach((id) => el(id)?.remove());
+    ["welcome", "chats", "reminders", "performance", "account", "admin", "study"].forEach((id) => el(id)?.remove());
     sync_view();
 }
 

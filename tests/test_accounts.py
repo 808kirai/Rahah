@@ -21,18 +21,18 @@ def make(tmp_path):
     return build
 
 
-def sign_up(web, username, password="correct horse", email=None):
+def sign_up(web, username, password="correct horse!", email=None):
     return web.post("/api/auth/signup", json={"username": username, "email": email or f"{username}@example.com", "password": password})
 
 
 def test_passwords_are_hashed_and_checked():
-    stored = hash_password("correct horse")
-    assert stored.startswith("scrypt$") and "correct horse" not in stored
-    assert check_password("correct horse", stored)
+    stored = hash_password("correct horse!")
+    assert stored.startswith("scrypt$") and "correct horse!" not in stored
+    assert check_password("correct horse!", stored)
     assert not check_password("wrong horse", stored)
     assert not check_password("anything", None) and not check_password("anything", "plain")
     # the same password hashes differently each time
-    assert hash_password("correct horse") != stored
+    assert hash_password("correct horse!") != stored
     assert username_from("Amina.Otieno@school.ac.ke") == "amina.otieno" and len(username_from("Al")) >= 3
 
 
@@ -59,19 +59,20 @@ def test_signing_up_in_and_out(make):
     made = sign_up(web, "Amina_O")
     assert made.status_code == 200
     me = made.json()
-    assert me["username"] == "amina_o" and me["is_admin"] and me["has_password"]
+    assert me["username"] == "Amina_O" and me["is_admin"] and me["has_password"]
     # the session cookie can't be read by the page's script
     assert "httponly" in made.headers["set-cookie"].lower() and "samesite=lax" in made.headers["set-cookie"].lower()
-    assert web.get("/api/me").json()["username"] == "amina_o"
+    assert web.get("/api/me").json()["username"] == "Amina_O"
 
     assert web.post("/api/auth/logout").status_code == 200
     assert web.get("/api/me").status_code == 401
 
-    # by username or email, any case
-    assert web.post("/api/auth/login", json={"login": "AMINA_O", "password": "correct horse"}).status_code == 200
+    # the username needs its exact capitals, the email can be any case
+    assert web.post("/api/auth/login", json={"login": "amina_o", "password": "correct horse!"}).status_code == 401
+    assert web.post("/api/auth/login", json={"login": "Amina_O", "password": "correct horse!"}).status_code == 200
     web.post("/api/auth/logout")
-    assert web.post("/api/auth/login", json={"login": "amina_o@example.com", "password": "correct horse"}).status_code == 200
-    bad = web.post("/api/auth/login", json={"login": "amina_o", "password": "nope nope"})
+    assert web.post("/api/auth/login", json={"login": "AMINA_O@example.com", "password": "correct horse!"}).status_code == 200
+    bad = web.post("/api/auth/login", json={"login": "Amina_O", "password": "nope nope"})
     assert bad.status_code == 401 and "isn't right" in bad.json()["detail"]
 
 
@@ -81,9 +82,10 @@ def test_sign_up_rules(make):
     assert "3 to 24" in sign_up(web, "a!").json()["detail"]
     assert "email" in sign_up(web, "amina", email="not an email").json()["detail"]
     assert "8 characters" in sign_up(web, "amina", password="short").json()["detail"]
+    assert "special character" in sign_up(web, "amina", password="no symbols here 123").json()["detail"]
     assert sign_up(web, "amina").status_code == 200
-    assert "taken" in TestClient(app).post("/api/auth/signup", json={"username": "AMINA", "email": "other@example.com", "password": "correct horse"}).json()["detail"]
-    assert "already uses" in TestClient(app).post("/api/auth/signup", json={"username": "brian", "email": "Amina@Example.com", "password": "correct horse"}).json()["detail"]
+    assert "taken" in TestClient(app).post("/api/auth/signup", json={"username": "AMINA", "email": "other@example.com", "password": "correct horse!"}).json()["detail"]
+    assert "already uses" in TestClient(app).post("/api/auth/signup", json={"username": "brian", "email": "Amina@Example.com", "password": "correct horse!"}).json()["detail"]
 
 
 def test_too_many_wrong_passwords_wait_a_while(make):
@@ -94,7 +96,7 @@ def test_too_many_wrong_passwords_wait_a_while(make):
     for _ in range(5):
         assert web.post("/api/auth/login", json={"login": "amina", "password": "wrong guess"}).status_code == 401
     # even the right password waits now
-    blocked = web.post("/api/auth/login", json={"login": "amina", "password": "correct horse"})
+    blocked = web.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
     assert blocked.status_code == 429
 
 
@@ -184,13 +186,13 @@ def test_changing_the_password_signs_out_other_devices(make):
     app, _ = make()
     phone, laptop = TestClient(app), TestClient(app)
     sign_up(phone, "amina")
-    laptop.post("/api/auth/login", json={"login": "amina", "password": "correct horse"})
-    wrong = phone.post("/api/me/password", json={"current": "nope", "new": "new horse battery"})
+    laptop.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
+    wrong = phone.post("/api/me/password", json={"current": "nope", "new": "new horse battery!"})
     assert wrong.status_code == 400
-    assert phone.post("/api/me/password", json={"current": "correct horse", "new": "new horse battery"}).status_code == 200
+    assert phone.post("/api/me/password", json={"current": "correct horse!", "new": "new horse battery!"}).status_code == 200
     assert phone.get("/api/me").status_code == 200
     assert laptop.get("/api/me").status_code == 401
-    assert laptop.post("/api/auth/login", json={"login": "amina", "password": "new horse battery"}).status_code == 200
+    assert laptop.post("/api/auth/login", json={"login": "amina", "password": "new horse battery!"}).status_code == 200
 
 
 def test_name_email_and_settings_can_be_changed(make):
@@ -246,12 +248,12 @@ def test_the_admin_page_lists_students_and_can_turn_them_off(make):
     # turning brian off signs him out and stops him signing in
     assert admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": True}).json()["disabled"]
     assert student.get("/api/me").status_code == 401
-    assert student.post("/api/auth/login", json={"login": "brian", "password": "correct horse"}).status_code == 403
+    assert student.post("/api/auth/login", json={"login": "brian", "password": "correct horse!"}).status_code == 403
     admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": False})
 
     # a new password for a student who forgot theirs
-    assert admin.post(f"/api/admin/users/{brian['id']}/password", json={"new": "fresh horse"}).status_code == 200
-    assert student.post("/api/auth/login", json={"login": "brian", "password": "fresh horse"}).status_code == 200
+    assert admin.post(f"/api/admin/users/{brian['id']}/password", json={"new": "fresh horse!"}).status_code == 200
+    assert student.post("/api/auth/login", json={"login": "brian", "password": "fresh horse!"}).status_code == 200
 
     # the admin can't lock themselves out
     assert admin.patch(f"/api/admin/users/{me['id']}", json={"disabled": True}).status_code == 400
@@ -287,9 +289,9 @@ def test_signing_in_with_google_makes_an_account_then_signs_into_it(tmp_path):
     assert again["id"] == made["id"]
 
     # a google account can add a password later, without a current one
-    assert web.post("/api/me/password", json={"new": "correct horse"}).status_code == 200
+    assert web.post("/api/me/password", json={"new": "correct horse!"}).status_code == 200
     web.post("/api/auth/logout")
-    assert web.post("/api/auth/login", json={"login": "amina.o", "password": "correct horse"}).status_code == 200
+    assert web.post("/api/auth/login", json={"login": "amina.o", "password": "correct horse!"}).status_code == 200
 
 
 def test_google_never_takes_over_an_account_with_the_same_email(tmp_path):
@@ -301,7 +303,7 @@ def test_google_never_takes_over_an_account_with_the_same_email(tmp_path):
     assert refused.status_code == 400 and "connect Google in Settings" in refused.json()["detail"]
 
     # signed in with the password, the same google account connects to it
-    owner.post("/api/auth/login", json={"login": "amina", "password": "correct horse"})
+    owner.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"})
     linked = owner.post("/api/auth/google", json={"credential": "amina"}).json()
     assert linked["google"] and linked["username"] == "amina"
     owner.post("/api/auth/logout")

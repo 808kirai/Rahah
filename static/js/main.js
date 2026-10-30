@@ -92,9 +92,13 @@ function route() {
         if (!el("chats")) show_chats();
         return;
     }
-    // the suggestions page was called for you and then recommendations, so those links still land here
+    // suggestions moved onto home, so old links to their page land there
     if (["#/suggestions", "#/recommendations", "#/for-you"].includes(location.hash)) {
-        if (!el("recommendations")) show_recommendations();
+        start_new_chat();
+        return;
+    }
+    if (location.hash === "#/account") {
+        if (!el("account")) show_account();
         return;
     }
     if (location.hash === "#/reminders") {
@@ -143,7 +147,7 @@ new ResizeObserver(([entry]) => {
     document.querySelector(".main").style.setProperty("--dock-h", `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
 }).observe(el("dock-wrap"));
 document.querySelectorAll(".tabs [data-chats]").forEach((button) => button.addEventListener("click", show_chats));
-document.querySelectorAll(".tabs [data-recommendations]").forEach((button) => button.addEventListener("click", show_recommendations));
+document.querySelectorAll(".tabs [data-account]").forEach((button) => button.addEventListener("click", show_account));
 document.querySelectorAll(".tabs [data-reminders]").forEach((button) => button.addEventListener("click", show_reminders));
 document.querySelectorAll(".tabs [data-performance]").forEach((button) => button.addEventListener("click", show_performance));
 document.querySelectorAll("[data-home]").forEach((link) => link.addEventListener("click", (event) => {
@@ -314,7 +318,7 @@ function set_auth_mode(mode) {
     el("auth-title").textContent = signup ? "Make your account" : "Welcome back";
     el("auth-submit").textContent = signup ? "Create account" : "Sign in";
     el("auth-password").autocomplete = signup ? "new-password" : "current-password";
-    el("auth-password").placeholder = signup ? "At least 8 characters" : "";
+    el("auth-password").placeholder = signup ? "8 or more characters, with a symbol like !" : "";
     show_auth_error("");
 }
 
@@ -476,32 +480,67 @@ async function sign_out() {
     location.reload();
 }
 
-// the account part of the settings box, who's signed in, a new password and signing out
+// the account tab, who's signed in, their details, connected accounts, password, usage and limits
+
+function show_account() {
+    if (state.busy) return;
+    enter_page("#/account", "Account", '<div class="performance account-page" id="account"><div id="account-box"></div><div id="usage-slot"></div></div>');
+    render_account();
+    render_usage();
+    sync_view();
+    load_usage();
+}
+
 function render_account() {
     const me = state.me;
     const box = el("account-box");
-    if (!me) {
-        box.innerHTML = "";
-        return;
-    }
+    if (!box || !me) return;
     const shown = me.name || me.username;
     box.innerHTML = `
-        <div class="account-row">
-            <span class="account-avatar" aria-hidden="true">${escape_html(shown.slice(0, 1).toUpperCase())}</span>
-            <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.email ? ` · ${escape_html(me.email)}` : ""}${me.is_admin ? " · Admin" : ""}</small></span>
-            <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
-        </div>
-        ${me.is_admin ? `<a class="btn btn-soft btn-small account-admin" href="#/admin" data-detail-close>Manage students</a>` : ""}
-        <div class="account-links" id="account-links"></div>
-        <details class="perf-details account-password">
-            <summary>${me.has_password ? "Change password" : "Add a password"}</summary>
-            <div class="account-password-form">
+        <section class="perf-card">
+            <div class="account-row">
+                <span class="account-avatar" aria-hidden="true">${escape_html(shown.slice(0, 1).toUpperCase())}</span>
+                <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.is_admin ? " · Admin" : ""}</small></span>
+                <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
+            </div>
+            <div class="account-fields">
+                <label class="field">
+                    <span class="field-label">Name</span>
+                    <input class="text-input" id="account-name" maxlength="60" autocomplete="name" value="${escape_html(me.name || "")}" placeholder="Your name">
+                </label>
+                <label class="field">
+                    <span class="field-label">Email</span>
+                    <input class="text-input" id="account-email" type="email" maxlength="200" autocomplete="email" value="${escape_html(me.email || "")}" placeholder="you@example.com">
+                </label>
+            </div>
+            <div class="account-actions">
+                <button class="btn btn-soft btn-small" type="button" data-save-profile>Save details</button>
+                <p class="field-hint" id="profile-note" hidden></p>
+            </div>
+            <div class="account-links" id="account-links"></div>
+        </section>
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>${me.has_password ? "Password" : "Add a password"}</h3>
+                <p>8 or more characters with a symbol like ! or #. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? Ask the person who runs Rahah for a new one.</p>
+            </div>
+            <div class="account-fields">
                 ${me.has_password ? '<input class="text-input" type="password" id="password-current" autocomplete="current-password" placeholder="Current password">' : ""}
-                <input class="text-input" type="password" id="password-new" autocomplete="new-password" placeholder="New password, at least 8 characters">
+                <input class="text-input" type="password" id="password-new" autocomplete="new-password" placeholder="New password">
+                <input class="text-input" type="password" id="password-again" autocomplete="new-password" placeholder="Repeat the new password">
+            </div>
+            <div class="account-actions">
                 <button class="btn btn-soft btn-small" type="button" data-save-password>Save password</button>
                 <p class="field-hint" id="password-note" hidden></p>
             </div>
-        </details>`;
+        </section>
+        ${me.is_admin ? `<section class="perf-card">
+            <div class="perf-head">
+                <h3>Students</h3>
+                <p>Everyone's usage, their daily limits, new passwords and turning accounts off</p>
+            </div>
+            <a class="btn btn-accent btn-small" href="#/admin">Manage students</a>
+        </section>` : ""}`;
     render_account_links();
 }
 
@@ -518,24 +557,47 @@ async function render_account_links() {
     if (config.google_client_id && !me.google) draw_google_button(el("google-connect"), "signin_with");
 }
 
-el("account-box").addEventListener("click", async (event) => {
+function account_note(id, text) {
+    el(id).textContent = text;
+    el(id).hidden = false;
+}
+
+thread.addEventListener("click", async (event) => {
+    if (!event.target.closest("#account-box")) return;
     if (event.target.closest("[data-connect-apple]")) apple_sign_in((text) => alert(text));
     if (event.target.closest("[data-sign-out]")) sign_out();
-    if (event.target.closest(".account-admin")) el("settings-sheet").close();
-    if (!event.target.closest("[data-save-password]")) return;
-    const note = el("password-note");
-    try {
-        await api("/api/me/password", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ current: el("password-current")?.value || "", new: el("password-new").value }),
-        });
-        note.textContent = "Password saved. Other devices were signed out.";
-        state.me.has_password = true;
-    } catch (error) {
-        note.textContent = error.message;
+    if (event.target.closest("[data-save-profile]")) {
+        try {
+            state.me = await (await api("/api/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: el("account-name").value, email: el("account-email").value }),
+            })).json();
+            remember_me(state.me);
+            render_account();
+            account_note("profile-note", "Saved.");
+        } catch (error) {
+            account_note("profile-note", error.message);
+        }
     }
-    note.hidden = false;
+    if (event.target.closest("[data-save-password]")) {
+        if (el("password-new").value !== el("password-again").value) {
+            account_note("password-note", "The new passwords don't match.");
+            return;
+        }
+        try {
+            await api("/api/me/password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ current: el("password-current")?.value || "", new: el("password-new").value }),
+            });
+            state.me.has_password = true;
+            render_account();
+            account_note("password-note", "Password saved. Your other devices were signed out.");
+        } catch (error) {
+            account_note("password-note", error.message);
+        }
+    }
 });
 
 async function start() {
@@ -576,6 +638,7 @@ async function start() {
     load_history();
     load_sets();
     load_notes();
+    load_recommendations();
     load_performance();
     load_reminders();
     route();

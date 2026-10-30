@@ -375,17 +375,18 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     @app.post("/api/auth/login")
     def log_in(body: login_in, request: Request, response: Response):
-        login = body.login.strip().lower()
+        login = body.login.strip()
         address = client_address(request)
-        if guard.blocked(login, address):
+        # wrong tries are counted for the name whatever its capitals, so changing case doesn't buy more guesses
+        if guard.blocked(login.lower(), address):
             raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
         user = db.find_user(login)
         if not user or not check_password(body.password, user["password"]):
-            guard.failed(login, address)
+            guard.failed(login.lower(), address)
             raise HTTPException(401, "That username, email or password isn't right.")
         if user["disabled"]:
             raise HTTPException(403, "This account has been turned off. Ask the person who runs Rahah.")
-        guard.cleared(login)
+        guard.cleared(login.lower())
         start_session(request, response, user)
         return user_out(user)
 

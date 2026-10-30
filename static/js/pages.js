@@ -125,7 +125,7 @@ function render_rows() {
         exam: '<div id="reminders-exam"></div><div id="performance-exam"></div>' + saved("exam") + sets("exam") + shelf_rows("exam"),
         code: saved("code") + sets("code") + shelf_rows("code"),
     };
-    rows.innerHTML = Object.entries(sections).map(([group, html]) => `
+    rows.innerHTML = '<div id="home-suggestions"></div>' + Object.entries(sections).map(([group, html]) => `
         <section class="category">
             <h2 class="category-title">${escape_html(state.groups[group] || group)}</h2>
             ${html}
@@ -134,6 +134,7 @@ function render_rows() {
     render_set_rows();
     render_performance_row();
     render_reminder_row();
+    render_recommendations();
 }
 
 function render_continue() {
@@ -531,7 +532,7 @@ thread.addEventListener("click", (event) => {
     if (event.target.closest("[data-home]")) start_new_chat();
 });
 
-// recommendations page, suggestions from claude based on what the student has studied, grouped by topic
+// suggestions from claude based on what the student has studied
 
 const rec_kinds = { review: "Review", next: "Next step", related: "Related" };
 const rec_actions = {
@@ -561,49 +562,33 @@ function rec_card(item, i) {
     </button>`;
 }
 
-// suggestions about the same topic sit together, in the order claude ranked them
-function rec_groups(items) {
-    const groups = new Map();
-    items.forEach((item, i) => {
-        const topic = item.topic || mode_name(item.mode);
-        if (!groups.has(topic)) groups.set(topic, []);
-        groups.get(topic).push([item, i]);
-    });
-    return [...groups];
-}
-
+// suggestions sit near the top of home, picked by claude from what the student has studied
 function render_recommendations() {
-    const page = el("recommendations");
-    if (!page) return;
+    const slot = el("home-suggestions");
+    if (!slot) return;
     const recs = state.recs;
-    if (!recs) {
-        page.innerHTML = '<p class="page-note">Loading…</p>';
+    // nothing shows until there's something to go on
+    if (!recs || !recs.has_activity) {
+        slot.innerHTML = "";
         return;
     }
-    if (!recs.has_activity) {
-        page.innerHTML = `<div class="page-empty">
-            <strong>Nothing to go on yet</strong>
-            Chat, make flashcards or take a test, and Rahah will suggest what to study next.
-            <div><button class="btn btn-accent" type="button" data-home>Start studying</button></div>
-        </div>`;
-        return;
+    const refresh = `<button class="btn btn-ghost btn-small rec-refresh" type="button" data-refresh-recs ${state.recs_loading ? "disabled" : ""}>
+        ${state.recs_loading ? "Finding new picks…" : `${icons.retry}Refresh`}</button>`;
+    let body;
+    if (recs.items.length) {
+        body = `<section class="row">
+            <h3 class="row-title">Picked from your chats, decks and scores${recs.created && !state.recs_loading ? ` · ${time_ago(recs.created, true)}` : ""}</h3>
+            <button class="row-arrow prev" type="button" aria-label="Scroll suggestions left">${icons.prev}</button>
+            <div class="row-track">${recs.items.map((item, i) => rec_card(item, i)).join("")}</div>
+            <button class="row-arrow next" type="button" aria-label="Scroll suggestions right">${icons.next}</button>
+        </section>`;
+    } else {
+        body = `<p class="page-note">${state.recs_loading ? "Looking through what you've studied…" : escape_html(state.recs_error || "Tap Refresh for ideas on what to study next.")}</p>`;
     }
-    const when = recs.created ? ` · updated ${time_ago(recs.created)}` : "";
-    const top = `<div class="page-tools">
-        <p class="page-note">Picked from your chats, decks and quiz scores${state.recs_loading ? "" : when}</p>
-        <button class="btn btn-soft btn-small" type="button" data-refresh-recs ${state.recs_loading ? "disabled" : ""}>
-            ${state.recs_loading ? "Finding new picks…" : "Refresh"}
-        </button>
-    </div>`;
-    const error = state.recs_error ? `<p class="notice">${escape_html(state.recs_error)}</p>` : "";
-    if (!recs.items.length) {
-        const note = state.recs_loading ? "Looking through what you've studied…" : "";
-        page.innerHTML = top + error + (note ? `<p class="page-note wait">${note}</p>` : "");
-        return;
-    }
-    page.innerHTML = top + error + rec_groups(recs.items).map(([topic, entries]) => `
-        <h3 class="group-title">${escape_html(topic)}</h3>
-        <div class="card-grid">${entries.map(([item, i]) => rec_card(item, i)).join("")}</div>`).join("");
+    slot.innerHTML = `<section class="category">
+        <div class="category-head"><h2 class="category-title">Suggested for you</h2>${refresh}</div>
+        ${body}
+    </section>`;
 }
 
 async function make_recommendations() {
@@ -630,18 +615,9 @@ async function load_recommendations() {
         state.recs_error = error.message;
     }
     render_recommendations();
-    // new picks are only asked for when something new has been studied since the last ones
-    if (state.recs.has_activity && !state.recs.fresh && !state.recs_error) make_recommendations();
-}
-
-function show_recommendations() {
-    if (state.busy) return;
-    enter_page("#/suggestions", "Suggestions", '<div class="list-page" id="recommendations"></div>');
-    state.recs_error = "";
-    render_recommendations();
-    sync_view();
-    load_sets();
-    load_recommendations();
+    // new picks are asked for when there are none, or when something new was studied and the last ones are half a day old
+    const stale = !state.recs.created || Date.now() / 1000 - state.recs.created > 12 * 3600;
+    if (state.recs.has_activity && !state.recs.fresh && !state.recs_error && (!state.recs.items.length || stale)) make_recommendations();
 }
 
 thread.addEventListener("click", (event) => {

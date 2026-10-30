@@ -22,7 +22,7 @@ const state = {
     reminders: [], // exams, cats, midterms, assignments and events, soonest first
     classes: [], // the weekly timetable, monday first
     reminder_kinds: { exam: "Exam", cat: "CAT", midterm: "Midterm", assignment: "Assignment", event: "Event" },
-    recs: null, // suggestions for the recommendations page
+    recs: null, // suggestions, shown on home
     recs_loading: false,
     recs_error: "",
     modes: [],

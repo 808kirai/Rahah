@@ -44,12 +44,13 @@ Study tools
 - This week, at the top of Performance: tests taken, average, cards practised and questions asked over the last seven days next to the seven before, study days with a streak, the strongest and weakest subject, and a next step with a button to start it. It's worked out on the server on the student's own clock, with no Claude cost
 - A performance page with your average, your GPA out of 4.0, scores over time, GPA and grades by subject, and a table of every test, plus a summary under Exam on the home page. Choosing a subject opens a box with its tests, and choosing a test opens a box with every attempt and a Retake button
 - A Usage and cost box at the bottom of the performance page shows what Rahah has cost today, in the last 7 days and in all, what caching saved, and the cost of each kind of request
-- A Suggestions tab with ideas of what to study next, picked by Claude from your chats, decks and test scores and grouped by topic
+- Suggested for you, near the top of Home, with ideas of what to study next picked by Claude from your chats, decks and test scores, and a Refresh button
 
 Pages
 
 - Under the greeting on Home, a short line shows what's on today: flashcards due for practice, the next exam in the coming two weeks, and today's classes, each a shortcut. Cards come due again after 1, 2, 4, 8 or 16 days as they move up a box
 - Home is laid out like a streaming app, with rows for each subject and your saved decks and tests. Each Continue row shows up to 5 chats
+- The tabs are Home, Chats & Tests, Reminders, Performance and Account
 - Chats & Tests lists your saved tests with a New test card, then your chats grouped by day. Search looks inside every message of every chat, older ones too, and shows where the words were found. New chat drops down a box with your 5 newest chats
 - Reminders and Timetable splits the page in half. Reminders cover exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, and a pop up and a desktop notification while Rahah is open. An exam, CAT or midterm can get a revision plan: a day by day plan up to the day before, with a focus and a few tasks each day, buttons that open the right tool for each task, days to tick off, and a calendar file. The weekly timetable lists classes day by day from today, with the class happening now marked
 - Calendar files for reminders and for the timetable, so a phone's own calendar reminds you even when Rahah is closed. Each class repeats weekly with an alert 15 minutes before it starts
@@ -57,15 +58,17 @@ Pages
 
 Accounts
 
-- Students sign up with a username, email and a password typed twice to catch typos, and sign in with either the username or the email
+- Students sign up with a username, email and a password typed twice to catch typos, and sign in with either the username or the email. Usernames keep their capitals and must be typed the same way to sign in, and two usernames can't differ only in capitals. Emails work in any case
+- Passwords need 8 or more characters and at least one special character, like ! # @ or ?
 - Each student's chats, tests, decks, notes, reminders, timetable, subjects, suggestions, progress and usage are their own. Nobody else can list, open, change or use them, and every route checks this on the server
-- The first account is the admin. It takes over everything made before accounts and sees the total usage and every student's answer ratings in the usage box
+- The first account is the admin. It takes over everything made before accounts and sees the total usage and every student's answer ratings in the usage box on the Account tab
 - Passwords are hashed with scrypt and never stored as typed. Signing in sets a session cookie for 30 days that the page's script can't read, and only a hash of the session is stored
 - Wrong passwords are slowed down: after 5 tries for one name or address there's a 15 minute wait
-- Settings shows who's signed in, a sign out button and a way to change the password, which signs out other devices. The answer language and low-data mode are saved with the account, so they follow the student to another device
+- The Account tab shows who's signed in, with their name and email to edit, Google and Apple to connect, a password change that asks for the new password twice and signs out other devices, today's limit or, for the admin, usage and cost and a way to the Students page, and sign out
+- Settings, the gear at the top, keeps the answer language and low-data mode, which are saved with the account so they follow the student to another device
 - Signing out, or someone else signing in on the same device, clears the copies saved for offline use, so one student never sees another's decks
 - Each student has a daily allowance, 50 cents by default (RAHAH_DAILY_CAP), counted from the usage log and reset at midnight UTC. Once it's used, anything that calls Claude says so and when it starts again, while saved flashcards and tests still work. Students see only the share of today's limit they've used, as a bar with a percentage, never what anything costs, and the server doesn't send them any money figures. The admin has no limit
-- The admin's Students page, from Manage students in Settings, lists every student with when they joined and were last seen, what they've cost today, what's left of their limit and the share used as a bar, their cost this week and in all, and totals. Money is shown to the cent. The admin can set a student's own daily limit, give a new password to a student who forgot theirs, and turn an account off, which signs them out and stops them signing in
+- The admin's Students page, from Manage students on the Account tab, lists every student with when they joined and were last seen, what they've cost today, what's left of their limit and the share used as a bar, their cost this week and in all, and totals. Money is shown to the cent. The admin can set a student's own daily limit, give a new password to a student who forgot theirs, and turn an account off, which signs them out and stops them signing in
 - Sign in with Google and Apple, once their ids are set. A Google or Apple sign in either signs into the account it's linked to or makes a new one, with a username from the email or name. It never joins an account just because the email matches, since emails aren't checked at sign up, so a student with a password account connects Google or Apple from Settings while signed in. Accounts made this way can add a password later
 - Google and Apple tokens are checked on the server against the provider's published keys, for this app's id, from the right issuer and not expired, before anything in them is used
 - Not yet: password reset by email and email checks need an email service, which comes with deployment
@@ -179,7 +182,7 @@ Installing works through a web app manifest and a small service worker served fr
 
 The database is backed up when the server starts and then once a day, into data/backups, using SQLite's own backup so each copy is consistent. The latest 7 days are kept. To restore one, stop the server and copy it over data/rahah.db.
 
-Suggestions on the Suggestions tab are saved and only made again when something new has been studied since, or when Refresh is pressed, so opening the tab doesn't cost a request every time.
+Suggestions on Home are saved and only made again by themselves when there are none, or when something new has been studied and the last ones are over 12 hours old, or when Refresh is pressed, so opening Home doesn't cost a request every time.
 
 If Claude's safety checks decline a request, the request is retried on a fallback model automatically. A turn that still fails is not saved, and the question goes back into the message box.
 
