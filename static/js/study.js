@@ -272,15 +272,30 @@ function make_picker(select, on_pick = null) {
     };
     const open = () => {
         menu.innerHTML = picker_menu_html(select, Boolean(on_pick));
-        menu.classList.remove("up");
+        menu.classList.remove("up", "narrow");
+        menu.style.maxWidth = "";
+        menu.style.maxHeight = "";
         menu.hidden = false;
         button.setAttribute("aria-expanded", "true");
-        // open upwards when there's more room above, inside a sheet or near the bottom of the window
         const sheet = box.closest("dialog");
-        const bounds = sheet ? sheet.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+        const bounds = sheet ? sheet.getBoundingClientRect() : { top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth };
+        // a menu inside a sheet stays inside it, the sheet would cut off anything past its edges
+        const edge = { left: bounds.left + 12, right: bounds.right - 12 };
+        const placed = menu.getBoundingClientRect();
+        if (placed.right > edge.right || placed.left < edge.left) {
+            const room = placed.right > edge.right ? edge.right - Math.max(placed.left, edge.left) : placed.right - edge.left;
+            menu.style.maxWidth = `${Math.max(room, 200)}px`;
+            // too narrow for two columns of subjects, so they stack in one
+            if (room < 360) menu.classList.add("narrow");
+        }
+        // open upwards when there's more room above, inside a sheet or near the bottom of the window
         const spot = button.getBoundingClientRect();
         const room_below = bounds.bottom - spot.bottom;
-        if (menu.offsetHeight + 16 > room_below && spot.top - bounds.top > room_below) menu.classList.add("up");
+        const room_above = spot.top - bounds.top;
+        const up = menu.offsetHeight + 16 > room_below && room_above > room_below;
+        if (up) menu.classList.add("up");
+        // never taller than the space on its side, so the top or bottom row isn't cut off by the sheet
+        menu.style.maxHeight = `${Math.max((up ? room_above : room_below) - 20, 160)}px`;
         (options().find((o) => o.getAttribute("aria-selected") === "true") || options()[0])?.focus();
     };
 
