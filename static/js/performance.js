@@ -156,13 +156,30 @@ function dollars(value) {
 
 async function load_usage() {
     try {
-        const [usage, feedback] = await Promise.all([api("/api/usage"), api("/api/feedback")]);
+        const [usage, feedback, me] = await Promise.all([api("/api/usage"), api("/api/feedback"), api("/api/me")]);
         state.usage = await usage.json();
         state.feedback = await feedback.json();
+        state.me = await me.json();
     } catch (error) {
         return;
     }
     render_usage();
+}
+
+function hours_text(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    return hours >= 1 ? plural(hours, "hour") : plural(Math.max(1, Math.round(seconds / 60)), "minute");
+}
+
+// today's allowance as a bar, how much of it is used and when it starts again
+function allowance_html(a) {
+    if (!a || a.cap === null) return "";
+    const share = a.cap ? Math.min(100, Math.round((100 * a.used) / a.cap)) : 100;
+    return `<div class="allowance">
+        <div class="allowance-head"><span>Today's allowance</span><strong>${dollars(a.used)} of $${a.cap.toFixed(2)}</strong></div>
+        <span class="allowance-track"><span class="allowance-bar${share >= 100 ? " full" : ""}" style="width: ${share}%"></span></span>
+        <small>${share >= 100 ? "Used up for today." : `${100 - share}% left.`} It starts again in ${hours_text(a.resets_in)}.</small>
+    </div>`;
 }
 
 // what students thought of the answers, with the unhelpful ones to look at
@@ -189,11 +206,13 @@ function render_usage() {
         <small>${plural(w.requests, "request")}${w.searches ? ` · ${plural(w.searches, "search")}` : ""}</small>
     </div>`;
     const all = u.all;
+    const admin = state.me?.is_admin;
     slot.innerHTML = `<section class="perf-card usage-card">
         <div class="perf-head">
             <h3>Usage and cost</h3>
-            <p>What Rahah has cost on this API key, worked out from Claude's prices</p>
+            <p>${admin ? "What Rahah has cost on this API key across every student, worked out from Claude's prices" : "What your studying has used, worked out from Claude's prices"}</p>
         </div>
+        ${allowance_html(state.me?.allowance)}
         <div class="usage-cols">${column("Today", u.today)}${column("Last 7 days", u.week)}${column("All time", all)}</div>
         <p class="usage-note">${!all.requests ? "Nothing used yet." : all.cache_share ? `Caching saved ${dollars(all.saved)}, and ${all.cache_share}% of what Claude read came from the cache.` : "Nothing came from the cache yet. Caching starts saving once chats get longer."}</p>
         ${all.kinds.length ? `<div class="usage-kinds">${all.kinds.map((k) => `<span>${usage_kinds[k.kind] || k.kind} <strong>${dollars(k.cost)}</strong></span>`).join("")}</div>` : ""}
@@ -320,6 +339,116 @@ function render_performance() {
     draw_timeline();
     render_usage();
 }
+
+// the students page, for the admin, everyone's usage, their daily limit and whether they can sign in
+
+function show_admin() {
+    if (state.busy) return;
+    if (!state.me?.is_admin) {
+        location.hash = "#/";
+        return;
+    }
+    enter_page("#/admin", "Students", '<div class="performance admin-page" id="admin"><p class="page-note">Loading students…</p></div>');
+    sync_view();
+    load_admin();
+}
+
+async function load_admin() {
+    try {
+        state.admin = await (await api("/api/admin/users")).json();
+    } catch (error) {
+        if (el("admin")) el("admin").innerHTML = `<p class="page-note">${escape_html(error.message)}</p>`;
+        return;
+    }
+    render_admin();
+}
+
+function render_admin() {
+    const page = el("admin");
+    const a = state.admin;
+    if (!page || !a) return;
+    const seen = (u) => (u.last_seen ? time_ago(u.last_seen, true) : "never");
+    const limit = (u) => u.is_admin
+        ? '<span class="admin-tag">No limit</span>'
+        : `<span class="admin-cap"><span>$</span><input class="text-input" type="number" min="0" max="100" step="0.05" value="${u.daily_cap ?? ""}" placeholder="${a.default_cap.toFixed(2)}" data-cap="${u.id}" aria-label="Daily limit for ${escape_html(u.username)} in dollars"></span>`;
+    page.innerHTML = `
+        <div class="kpis">
+            ${stat_card("Students", a.users.length, `${a.users.filter((u) => u.last_seen && u.last_seen > Date.now() / 1000 - 7 * 86400).length} active in the last 7 days`)}
+            ${stat_card("Cost today", dollars(a.total.today), "Across every student")}
+            ${stat_card("Last 7 days", dollars(a.total.week), "Across every student")}
+            ${stat_card("All time", dollars(a.total.all), `Default daily limit ${`$${a.default_cap.toFixed(2)}`} each`)}
+        </div>
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>Every student</h3>
+                <p>A blank limit uses the default of ${`$${a.default_cap.toFixed(2)}`} a day. Limits reset at midnight UTC</p>
+            </div>
+            <div class="table-wrap"><table class="admin-table">
+                <thead><tr><th>Student</th><th>Joined</th><th>Last seen</th><th class="num">Today</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>
+                <tbody>${a.users.map((u) => `<tr class="${u.disabled ? "is-off" : ""}">
+                    <td><strong>${escape_html(u.name || u.username)}</strong><small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small></td>
+                    <td>${short_date(u.created)}</td>
+                    <td>${seen(u)}</td>
+                    <td class="num">${dollars(u.today)}</td>
+                    <td class="num">${dollars(u.week)}</td>
+                    <td class="num">${dollars(u.all)}</td>
+                    <td>${limit(u)}</td>
+                    <td class="admin-actions">${u.id === state.me.id ? "" : `
+                        <button class="btn btn-ghost btn-small" type="button" data-admin-password="${u.id}">New password</button>
+                        <button class="btn btn-ghost btn-small" type="button" data-admin-toggle="${u.id}">${u.disabled ? "Turn on" : "Turn off"}</button>`}
+                    </td>
+                </tr>`).join("")}</tbody>
+            </table></div>
+        </section>`;
+}
+
+async function admin_update(id, body) {
+    try {
+        const row = await (await api(`/api/admin/users/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        })).json();
+        state.admin.users = state.admin.users.map((u) => (u.id === id ? row : u));
+    } catch (error) {
+        alert(error.message);
+    }
+    render_admin();
+}
+
+thread.addEventListener("change", (event) => {
+    const cap = event.target.closest("[data-cap]");
+    if (!cap || !el("admin")) return;
+    const value = cap.value.trim();
+    admin_update(cap.dataset.cap, value === "" ? { use_default_cap: true } : { daily_cap: Number(value) });
+});
+
+thread.addEventListener("click", async (event) => {
+    if (!el("admin")) return;
+    const toggle = event.target.closest("[data-admin-toggle]");
+    if (toggle) {
+        const user = state.admin.users.find((u) => u.id === toggle.dataset.adminToggle);
+        const off = !user.disabled;
+        if (off && !confirm(`Turn off ${user.username}? They'll be signed out and can't sign in until you turn them back on.`)) return;
+        admin_update(user.id, { disabled: off });
+    }
+    const reset = event.target.closest("[data-admin-password]");
+    if (reset) {
+        const user = state.admin.users.find((u) => u.id === reset.dataset.adminPassword);
+        const fresh = prompt(`A new password for ${user.username}, at least 8 characters. Give it to them, and they can change it in Settings.`);
+        if (!fresh) return;
+        try {
+            await api(`/api/admin/users/${user.id}/password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ new: fresh }),
+            });
+            alert(`Done. ${user.username} was signed out everywhere and can sign in with the new password.`);
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+});
 
 // a box with the details of one test or one subject, opened from the performance page
 

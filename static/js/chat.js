@@ -92,7 +92,7 @@ function add_notice(message_el, text) {
 
 // home, chats, recommendations and performance are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats & Tests", recommendations: "Suggestions", reminders: "Reminders and Timetable", performance: "Performance" };
+const page_titles = { home: "Home", chats: "Chats & Tests", recommendations: "Suggestions", reminders: "Reminders and Timetable", performance: "Performance", admin: "Students" };
 
 function current_view() {
     if (el("welcome")) return "home";
@@ -100,6 +100,7 @@ function current_view() {
     if (el("recommendations")) return "recommendations";
     if (el("reminders")) return "reminders";
     if (el("performance")) return "performance";
+    if (el("admin")) return "admin";
     if (el("study")) return "study";
     return "chat";
 }
@@ -119,7 +120,7 @@ function sync_view() {
 
 function leave_home() {
     if (current_view() === "chat") return;
-    ["welcome", "chats", "recommendations", "reminders", "performance", "study"].forEach((id) => el(id)?.remove());
+    ["welcome", "chats", "recommendations", "reminders", "performance", "admin", "study"].forEach((id) => el(id)?.remove());
     sync_view();
 }
 

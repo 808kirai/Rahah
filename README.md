@@ -64,6 +64,8 @@ Accounts
 - Wrong passwords are slowed down: after 8 tries for one name or address there's a 15 minute wait
 - Settings shows who's signed in, a sign out button and a way to change the password, which signs out other devices. The answer language and low-data mode are saved with the account, so they follow the student to another device
 - Signing out, or someone else signing in on the same device, clears the copies saved for offline use, so one student never sees another's decks
+- Each student has a daily allowance, 50 cents by default (RAHAH_DAILY_CAP), counted from the usage log and reset at midnight UTC. Once it's used, anything that calls Claude says so and when it starts again, while saved flashcards and tests still work. The usage box shows the allowance as a bar. The admin has no limit
+- The admin's Students page, from Manage students in Settings, lists every student with when they joined and were last seen, what they've cost today, this week and in all, and totals. The admin can set a student's own daily limit, give a new password to a student who forgot theirs, and turn an account off, which signs them out and stops them signing in
 - Not yet: password reset by email and email checks need an email service, which comes with deployment
 
 Look and feel
@@ -133,6 +135,7 @@ Settings
 - `RAHAH_EFFORT` - How hard Claude thinks, one of low, medium, high, xhigh or max, defaults to `medium`
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
+- `RAHAH_DAILY_CAP` - What each student can spend a day in dollars, defaults to `0.50`. The admin can change it per student
 
 How it works
 
@@ -172,6 +175,5 @@ Every question is billed to the API key. Opus 5.5 costs 4 dollars per million in
 
 Roadmap
 
-- Daily usage limits per student, and an admin page
 - Sign in with Google and Apple
 - Deployment to a public web address, with a calendar link that updates by itself and push notifications

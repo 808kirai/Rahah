@@ -105,6 +105,10 @@ function route() {
         if (!el("performance")) show_performance();
         return;
     }
+    if (location.hash === "#/admin") {
+        if (!el("admin")) show_admin();
+        return;
+    }
     const set_match = location.hash.match(/^#\/set\/([0-9a-f]+)$/);
     if (set_match) {
         if (!el("study") || state.study?.set.id !== set_match[1]) open_set(set_match[1]);
@@ -396,6 +400,7 @@ function render_account() {
             <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.email ? ` · ${escape_html(me.email)}` : ""}${me.is_admin ? " · Admin" : ""}</small></span>
             <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
         </div>
+        ${me.is_admin ? `<a class="btn btn-soft btn-small account-admin" href="#/admin" data-detail-close>Manage students</a>` : ""}
         <details class="perf-details account-password">
             <summary>${me.has_password ? "Change password" : "Add a password"}</summary>
             <div class="account-password-form">
@@ -409,6 +414,7 @@ function render_account() {
 
 el("account-box").addEventListener("click", async (event) => {
     if (event.target.closest("[data-sign-out]")) sign_out();
+    if (event.target.closest(".account-admin")) el("settings-sheet").close();
     if (!event.target.closest("[data-save-password]")) return;
     const note = el("password-note");
     try {
@@ -436,7 +442,9 @@ async function start() {
     remember_me(me);
     render_account();
     // the greeting uses the student's first name, or their username before they've added one
-    el("welcome").textContent = `Welcome back, ${(me.name || me.username).split(" ")[0]}`;
+    // set on the page and on the copy home is rebuilt from, so it stays after leaving home
+    const hello = `Welcome back, ${(me.name || me.username).split(" ")[0]}`;
+    [el("welcome")?.querySelector(".welcome-line"), welcome_template.querySelector(".welcome-line")].forEach((line) => line && (line.textContent = hello));
     sync_theme_label();
     try {
         set_hint_mode(localStorage.getItem("rahah-hints") === "1");

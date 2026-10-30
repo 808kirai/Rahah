@@ -1799,6 +1799,90 @@ body.signed-out .toasts {
     text-align: center;
 }
 
+/* today's allowance in the usage box */
+.allowance {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    background: var(--card-bg);
+}
+
+.allowance-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.allowance-head strong {
+    color: var(--text);
+}
+
+.allowance-track {
+    height: 8px;
+    border-radius: var(--pill);
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.allowance-bar {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.allowance-bar.full {
+    background: var(--mauve-text);
+}
+
+.allowance small {
+    color: var(--text-2);
+    font-size: 0.75rem;
+}
+
+/* the students page */
+.admin-table td small {
+    display: block;
+    color: var(--text-2);
+    font-size: 0.75rem;
+}
+
+.admin-table tr.is-off td {
+    opacity: 0.55;
+}
+
+.admin-cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-2);
+}
+
+.admin-cap .text-input {
+    width: 6.5rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+.admin-tag {
+    color: var(--text-2);
+    font-size: 0.82rem;
+}
+
+.admin-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.account-admin {
+    margin-top: 0.6rem;
+}
+
 /* who's signed in, at the top of settings */
 .account-row {
     display: flex;

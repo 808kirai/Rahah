@@ -194,3 +194,56 @@ def test_name_email_and_settings_can_be_changed(make):
     assert changed["name"] == "Amina Otieno" and changed["settings"]["language"] == "Kiswahili"
     assert web.patch("/api/me", json={"email": "brian@example.com"}).status_code == 400
     assert web.patch("/api/me", json={"settings": {"x": "y" * 3000}}).status_code == 400
+
+
+def test_each_student_has_a_daily_allowance_and_the_admin_has_none(make):
+    app, claude = make([message([text_block("One.")]) for _ in range(4)])
+    admin, student = TestClient(app), TestClient(app)
+    sign_up(admin, "runie")
+    me = sign_up(student, "brian").json()
+    assert me["allowance"]["cap"] == 0.5 and me["allowance"]["used"] == 0
+    assert admin.get("/api/me").json()["allowance"]["cap"] is None
+
+    # the admin sets brian's limit below what one answer costs, so the second question is turned away
+    admin.patch(f"/api/admin/users/{me['id']}", json={"daily_cap": 0.000001})
+    chat = student.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    assert student.post(f"/api/conversations/{chat}/messages", json={"text": "first"}).status_code == 200
+    blocked = student.post(f"/api/conversations/{chat}/messages", json={"text": "second"})
+    assert blocked.status_code == 429 and "allowance" in blocked.json()["detail"]
+    assert student.post("/api/sets", data={"kind": "flashcards", "topic": "cells"}).status_code == 429
+    assert student.post(f"/api/conversations/{chat}/retry", json={}).status_code == 429
+    # saved things still open
+    assert student.get(f"/api/conversations/{chat}").status_code == 200
+
+    # back to the default limit, and the admin is never stopped
+    admin.patch(f"/api/admin/users/{me['id']}", json={"use_default_cap": True})
+    assert student.post(f"/api/conversations/{chat}/messages", json={"text": "third"}).status_code == 200
+    own = admin.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    assert admin.post(f"/api/conversations/{own}/messages", json={"text": "hi"}).status_code == 200
+
+
+def test_the_admin_page_lists_students_and_can_turn_them_off(make):
+    app, _ = make()
+    admin, student = TestClient(app), TestClient(app)
+    me = sign_up(admin, "runie").json()
+    brian = sign_up(student, "brian").json()
+    assert student.get("/api/admin/users").status_code == 403
+    assert student.patch(f"/api/admin/users/{me['id']}", json={"disabled": True}).status_code == 403
+
+    listed = admin.get("/api/admin/users").json()
+    assert [u["username"] for u in listed["users"]] == ["runie", "brian"] and listed["default_cap"] == 0.5
+    assert {"today", "week", "all"} <= set(listed["users"][1])
+
+    # turning brian off signs him out and stops him signing in
+    assert admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": True}).json()["disabled"]
+    assert student.get("/api/me").status_code == 401
+    assert student.post("/api/auth/login", json={"login": "brian", "password": "correct horse"}).status_code == 403
+    admin.patch(f"/api/admin/users/{brian['id']}", json={"disabled": False})
+
+    # a new password for a student who forgot theirs
+    assert admin.post(f"/api/admin/users/{brian['id']}/password", json={"new": "fresh horse"}).status_code == 200
+    assert student.post("/api/auth/login", json={"login": "brian", "password": "fresh horse"}).status_code == 200
+
+    # the admin can't lock themselves out
+    assert admin.patch(f"/api/admin/users/{me['id']}", json={"disabled": True}).status_code == 400
+    assert admin.patch(f"/api/admin/users/{me['id']}", json={"is_admin": False}).status_code == 400

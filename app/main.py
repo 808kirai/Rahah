@@ -94,6 +94,17 @@ class password_in(BaseModel):
     new: str = Field(min_length=1, max_length=200)
 
 
+class admin_user_in(BaseModel):
+    daily_cap: float | None = Field(default=None, ge=0, le=100)
+    use_default_cap: bool = False
+    disabled: bool | None = None
+    is_admin: bool | None = None
+
+
+class admin_password_in(BaseModel):
+    new: str = Field(min_length=1, max_length=200)
+
+
 class new_conversation_in(BaseModel):
     mode: str = default_mode
 
@@ -268,6 +279,29 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(401, "Sign in to keep going.")
         return user
 
+    def admin_only(user: dict = Depends(signed_in)) -> dict:
+        if not user["is_admin"]:
+            raise HTTPException(403, "Only the admin can do that.")
+        return user
+
+    def day_start(now: float) -> float:
+        # allowances reset at midnight utc, the same moment for every student
+        return now - now % 86400
+
+    def allowance(user: dict) -> dict:
+        now = time.time()
+        used = db.user_cost_since(user["id"], day_start(now))
+        cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
+        return {"cap": cap, "used": round(used, 4), "resets_in": int(day_start(now) + 86400 - now)}
+
+    def check_allowance(user: dict) -> None:
+        # asked before anything that calls claude, the admin has no limit
+        a = allowance(user)
+        if a["cap"] is not None and a["used"] >= a["cap"]:
+            hours, minutes = divmod(a["resets_in"] // 60, 60)
+            wait = f"{hours} hours" if hours >= 2 else f"{hours * 60 + minutes} minutes"
+            raise HTTPException(429, f"You've used today's study allowance. It resets in about {wait}. Your flashcards and saved tests still work.")
+
     def own_subjects(user: dict) -> set[str]:
         return {s["id"] for s in db.list_subjects(user["id"])}
 
@@ -281,6 +315,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
+            "allowance": allowance(user),
         }
 
     def start_session(request: Request, response: Response, user: dict) -> None:
@@ -372,6 +407,68 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         db.update_user(user["id"], password=hash_password(body.new))
         # other devices are signed out, this one stays in
         db.end_sessions(user["id"], keep=request.cookies.get(session_cookie))
+        return {"ok": True}
+
+    # the admin page, every student with what they've used, their limit and whether they can sign in
+
+    def admin_row(user: dict, costs: dict) -> dict:
+        return {
+            "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
+            "is_admin": user["is_admin"], "disabled": user["disabled"], "created": user["created"],
+            "last_seen": user["last_seen"], "daily_cap": user["daily_cap"],
+            "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
+            "today": round(costs["today"].get(user["id"], 0), 4),
+            "week": round(costs["week"].get(user["id"], 0), 4),
+            "all": round(costs["all"].get(user["id"], 0), 4),
+        }
+
+    def all_costs() -> dict:
+        now = time.time()
+        return {"today": db.cost_by_user(day_start(now)), "week": db.cost_by_user(now - 7 * 86400), "all": db.cost_by_user(0)}
+
+    @app.get("/api/admin/users")
+    def admin_users(user: dict = Depends(admin_only)):
+        costs = all_costs()
+        rows = [admin_row(u, costs) for u in db.list_users()]
+        return {"users": rows, "default_cap": cfg.daily_cap, "total": {k: round(sum(v.values()), 4) for k, v in costs.items()}}
+
+    def other_user_or_404(user_id: str) -> dict:
+        found = db.get_user(user_id)
+        if not found:
+            raise HTTPException(404, "That student doesn't exist.")
+        return found
+
+    @app.patch("/api/admin/users/{user_id}")
+    def admin_edit_user(user_id: str, body: admin_user_in, user: dict = Depends(admin_only)):
+        target = other_user_or_404(user_id)
+        change = {}
+        if body.use_default_cap:
+            change["daily_cap"] = None
+        elif body.daily_cap is not None:
+            change["daily_cap"] = body.daily_cap
+        # the admin can't lock themselves out or give up being admin by mistake
+        if body.disabled is not None:
+            if user_id == user["id"]:
+                raise HTTPException(400, "You can't turn off your own account.")
+            change["disabled"] = body.disabled
+            if body.disabled:
+                db.end_sessions(user_id)
+        if body.is_admin is not None:
+            if user_id == user["id"] and not body.is_admin:
+                raise HTTPException(400, "You can't stop being admin yourself.")
+            change["is_admin"] = body.is_admin
+        db.update_user(target["id"], **change)
+        return admin_row(db.get_user(user_id), all_costs())
+
+    @app.post("/api/admin/users/{user_id}/password")
+    def admin_set_password(user_id: str, body: admin_password_in, user: dict = Depends(admin_only)):
+        # for a student who forgot theirs, until password reset by email arrives
+        target = other_user_or_404(user_id)
+        problem = password_problem(body.new)
+        if problem:
+            raise HTTPException(400, problem)
+        db.update_user(target["id"], password=hash_password(body.new))
+        db.end_sessions(target["id"])
         return {"ok": True}
 
     def conversation_or_404(user: dict, conversation_id: str) -> dict:
@@ -566,6 +663,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
     def send_message(conversation_id: str, body: message_in, user: dict = Depends(signed_in)):
         conversation = conversation_or_404(user, conversation_id)
         check_mode(user, body.mode)
+        check_allowance(user)
         text = body.text.strip()
         if not text:
             raise HTTPException(400, "Write a question first.")
@@ -596,6 +694,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         # the last answer is dropped and asked for again, the question stays as it was
         conversation = conversation_or_404(user, conversation_id)
         check_mode(user, body.mode)
+        check_allowance(user)
         if not db.drop_last_answer(conversation_id):
             raise HTTPException(400, "There's no answer to try again yet.")
         messages = db.api_messages(conversation_id)
@@ -733,6 +832,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if style not in styles:
             raise HTTPException(400, "Pick multiple choice, written, mixed or past paper.")
         check_mode(user, mode)
+        check_allowance(user)
         if language and language not in answer_languages:
             raise HTTPException(400, "Pick an answer language from the list.")
         topic = topic.strip()
@@ -807,6 +907,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             shot = upload(name, media_type, kind, data)
         if not answer and not shot:
             raise HTTPException(400, "Write, say or photograph an answer first.")
+        check_allowance(user)
         try:
             return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage(user, "marking"))
         except study_error as error:
@@ -875,6 +976,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         history = study_history(user)
         if not has_activity(*history):
             raise HTTPException(400, "Study something first, then Rahah can suggest what comes next.")
+        check_allowance(user)
         try:
             items = await recommend(claude(), cfg, *history, on_usage=log_usage(user, "suggestions"))
         except study_error as error:
@@ -943,6 +1045,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             today = date.fromisoformat(body.today)
         except ValueError:
             raise HTTPException(422, "Pick a real date.")
+        check_allowance(user)
         try:
             days = await make_plan(claude(), cfg, reminder, today, body.topics.strip(), on_usage=log_usage(user, "plan"))
         except study_error as error:
