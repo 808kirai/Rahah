@@ -339,9 +339,10 @@ svg {
 }
 
 /* the logo is two masks so the R follows the text colour and the diamond stays mauve */
-/* the model picker in the message box, a small pill that opens a list upwards */
+/* the model picker in the message box, a small pill that opens a list upwards.
+   the list hangs from the message box row, not the pill, so its right edge lines up with the box
+   the way the + menu lines up on the left */
 .model-tools {
-    position: relative;
     flex-shrink: 0;
 }
 
@@ -389,7 +390,7 @@ svg {
 /* wide enough that each description sits on one line, and never wider than the screen */
 .input-menu.model-menu {
     left: auto;
-    right: 0;
+    right: -5px;
     width: max-content;
     min-width: 16rem;
     max-width: min(24rem, calc(100vw - 24px));
@@ -5129,6 +5130,7 @@ body.signed-out .toasts {
 }
 
 .composer-row {
+    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 0.25rem;
