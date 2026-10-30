@@ -187,7 +187,7 @@ thread.addEventListener("click", (event) => {
     if (pick) {
         mode_select.value = pick.dataset.pick;
         sync_placeholder();
-        input.focus();
+        focus_input();
         return;
     }
     const remove = target.closest("[data-remove]");
@@ -408,7 +408,7 @@ function attach_note(id) {
         update_send_button();
     }
     detail_sheet.close();
-    input.focus();
+    focus_input();
 }
 
 el("detail-sheet").addEventListener("click", (event) => {

@@ -4,6 +4,14 @@
 const el = (id) => document.getElementById(id);
 const thread = el("thread");
 const input = el("input");
+
+// on a computer the cursor goes into the message box so typing can start straight away.
+// on a phone that would pop the keyboard up, so there it only opens when the student taps the box
+const touch_screen = matchMedia("(hover: none) and (pointer: coarse)").matches;
+function focus_input() {
+    if (touch_screen) return;
+    input.focus({ preventScroll: true });
+}
 const send_btn = el("send");
 const mode_select = el("mode");
 const attachments = el("attachments");

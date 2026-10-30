@@ -410,7 +410,7 @@ async function send_message(text) {
         load_history();
         if (saved && el("chat-title").textContent === "New chat") set_title(text.slice(0, 60));
         offer_retry();
-        input.focus();
+        focus_input();
     }
 }
 
@@ -1091,7 +1091,7 @@ function start_voice() {
         voice.rec = null;
         set_listening(false);
         if (voice.error) composer_hint(voice.error);
-        input.focus();
+        focus_input();
     };
     voice.rec = rec;
     try {

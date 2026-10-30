@@ -86,7 +86,7 @@ function start_new_chat() {
     load_history();
     load_sets();
     load_performance();
-    input.focus({ preventScroll: true });
+    focus_input();
 }
 
 function route() {
@@ -1019,7 +1019,7 @@ async function start() {
         await route();
     } catch (e) {}
     done_booting();
-    input.focus({ preventScroll: true });
+    focus_input();
 }
 
 start();
