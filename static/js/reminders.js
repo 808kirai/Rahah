@@ -153,7 +153,7 @@ function render_reminders() {
         </div>
     </div>
     <div class="planner-note-row">
-        <p class="planner-note">Alerts show while Rahah is open. Add them to your calendar to get them when it's closed.</p>
+        <p class="planner-note">Alerts only show while Rahah is open. Add them to your calendar to get them anytime.</p>
         ${notification_tools()}
     </div>`;
     if (!state.reminders.length) {

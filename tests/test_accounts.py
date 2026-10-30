@@ -220,7 +220,7 @@ def test_each_student_has_a_daily_allowance_and_the_admin_has_none(make):
     chat = student.post("/api/conversations", json={"mode": "general"}).json()["id"]
     assert student.post(f"/api/conversations/{chat}/messages", json={"text": "first"}).status_code == 200
     blocked = student.post(f"/api/conversations/{chat}/messages", json={"text": "second"})
-    assert blocked.status_code == 429 and "allowance" in blocked.json()["detail"]
+    assert blocked.status_code == 429 and "study limit" in blocked.json()["detail"]
     assert student.post("/api/sets", data={"kind": "flashcards", "topic": "cells"}).status_code == 429
     assert student.post(f"/api/conversations/{chat}/retry", json={}).status_code == 429
     # saved things still open
@@ -302,7 +302,7 @@ def test_google_never_takes_over_an_account_with_the_same_email(tmp_path):
     sign_up(owner, "amina")
     owner.post("/api/auth/logout")
     refused = TestClient(app).post("/api/auth/google", json={"credential": "amina", "agreed": True})
-    assert refused.status_code == 400 and "connect Google in Settings" in refused.json()["detail"]
+    assert refused.status_code == 400 and "connect Google on the Account tab" in refused.json()["detail"]
 
     # signed in with the password, the same google account connects to it
     owner.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})

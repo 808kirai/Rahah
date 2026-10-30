@@ -283,7 +283,7 @@ function notes_html(words) {
     const head = `<div class="section-head"><h2 class="section-title">Notes</h2>
         <button class="btn btn-soft btn-small" type="button" data-notes-add>${icons.plus}Add notes</button></div>`;
     if (!state.notes.length) {
-        return head + '<p class="page-note">Keep class notes, slides and past papers here by subject, then use them in any chat, test or deck.</p>';
+        return head + '<p class="page-note">Save class notes, slides and past papers here, then use them in any chat, test or deck.</p>';
     }
     if (!notes.length) return head + '<p class="page-note">No notes match that search.</p>';
     const groups = new Map();

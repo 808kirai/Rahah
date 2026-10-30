@@ -356,11 +356,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if a["cap"] is not None and a["used"] >= a["cap"]:
             hours, minutes = divmod(a["resets_in"] // 60, 60)
             wait = f"{hours} hours" if hours >= 2 else f"{hours * 60 + minutes} minutes"
-            raise HTTPException(429, f"You've used today's study allowance. It resets in about {wait}. Your flashcards and saved tests still work.")
+            raise HTTPException(429, f"You've used today's study limit. It resets in about {wait}. Saved flashcards and tests still work.")
         # a ceiling for everyone together, so many accounts can't run up the bill
         if not user["is_admin"] and cfg.daily_budget > 0 and db.student_cost_since(day_start(time.time())) >= cfg.daily_budget:
             hours = max(1, a["resets_in"] // 3600)
-            raise HTTPException(429, f"Rahah has reached its study limit for everyone today. It starts again in about {hours} hours. Your flashcards and saved tests still work.")
+            raise HTTPException(429, f"Rahah has hit today's limit for everyone. It's back in about {hours} hours. Saved flashcards and tests still work.")
 
     def used_percent(used: float, cap: float) -> int:
         return 100 if cap <= 0 else min(100, round(100 * used / cap))
@@ -402,7 +402,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             secure=cfg.https or request.url.scheme == "https", path="/",
         )
 
-    agree_first = "Tick the box to agree to the terms and privacy page first."
+    agree_first = "Tick the box to agree to the terms first."
 
     def admin_for(email: str | None) -> bool | None:
         # with an admin email set, only that account is the admin, so nobody else can claim it first
@@ -515,7 +515,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(404, f"Password reset by email isn't set up yet. Email {cfg.support_email} for a new password.")
         address = client_address(request)
         if resets_per_address.full(address):
-            raise HTTPException(429, "Too many reset emails were asked for from this connection. Try again in an hour.")
+            raise HTTPException(429, "Too many reset emails from this connection. Try again in an hour.")
         resets_per_address.add(address)
         user = db.find_user(body.login.strip())
         if user and user["email"] and not user["disabled"] and not resets_per_account.full(user["id"]):
@@ -565,7 +565,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             return user_out(linked)
         email = clean_email(found_id.email) if found_id.email else None
         if email and db.taken("email", email):
-            raise HTTPException(400, f"An account already uses {email}. Sign in with your password, then connect {label} in Settings.")
+            raise HTTPException(400, f"An account already uses {email}. Sign in with your password, then connect {label} on the Account tab.")
         if not agreed:
             raise HTTPException(400, f"New to Rahah? Tick the box to agree to the terms, then choose Sign up with {label} again.")
         address = client_address(request)

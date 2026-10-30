@@ -83,7 +83,7 @@
                             <button class="auth-link auth-login-only" type="button" id="auth-forgot">Forgot password?</button>
                         </div>
                         <input class="text-input auth-input" id="auth-password" type="password" autocomplete="current-password" maxlength="200" placeholder="Enter your password">
-                        <p class="auth-hint" id="auth-forgot-note" hidden><a class="support-link" href="mailto:studywithrahah@gmail.com?subject=Password%20reset" data-help="reset">Email studywithrahah@gmail.com</a> and we'll set you a new password. The message is written for you, just send it from the email on your account.</p>
+                        <p class="auth-hint" id="auth-forgot-note" hidden><a class="support-link" href="mailto:studywithrahah@gmail.com?subject=Password%20reset" data-help="reset">Email studywithrahah@gmail.com</a> and we'll set a new password for you. The message is ready, just send it from your account's email.</p>
                     </div>
                     <div class="field auth-signup-only" hidden>
                         <label class="field-label" for="auth-password-again">Repeat password</label>
@@ -91,7 +91,7 @@
                     </div>
                     <label class="auth-agree auth-signup-only" hidden>
                         <input type="checkbox" id="auth-agree">
-                        <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> and <a href="/privacy" target="_blank" rel="noopener">privacy page</a>. If I'm under 18, a parent or guardian has said I can use Rahah.</span>
+                        <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> and <a href="/privacy" target="_blank" rel="noopener">privacy page</a>. If I'm under 18, a parent or guardian said yes.</span>
                     </label>
                     <p class="sheet-error" id="auth-error" role="alert" hidden></p>
                     <button class="btn btn-accent auth-submit" type="submit" id="auth-submit">Sign in</button>
@@ -191,15 +191,15 @@
                                     </button>
                                     <button type="button" class="input-option" role="menuitem" data-input="notes" id="notes-option" hidden>
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/></svg></span>
-                                        <span><strong>From your notes</strong><small>Files you kept for each subject</small></span>
+                                        <span><strong>From your notes</strong><small>Files you've saved by subject</small></span>
                                     </button>
                                     <button type="button" class="input-option" role="menuitemcheckbox" aria-checked="false" data-input="hints" id="hints-option">
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg></span>
-                                        <span><strong>Hint mode</strong><small>Hints and questions instead of full answers</small></span>
+                                        <span><strong>Hint mode</strong><small>Hints instead of full answers</small></span>
                                     </button>
                                     <button type="button" class="input-option" role="menuitem" data-input="talk" id="talk-option" hidden>
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></span>
-                                        <span><strong>Talk with Rahah</strong><small>Speak, hear the answer, and keep going</small></span>
+                                        <span><strong>Talk with Rahah</strong><small>Talk it through out loud</small></span>
                                     </button>
                                     <button type="button" class="input-option" role="menuitem" data-input="voice" id="voice-option" hidden>
                                         <span class="opt-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>
@@ -225,7 +225,7 @@
                     </div>
                 </form>
             </div>
-            <p class="disclaimer">Rahah is an AI and can make mistakes. Check important facts against your course material.</p>
+            <p class="disclaimer">Rahah is an AI and can make mistakes. Double-check important facts.</p>
         </div>
     </main>
 
@@ -370,12 +370,12 @@
             </div>
             <div class="field">
                 <span class="field-label" id="settings-lang-label">Answer language</span>
-                <p class="field-hint">Rahah answers and makes tests and decks in this language, and Listen reads in it.</p>
+                <p class="field-hint">Answers, tests and decks come in this language, and Listen reads in it.</p>
                 <div class="choices" id="settings-langs" role="group" aria-labelledby="settings-lang-label"></div>
             </div>
             <div class="field">
                 <span class="field-label" id="settings-data-label">Low-data mode</span>
-                <p class="field-hint">Shorter answers, no web searches, smaller photos, and no downloaded font or diagram drawing. For slow or costly connections.</p>
+                <p class="field-hint">For slow or expensive data: shorter answers, smaller photos, and no web searches or diagrams.</p>
                 <div class="choices" id="settings-data" role="group" aria-labelledby="settings-data-label">
                     <button class="choice" type="button" data-low-data="0">Off</button>
                     <button class="choice" type="button" data-low-data="1">On</button>
@@ -395,7 +395,7 @@
                     <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
                 </button>
             </div>
-            <p class="detail-sub">Keep class notes, slides and past papers by subject, then use them in any chat, test or deck without uploading them again.</p>
+            <p class="detail-sub">Save class notes, slides and past papers once, then use them in any chat, test or deck.</p>
             <div class="field">
                 <span class="field-label">Subject</span>
                 <select class="pill-select" id="notes-mode" aria-label="Subject"></select>

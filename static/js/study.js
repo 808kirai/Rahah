@@ -12,7 +12,7 @@ const tools = {
 const sheet_copy = {
     ask: {
         title: "Ask a question", submit: "Ask", field: "Question", choices: [], pick: null, limit: 20000,
-        topic: "What would you like to know? Attach notes if it's about them.",
+        topic: "What do you want to know? Attach notes if it's about them.",
     },
     summary: {
         title: "Summarise notes", submit: "Summarise", label: "Length",
@@ -656,7 +656,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
             return;
         }
         if (state.busy) {
-            show_sheet_error("Wait for Rahah to finish her current answer.");
+            show_sheet_error("Wait for Rahah to finish answering.");
             return;
         }
         run_ask(topic, mode);
@@ -671,7 +671,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
         return;
     }
     if (state.busy) {
-        show_sheet_error("Wait for Rahah to finish her current answer.");
+        show_sheet_error("Wait for Rahah to finish answering.");
         return;
     }
     if (sheet_state.tool === "summary") {

@@ -138,7 +138,7 @@ async function api(path, options = {}) {
     // a session that ran out or was signed out elsewhere goes back to the sign in screen
     if (response.status === 401 && !path.startsWith("/api/auth/") && typeof show_auth === "function") show_auth();
     if (!response.ok) {
-        let detail = `Something went wrong (${response.status}).`;
+        let detail = `Something went wrong (${response.status}). Try again.`;
         try {
             const body = await response.json();
             if (typeof body.detail === "string") detail = body.detail;

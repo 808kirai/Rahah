@@ -577,7 +577,7 @@ el("auth-forgot-note").addEventListener("click", async (event) => {
     show_auth_error("");
     try {
         await api("/api/auth/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login }) });
-        el("auth-reset-sent").textContent = "If that account has an email, a link is on its way. It works for 30 minutes, so check your inbox and spam.";
+        el("auth-reset-sent").textContent = "If that account exists, a link is on its way. Check your inbox and spam, it works for 30 minutes.";
         el("auth-reset-sent").hidden = false;
     } catch (error) {
         show_auth_error(error.message);
@@ -708,7 +708,7 @@ el("auth-form").addEventListener("submit", async (event) => {
         return;
     }
     if (signup && !el("auth-agree").checked) {
-        show_auth_error("Tick the box to agree to the terms and privacy page first.");
+        show_auth_error("Tick the box to agree to the terms first.");
         el("auth-agree").focus();
         return;
     }
@@ -825,7 +825,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Help</h3>
-                <p>Pick what it's about and Gmail opens with a short message ready to send to ${escape_html(support_email())}. What Rahah keeps about you is on the <a class="support-link" href="/privacy" target="_blank" rel="noopener">privacy page</a>, and the rules are in the <a class="support-link" href="/terms" target="_blank" rel="noopener">terms</a></p>
+                <p>Pick a topic and Gmail opens with a message ready to send. What Rahah keeps is on the <a class="support-link" href="/privacy" target="_blank" rel="noopener">privacy page</a>, and the rules are in the <a class="support-link" href="/terms" target="_blank" rel="noopener">terms</a></p>
             </div>
             <div class="help-choices">${Object.entries(help_messages).filter(([, m]) => m.chip).map(([kind, m]) =>
                 `<a class="btn btn-soft btn-small" href="mailto:${escape_html(support_email())}" data-help="${kind}">${escape_html(m.chip)}</a>`).join("")}</div>
@@ -833,7 +833,7 @@ function render_account() {
         ${me.is_admin ? `<section class="perf-card">
             <div class="perf-head">
                 <h3>Students</h3>
-                <p>Everyone's usage, their daily limits, new passwords and turning accounts off</p>
+                <p>Usage, daily limits, new passwords and turning accounts off</p>
             </div>
             <a class="btn btn-accent btn-small" href="#/admin">Manage students</a>
         </section>` : ""}`;
@@ -856,7 +856,7 @@ function render_delete_card(open = false) {
     slot.innerHTML = `<section class="perf-card delete-card">
         <div class="perf-head">
             <h3>Delete account</h3>
-            <p>Removes your account and everything in it: chats, tests, decks, notes, reminders and progress. This can't be undone.</p>
+            <p>Deletes your account and everything in it. This can't be undone.</p>
         </div>
         ${open ? `<div class="account-fields">${check}</div>
         <div class="account-actions">

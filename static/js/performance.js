@@ -272,7 +272,7 @@ function render_performance() {
     page.innerHTML = `
         <div class="kpis">
             ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(p.timeline))}
-            ${stat_card("Average GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}. Tap for each subject`, "", false, "data-gpa-box")}
+            ${stat_card("Average GPA", gpa_text(o.gpa), `Out of 4.0 across ${plural(o.subjects, "subject")}. Tap for each`, "", false, "data-gpa-box")}
             ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`)}
             ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
         </div>
@@ -282,7 +282,7 @@ function render_performance() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Scores over time</h3>
-                <p>Each test attempt as a percentage, oldest on the left</p>
+                <p>Every attempt, oldest first</p>
             </div>
             <div class="chart" id="timeline-chart"></div>
             <details class="perf-details">
@@ -300,7 +300,7 @@ function render_performance() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>GPA by subject</h3>
-                <p>Each test counts once, at its best attempt. Choose a subject for its tests</p>
+                <p>Each test counts once, at its best. Tap a subject to see its tests</p>
             </div>
             <div class="table-wrap"><table>
                 <thead><tr><th>Subject</th><th class="num">GPA</th><th class="num">Average</th><th>Grade</th><th class="num">Tests</th></tr></thead>
@@ -331,7 +331,7 @@ function render_performance() {
             <section class="perf-card">
                 <div class="perf-head">
                     <h3>Grades</h3>
-                    <p>How many attempts landed on each grade</p>
+                    <p>How many attempts got each grade</p>
                 </div>
                 <div class="columns">${p.grades.map((g) => `
                     <div class="col" tabindex="0" data-tip="Grade ${g.grade}" data-tip-value="${plural(g.count, "attempt")}" data-tip-note="${Math.round((g.count / o.attempts) * 100)}% of all attempts">
@@ -349,7 +349,7 @@ function render_performance() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Your tests</h3>
-                <p>Most recent first. Choose a test for its attempts</p>
+                <p>Newest first. Tap a test to see every attempt</p>
             </div>
             <div class="table-wrap"><table>
                 <thead><tr><th>Test</th><th>Subject</th><th class="num">Attempts</th><th class="num">Best</th><th class="num">Latest</th><th>Best grade</th><th></th></tr></thead>
@@ -462,7 +462,7 @@ thread.addEventListener("click", async (event) => {
     const reset = event.target.closest("[data-admin-password]");
     if (reset) {
         const user = state.admin.users.find((u) => u.id === reset.dataset.adminPassword);
-        const fresh = prompt(`A new password for ${user.username}, at least 8 characters. Give it to them, and they can change it in Settings.`);
+        const fresh = prompt(`A new password for ${user.username}, at least 8 characters with a special character. Give it to them, and they can change it on the Account tab.`);
         if (!fresh) return;
         try {
             await api(`/api/admin/users/${user.id}/password`, {
@@ -519,7 +519,7 @@ function show_subject_detail(mode) {
             ${detail_stat("GPA", gpa_text(s.gpa))}
             ${detail_stat("Average", `${s.average}% ${grade_pill(s.grade)}`)}
         </div>
-        <p class="detail-heading">Tests, choose one for its attempts</p>
+        <p class="detail-heading">Tests, tap one to see its attempts</p>
         <ul class="detail-list">${tests.map((q) => `<li class="pick-row" tabindex="0" role="button" data-test="${q.id}">
             <span class="detail-name">${escape_html(q.title)}</span><span class="num">best ${q.best}%</span>${grade_pill(q.grade)}
         </li>`).join("")}</ul>
@@ -539,12 +539,12 @@ function show_gpa_detail() {
     const subjects = [...p.subjects].sort((a, b) => (b.gpa ?? -1) - (a.gpa ?? -1));
     el("detail-title").textContent = "Average GPA";
     el("detail-body").innerHTML = `
-        <p class="detail-sub">The average of your subject GPAs, so each subject counts the same. A subject's GPA counts each test once, at its best attempt</p>
+        <p class="detail-sub">The average of your subject GPAs, so each subject counts equally. Each test counts once, at its best</p>
         <div class="detail-stats">
             ${detail_stat("Average GPA", gpa_text(p.overall.gpa))}
             ${detail_stat("Subjects", p.overall.subjects)}
         </div>
-        <p class="detail-heading">By subject, choose one for its tests</p>
+        <p class="detail-heading">By subject, tap one to see its tests</p>
         <ul class="detail-list gpa-list">${subjects.map((s) => `<li class="pick-row" tabindex="0" role="button" data-subject="${escape_html(s.mode)}">
             <span class="detail-name">${escape_html(mode_name(s.mode))}</span>
             <span class="gpa-track" aria-hidden="true"><span class="allowance-track"><span class="allowance-bar" style="width: ${Math.round(((s.gpa ?? 0) / 4) * 100)}%"></span></span></span>

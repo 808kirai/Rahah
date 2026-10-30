@@ -323,7 +323,7 @@ async function run_answer(reply, request, on_fail, again) {
                 saved = true;
                 if (frame) cancelAnimationFrame(frame);
                 paint();
-                if (event.v.truncated) add_notice(reply, "This answer hit the length limit. Ask Rahah to continue.");
+                if (event.v.truncated) add_notice(reply, "This answer got cut off. Ask Rahah to continue.");
             } else if (event.t === "refusal" || event.t === "error") {
                 // partial text from a failed turn is dropped, it was never saved
                 fail(event.v);
@@ -1019,7 +1019,7 @@ el("voice-option").hidden = !speech_engine();
 el("talk-option").hidden = !(speech_engine() && can_speak);
 
 const voice_errors = {
-    "not-allowed": "Rahah isn't allowed to use the microphone. Allow it in the browser's site settings.",
+    "not-allowed": "Rahah can't use your microphone. Allow it in your browser settings.",
     "service-not-allowed": "Voice typing is turned off in this browser.",
     "audio-capture": "Rahah couldn't find a microphone.",
     "network": "Voice typing needs an internet connection.",
@@ -1205,8 +1205,8 @@ async function start_camera() {
         stop_camera();
         camera_state("off");
         camera_note(error.name === "NotAllowedError"
-            ? "Rahah isn't allowed to use the camera. Allow it in the browser's site settings, or choose a photo instead."
-            : "Rahah couldn't find a camera to use. Choose a photo instead.");
+            ? "Rahah can't use your camera. Allow it in your browser settings, or choose a photo."
+            : "No camera found. Choose a photo instead.");
     }
 }
 

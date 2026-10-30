@@ -91,7 +91,7 @@ def test_a_daily_budget_covers_every_student_together(make):
     chat = student.post("/api/conversations", json={"mode": "general"}).json()["id"]
     assert student.post(f"/api/conversations/{chat}/messages", json={"text": "first"}).status_code == 200
     stopped = student.post(f"/api/conversations/{chat}/messages", json={"text": "second"})
-    assert stopped.status_code == 429 and "for everyone today" in stopped.json()["detail"]
+    assert stopped.status_code == 429 and "limit for everyone" in stopped.json()["detail"]
     # the admin isn't counted or stopped, and sees the budget
     own = admin.post("/api/conversations", json={"mode": "general"}).json()["id"]
     assert admin.post(f"/api/conversations/{own}/messages", json={"text": "hi"}).status_code == 200

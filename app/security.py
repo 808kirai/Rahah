@@ -134,7 +134,7 @@ class in_flight:
         for token in [t for t, started in mine.items() if now - started > self.expire]:
             del mine[token]
         if self.limit > 0 and len(mine) >= self.limit:
-            raise HTTPException(429, "Rahah is still working on your other answers. Wait for one to finish, then try again.")
+            raise HTTPException(429, "Rahah is still answering. Wait for that to finish, then try again.")
         token = uuid.uuid4().hex
         mine[token] = now
         return token
