@@ -123,11 +123,11 @@ function route() {
     }
     const set_match = location.hash.match(/^#\/set\/([0-9a-f]+)$/);
     if (set_match) {
-        if (!el("study") || state.study?.set.id !== set_match[1]) open_set(set_match[1]);
+        if (!el("study") || state.study?.set.id !== set_match[1]) return open_set(set_match[1]);
         return;
     }
     const match = location.hash.match(/^#\/c\/([0-9a-f]+)$/);
-    if (match && match[1] !== state.conversation_id) open_conversation(match[1]);
+    if (match && match[1] !== state.conversation_id) return open_conversation(match[1]);
 }
 
 window.addEventListener("hashchange", route);
@@ -321,6 +321,8 @@ async function show_auth() {
 function set_auth_mode(mode) {
     // leaving the reset screen drops the link from the address bar
     if (auth.mode === "reset" && mode !== "reset") history.replaceState(null, "", "/");
+    if (mode === "signup") history.replaceState(null, "", "#/signup");
+    else if (mode === "login" && location.hash === "#/signup") history.replaceState(null, "", "/");
     auth.mode = mode;
     const signup = mode === "signup";
     const reset = mode === "reset";
@@ -955,16 +957,26 @@ thread.addEventListener("click", async (event) => {
     }
 });
 
+function done_booting() {
+    document.body.classList.remove("booting");
+}
+
 async function start() {
+    // if anything goes wrong on the way, the page still shows
+    setTimeout(done_booting, 5000);
     const reset = location.hash.match(/^#\/reset\/([\w-]{20,200})$/);
     if (reset) {
         await auth_config();
         show_reset(reset[1]);
+        done_booting();
         return;
     }
     const me = await load_me();
     if (!me) {
-        show_auth();
+        // a refresh on create account stays on create account
+        if (location.hash === "#/signup") auth.mode = "signup";
+        await show_auth();
+        done_booting();
         return;
     }
     state.me = me;
@@ -1003,7 +1015,10 @@ async function start() {
     load_recommendations();
     load_performance();
     load_reminders();
-    route();
+    try {
+        await route();
+    } catch (e) {}
+    done_booting();
     input.focus({ preventScroll: true });
 }
 

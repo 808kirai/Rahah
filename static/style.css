@@ -1781,6 +1781,14 @@ button.plan-task:focus-visible {
     }
 }
 
+/* while rahah works out who's signed in and which page to open, only the background shows,
+   so a refresh never flashes home on the way to another page or the sign in screen */
+body.booting .main,
+body.booting .dock-wrap,
+body.booting .auth {
+    visibility: hidden;
+}
+
 /* the sign in screen, the app stays hidden behind it */
 body.signed-out .main,
 body.signed-out .dock-wrap,
