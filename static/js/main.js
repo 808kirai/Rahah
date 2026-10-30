@@ -323,7 +323,7 @@ function set_auth_mode(mode) {
     el("google-label").textContent = signup ? "Sign up with Google" : "Sign in with Google";
     el("auth-submit").textContent = signup ? "Create account" : "Sign in";
     el("auth-password").autocomplete = signup ? "new-password" : "current-password";
-    el("auth-password").placeholder = signup ? "8 or more characters with a symbol like !" : "Enter your password";
+    el("auth-password").placeholder = signup ? "At least 8 characters and a special character" : "Enter your password";
     show_auth_error("");
 }
 
@@ -625,7 +625,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>${me.has_password ? "Password" : "Add a password"}</h3>
-                <p>8 or more characters with a symbol like ! or #. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? Ask the person who runs Rahah for a new one.</p>
+                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? Ask the person who runs Rahah for a new one.</p>
             </div>
             <div class="account-fields">
                 ${me.has_password ? '<input class="text-input" type="password" id="password-current" autocomplete="current-password" placeholder="Current password">' : ""}
