@@ -470,12 +470,19 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         # wrong tries are counted for the name whatever its capitals, so changing case doesn't buy more guesses
         if guard.blocked(login.lower(), address):
             raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+        # says which part is wrong, the name or the password, which is easier for students.
+        # it does tell someone whether an account exists, the wait after 5 wrong tries still stops guessing
         user = db.find_user(login)
         if not user:
             check_password(body.password, stand_in_hash)
-        if not user or not check_password(body.password, user["password"]):
             guard.failed(login.lower(), address)
-            raise HTTPException(401, "That username, email or password isn't right.")
+            raise HTTPException(401, f"There's no account with that {'email' if '@' in login else 'username'}.")
+        if not user["password"]:
+            provider = "Google" if user["google_sub"] else "Apple" if user["apple_sub"] else ""
+            raise HTTPException(401, f"This account signs in with {provider}. Use the {provider} button above." if provider else "This account has no password yet.")
+        if not check_password(body.password, user["password"]):
+            guard.failed(login.lower(), address)
+            raise HTTPException(401, "That password isn't right.")
         if user["disabled"]:
             raise HTTPException(403, f"This account has been turned off. Email {cfg.support_email} for help.")
         guard.cleared(login.lower())

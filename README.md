@@ -65,6 +65,7 @@ Accounts
 - The first account is the admin. It takes over everything made before accounts and sees the total usage and every student's answer ratings in the usage box on the Account tab
 - Passwords are hashed with scrypt and never stored as typed. Signing in sets a session cookie for 30 days that the page's script can't read, and only a hash of the session is stored
 - Wrong passwords are slowed down: after 5 tries for one name or address there's a 15 minute wait
+- A failed sign in says which part is wrong: no account with that username or email, or the password isn't right. An account made with Google or Apple is told to use that button
 - The Account tab shows who's signed in, with their name and email to edit, Google and Apple to connect, a password change that asks for the new password twice and signs out other devices, today's limit or, for the admin, usage and cost and a way to the Students page, and sign out
 - Settings, the gear at the top, keeps the answer language and low-data mode, which are saved with the account so they follow the student to another device
 - Signing out, or someone else signing in on the same device, clears the copies saved for offline use, so one student never sees another's decks
@@ -87,7 +88,7 @@ Security
 - The libraries Rahah loads from other sites are checked against their exact fingerprints, so a changed file is refused. Google's and Apple's sign in scripts change often and can't be fingerprinted
 - Changes have to come from Rahah's own pages, on top of the session cookie only being sent by Rahah's own pages, and oversized requests are turned away before they're read
 - Answers from Claude are cleaned before they're shown, maths is drawn without running anything, diagrams go in as images, files from code runs download instead of opening on Rahah's address, and links in answers open in a new tab that can't reach back into Rahah
-- Sign in takes as long for a wrong name as for a wrong password, so it doesn't give away which usernames exist, and the record of wrong tries can't be grown without end
+- Sign in says whether the name or the password is wrong, chosen for students over hiding which accounts exist. The wait after 5 wrong tries still stops guessing, and the record of wrong tries can't be grown without end
 - The automatic API pages (/docs, /openapi.json) are switched off
 - Once Rahah is on https, set RAHAH_HTTPS=1, so the session cookie is only sent over https and browsers are told to stay on it
 - Online, the sign up and sign in limits count each visitor by the address their host's proxy puts in its own header (RAHAH_CLIENT_IP_HEADER), not x-forwarded-for, which visitors can write into themselves. The admin can check which address headers arrive at /api/admin/address

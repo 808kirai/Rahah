@@ -122,14 +122,18 @@ def test_over_https_cookies_stay_on_https(make):
     assert "max-age=31536000" in made.headers["strict-transport-security"]
 
 
-def test_a_wrong_name_and_a_wrong_password_look_the_same(make):
+def test_signing_in_says_whether_the_name_or_the_password_is_wrong(make):
     web = TestClient(make())
     sign_up(web, "amina")
     web.post("/api/auth/logout")
-    wrong_name = web.post("/api/auth/login", json={"login": "nobody", "password": "correct horse!", "agreed": True})
-    wrong_password = web.post("/api/auth/login", json={"login": "amina", "password": "wrong horse!"})
-    assert wrong_name.status_code == wrong_password.status_code == 401
-    assert wrong_name.json() == wrong_password.json()
+    assert web.post("/api/auth/login", json={"login": "nobody", "password": "correct horse!"}).json()["detail"] == "There's no account with that username."
+    assert web.post("/api/auth/login", json={"login": "no@example.com", "password": "correct horse!"}).json()["detail"] == "There's no account with that email."
+    wrong = web.post("/api/auth/login", json={"login": "amina", "password": "wrong horse!"})
+    assert wrong.status_code == 401 and wrong.json()["detail"] == "That password isn't right."
+    # wrong tries still lead to a wait
+    for _ in range(5):
+        web.post("/api/auth/login", json={"login": "amina", "password": "wrong horse!"})
+    assert web.post("/api/auth/login", json={"login": "amina", "password": "correct horse!"}).status_code == 429
 
 
 def test_behind_a_proxy_the_address_comes_from_the_header_the_host_sets(make):

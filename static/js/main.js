@@ -724,6 +724,9 @@ el("auth-form").addEventListener("submit", async (event) => {
     } catch (error) {
         show_auth_error(error.message);
         el("auth-submit").disabled = false;
+        // the cursor goes to whichever part was wrong
+        if (!signup && error.message.startsWith("There's no account")) el("auth-login").select();
+        if (!signup && error.message.startsWith("That password")) el("auth-password").select();
     }
 });
 
