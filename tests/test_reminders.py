@@ -8,12 +8,12 @@ from app.main import create_app
 from app.recommend import describe_history
 from app.reminders import calendar_file, reminder_days
 
-from .fakes import fake_client
+from .fakes import signed_in, fake_client
 
 
 @pytest.fixture
 def web(tmp_path):
-    return TestClient(create_app(settings(db_path=tmp_path / "rem.db"), client=fake_client()))
+    return signed_in(TestClient(create_app(settings(db_path=tmp_path / "rem.db"), client=fake_client())))
 
 
 def in_days(n: int) -> str:
@@ -190,7 +190,7 @@ def plan_web(tmp_path, replies):
     import json as _json
     from .fakes import message, text_block
     claude = fake_client([message([text_block(_json.dumps(r))]) for r in replies])
-    return TestClient(create_app(settings(db_path=tmp_path / "plan.db"), client=claude)), claude
+    return signed_in(TestClient(create_app(settings(db_path=tmp_path / "plan.db"), client=claude))), claude
 
 
 def test_a_plan_is_made_checked_saved_and_ticked_off(tmp_path):

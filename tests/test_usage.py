@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.usage import cost_of, summarise
 
-from .fakes import fake_client, message, text_block
+from .fakes import signed_in, fake_client, message, text_block
 
 
 def use(model="claude-opus-5-5", **counts):
@@ -41,7 +41,7 @@ def test_totals_are_kept_per_window_with_the_cache_share():
 def setup(tmp_path):
     def build(replies=()):
         claude = fake_client(replies)
-        return TestClient(create_app(settings(db_path=tmp_path / "usage.db"), client=claude)), claude
+        return signed_in(TestClient(create_app(settings(db_path=tmp_path / "usage.db"), client=claude))), claude
     return build
 
 

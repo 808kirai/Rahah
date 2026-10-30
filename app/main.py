@@ -10,13 +10,19 @@ import time
 from pathlib import Path
 
 import anthropic
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from .config import load_settings, settings
-from .modes import custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom
+from .accounts import (
+    check_password, clean_email, clean_username, email_problem, hash_password, password_problem, session_cookie,
+    session_days, sign_in_guard, username_problem,
+)
+from .modes import (
+    allowed_mode, custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom,
+)
 from .performance import summarise
 from .report import weekly_report
 from .plans import make_plan, plan_calendar
@@ -63,6 +69,29 @@ max_set_files = 5
 max_notes = 200
 max_set_mb = 20
 max_photo_mb = 10
+
+
+class signup_in(BaseModel):
+    username: str = Field(min_length=1, max_length=40)
+    email: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+    name: str = Field(default="", max_length=60)
+
+
+class login_in(BaseModel):
+    login: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class profile_in(BaseModel):
+    name: str | None = Field(default=None, max_length=60)
+    email: str | None = Field(default=None, max_length=200)
+    settings: dict | None = None
+
+
+class password_in(BaseModel):
+    current: str = Field(default="", max_length=200)
+    new: str = Field(min_length=1, max_length=200)
 
 
 class new_conversation_in(BaseModel):
@@ -229,8 +258,124 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             state["client"] = anthropic.AsyncAnthropic()
         return state["client"]
 
-    def conversation_or_404(conversation_id: str) -> dict:
-        conversation = db.get_conversation(conversation_id)
+    guard = sign_in_guard()
+
+    def signed_in(request: Request) -> dict:
+        # every api route but signing in needs a student, found from the session cookie
+        token = request.cookies.get(session_cookie)
+        user = db.session_user(token) if token else None
+        if not user or user["disabled"]:
+            raise HTTPException(401, "Sign in to keep going.")
+        return user
+
+    def own_subjects(user: dict) -> set[str]:
+        return {s["id"] for s in db.list_subjects(user["id"])}
+
+    def check_mode(user: dict, mode: str) -> None:
+        if not allowed_mode(mode, own_subjects(user)):
+            raise HTTPException(400, "Unknown subject.")
+
+    def user_out(user: dict) -> dict:
+        # what the page knows about the student signed in
+        return {
+            "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
+            "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
+            "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
+        }
+
+    def start_session(request: Request, response: Response, user: dict) -> None:
+        token = db.new_session(user["id"])
+        response.set_cookie(
+            session_cookie, token, max_age=session_days * 86400, httponly=True, samesite="lax",
+            secure=request.url.scheme == "https", path="/",
+        )
+
+    def client_address(request: Request) -> str:
+        return request.client.host if request.client else ""
+
+    @app.get("/api/auth/config")
+    def auth_config():
+        # what the sign in page offers, before anyone is signed in
+        return {"google_client_id": cfg.google_client_id, "apple_client_id": cfg.apple_client_id}
+
+    @app.post("/api/auth/signup")
+    def sign_up(body: signup_in, request: Request, response: Response):
+        username = clean_username(body.username)
+        email = clean_email(body.email)
+        problem = username_problem(username) or email_problem(email) or password_problem(body.password)
+        if problem:
+            raise HTTPException(400, problem)
+        if db.taken("username", username):
+            raise HTTPException(400, "That username is taken. Try another.")
+        if db.taken("email", email):
+            raise HTTPException(400, "An account already uses that email. Sign in instead.")
+        user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()))
+        start_session(request, response, user)
+        return user_out(user)
+
+    @app.post("/api/auth/login")
+    def log_in(body: login_in, request: Request, response: Response):
+        login = body.login.strip().lower()
+        address = client_address(request)
+        if guard.blocked(login, address):
+            raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+        user = db.find_user(login)
+        if not user or not check_password(body.password, user["password"]):
+            guard.failed(login, address)
+            raise HTTPException(401, "That username, email or password isn't right.")
+        if user["disabled"]:
+            raise HTTPException(403, "This account has been turned off. Ask the person who runs Rahah.")
+        guard.cleared(login)
+        start_session(request, response, user)
+        return user_out(user)
+
+    @app.post("/api/auth/logout")
+    def log_out(request: Request, response: Response):
+        token = request.cookies.get(session_cookie)
+        if token:
+            db.end_session(token)
+        response.delete_cookie(session_cookie, path="/")
+        return {"ok": True}
+
+    @app.get("/api/me")
+    def who_am_i(user: dict = Depends(signed_in)):
+        return user_out(user)
+
+    @app.patch("/api/me")
+    def edit_me(body: profile_in, user: dict = Depends(signed_in)):
+        change = {}
+        if body.name is not None:
+            change["name"] = " ".join(body.name.split())
+        if body.email is not None:
+            email = clean_email(body.email)
+            problem = email_problem(email)
+            if problem:
+                raise HTTPException(400, problem)
+            if db.taken("email", email, besides=user["id"]):
+                raise HTTPException(400, "Another account already uses that email.")
+            change["email"] = email
+        if body.settings is not None:
+            # only small plain settings are kept, like the answer language and low-data mode
+            if len(json.dumps(body.settings)) > 2000:
+                raise HTTPException(400, "Those settings are too big.")
+            change["settings"] = body.settings
+        return user_out(db.update_user(user["id"], **change))
+
+    @app.post("/api/me/password")
+    def change_password(body: password_in, request: Request, user: dict = Depends(signed_in)):
+        # an account made with google or apple can add a password without a current one
+        if user["password"] and not check_password(body.current, user["password"]):
+            raise HTTPException(400, "Your current password isn't right.")
+        problem = password_problem(body.new)
+        if problem:
+            raise HTTPException(400, problem)
+        db.update_user(user["id"], password=hash_password(body.new))
+        # other devices are signed out, this one stays in
+        db.end_sessions(user["id"], keep=request.cookies.get(session_cookie))
+        return {"ok": True}
+
+    def conversation_or_404(user: dict, conversation_id: str) -> dict:
+        conversation = db.get_conversation(user["id"], conversation_id)
         if not conversation:
             raise HTTPException(404, "That conversation doesn't exist.")
         return conversation
@@ -254,25 +399,25 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         # served from the root so it covers the whole app, and checked on every load so updates land
         return FileResponse(static_dir / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
-    def log_usage(kind: str):
-        # each request to claude is logged with what it used and cost, for the usage box and later for limits
-        return lambda use: db.add_usage(kind, use, cost_of(use))
+    def log_usage(user: dict, kind: str):
+        # each request to claude is logged with what it used and cost, against the student who asked
+        return lambda use: db.add_usage(user["id"], kind, use, cost_of(use))
 
     @app.get("/api/today")
-    def today_nudge(today: str, weekday: int):
+    def today_nudge(today: str, weekday: int, user: dict = Depends(signed_in)):
         # the page sends its own date and weekday, so the nudge fits the student's day
         try:
             day = date.fromisoformat(today)
         except ValueError:
             raise HTTPException(422, "Pick a real date.")
-        decks = db.due_cards()
-        exams = [r for r in db.list_reminders() if r["kind"] in ("exam", "cat", "midterm") and not r["done"]]
+        decks = db.due_cards(user["id"])
+        exams = [r for r in db.list_reminders(user["id"]) if r["kind"] in ("exam", "cat", "midterm") and not r["done"]]
         soon = sorted(
             ({"id": r["id"], "title": r["title"], "days": (date.fromisoformat(r["due_date"]) - day).days} for r in exams),
             key=lambda r: r["days"],
         )
         soon = [r for r in soon if 0 <= r["days"] <= 14]
-        classes = [c for c in db.list_classes() if c["day"] == weekday]
+        classes = [c for c in db.list_classes(user["id"]) if c["day"] == weekday]
         return {
             "cards_due": sum(d["due"] for d in decks),
             "deck": decks[0] if decks else None,
@@ -281,82 +426,83 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         }
 
     @app.post("/api/messages/{message_id}/rating")
-    def rate_answer(message_id: int, body: rating_in):
+    def rate_answer(message_id: int, body: rating_in, user: dict = Depends(signed_in)):
         # thumbs up or down on one of rahah's answers
-        if not db.rate_message(message_id, body.rating):
+        if not db.rate_message(user["id"], message_id, body.rating):
             raise HTTPException(404, "That answer doesn't exist.")
         return {"rating": body.rating}
 
     @app.get("/api/feedback")
-    def feedback_report():
-        return db.feedback_summary()
+    def feedback_report(user: dict = Depends(signed_in)):
+        # the admin sees every student's ratings, a student their own
+        return db.feedback_summary(None if user["is_admin"] else user["id"])
 
     @app.get("/api/usage")
-    def usage_report():
+    def usage_report(user: dict = Depends(signed_in)):
         now = time.time()
         today = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
         since = {"today": today, "week": now - 7 * 86400, "all": 0}
-        return summarise_usage(db.usage_since(0), since)
+        # the admin sees what rahah costs in all, a student what they've used
+        return summarise_usage(db.usage_since(0, None if user["is_admin"] else user["id"]), since)
 
     # this server's saved subjects join the list as it starts
     sync_custom(db.list_subjects())
 
     @app.post("/api/subjects")
-    def add_subject(body: subject_in):
+    def add_subject(body: subject_in, user: dict = Depends(signed_in)):
         # a subject that already exists, built in or added before, is picked instead of added again
-        found = find_mode(body.name)
+        found = find_mode(body.name, own_subjects(user))
         if not found:
-            found = db.add_subject(body.name)
+            found = db.add_subject(user["id"], body.name)
             sync_custom(db.list_subjects())
-        return {"id": found, "modes": public_modes()}
+        return {"id": found, "modes": public_modes(own_subjects(user))}
 
     @app.delete("/api/subjects/{subject_id}")
-    def delete_subject(subject_id: str):
-        if not subject_id.startswith(custom_prefix) or subject_id not in modes:
+    def delete_subject(subject_id: str, user: dict = Depends(signed_in)):
+        if not subject_id.startswith(custom_prefix) or subject_id not in own_subjects(user):
             raise HTTPException(404, "That subject doesn't exist.")
-        db.delete_subject(subject_id)
+        db.delete_subject(user["id"], subject_id)
         sync_custom(db.list_subjects())
-        return {"ok": True, "modes": public_modes()}
+        return {"ok": True, "modes": public_modes(own_subjects(user))}
 
     @app.get("/api/modes")
-    def list_modes():
+    def list_modes(user: dict = Depends(signed_in)):
         return {
-            "modes": public_modes(), "groups": groups, "menu_groups": menu_groups, "default": default_mode,
+            "modes": public_modes(own_subjects(user)), "groups": groups, "menu_groups": menu_groups, "default": default_mode,
             "languages": answer_languages,
         }
 
     @app.get("/api/conversations")
-    def list_conversations():
-        return {"conversations": db.list_conversations()}
+    def list_conversations(user: dict = Depends(signed_in)):
+        return {"conversations": db.list_conversations(user["id"])}
 
     @app.post("/api/conversations")
-    def new_conversation(body: new_conversation_in):
-        if body.mode not in modes:
-            raise HTTPException(400, "Unknown subject.")
-        return {"id": db.new_conversation(body.mode)}
+    def new_conversation(body: new_conversation_in, user: dict = Depends(signed_in)):
+        check_mode(user, body.mode)
+        return {"id": db.new_conversation(user["id"], body.mode)}
 
     @app.get("/api/search")
-    def search_chats(q: str = ""):
+    def search_chats(q: str = "", user: dict = Depends(signed_in)):
         # every chat is searched, not only the newest ones the list shows
         words = " ".join(q.split())[:100]
         if len(words) < 2:
             return {"results": []}
-        return {"results": db.search_chats(words)}
+        return {"results": db.search_chats(user["id"], words)}
 
     @app.get("/api/conversations/{conversation_id}")
-    def get_conversation(conversation_id: str):
-        conversation = conversation_or_404(conversation_id)
+    def get_conversation(conversation_id: str, user: dict = Depends(signed_in)):
+        conversation = conversation_or_404(user, conversation_id)
         return {**conversation, "messages": db.display_messages(conversation_id)}
 
     @app.delete("/api/conversations/{conversation_id}")
-    def delete_conversation(conversation_id: str):
-        conversation_or_404(conversation_id)
-        db.delete_conversation(conversation_id)
+    def delete_conversation(conversation_id: str, user: dict = Depends(signed_in)):
+        conversation_or_404(user, conversation_id)
+        db.delete_conversation(user["id"], conversation_id)
         return {"ok": True}
 
     @app.post("/api/files")
-    async def upload_file(conversation_id: str = Form(...), file: UploadFile = File(...)):
-        conversation_or_404(conversation_id)
+    async def upload_file(conversation_id: str = Form(...), file: UploadFile = File(...), user: dict = Depends(signed_in)):
+        conversation_or_404(user, conversation_id)
         limit = cfg.max_upload_mb * 1024 * 1024
         data = await file.read(limit + 1)
         if len(data) > limit:
@@ -376,15 +522,14 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         return {"id": uploaded.id, "name": name, "kind": kind, "size": len(data)}
 
     @app.get("/api/notes")
-    def list_notes():
-        return {"notes": db.list_notes()}
+    def list_notes(user: dict = Depends(signed_in)):
+        return {"notes": db.list_notes(user["id"])}
 
     @app.post("/api/notes")
-    async def add_note(mode: str = Form(default_mode), file: UploadFile = File(...)):
+    async def add_note(mode: str = Form(default_mode), file: UploadFile = File(...), user: dict = Depends(signed_in)):
         # a file kept in the notes library under a subject, uploaded to claude once
-        if mode not in modes:
-            raise HTTPException(400, "Unknown subject.")
-        if db.count_notes() >= max_notes:
+        check_mode(user, mode)
+        if db.count_notes(user["id"]) >= max_notes:
             raise HTTPException(400, f"Your notes can hold up to {max_notes} files. Remove some first.")
         limit = cfg.max_upload_mb * 1024 * 1024
         data = await file.read(limit + 1)
@@ -401,11 +546,11 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 raise
             log.warning("note upload failed: %s", error)
             raise HTTPException(502, friendly_error(error))
-        return db.add_note(uploaded.id, mode, name, kind, media_type, len(data))
+        return db.add_note(user["id"], uploaded.id, mode, name, kind, media_type, len(data))
 
     @app.delete("/api/notes/{note_id}")
-    async def delete_note(note_id: str):
-        if not db.delete_note(note_id):
+    async def delete_note(note_id: str, user: dict = Depends(signed_in)):
+        if not db.delete_note(user["id"], note_id):
             raise HTTPException(404, "That note doesn't exist.")
         # chats that used the note still point at it, so the copy with claude goes only when nothing else does
         if not db.file_in_history(note_id):
@@ -418,17 +563,16 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         return {"ok": True}
 
     @app.post("/api/conversations/{conversation_id}/messages")
-    def send_message(conversation_id: str, body: message_in):
-        conversation = conversation_or_404(conversation_id)
-        if body.mode not in modes:
-            raise HTTPException(400, "Unknown subject.")
+    def send_message(conversation_id: str, body: message_in, user: dict = Depends(signed_in)):
+        conversation = conversation_or_404(user, conversation_id)
+        check_mode(user, body.mode)
         text = body.text.strip()
         if not text:
             raise HTTPException(400, "Write a question first.")
         files = db.get_files(conversation_id, body.file_ids)
         if len(files) != len(set(body.file_ids)) or any(f.used for f in files):
             raise HTTPException(400, "One of the attached files is missing or already sent. Attach it again.")
-        notes = db.note_files(body.note_ids)
+        notes = db.note_files(user["id"], body.note_ids)
         if len(notes) != len(set(body.note_ids)):
             raise HTTPException(400, "One of those notes was removed from your notes.")
         files = files + notes
@@ -445,14 +589,13 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if note:
             rows.append(note)
         messages = history + [{"role": r["role"], "content": r["content"]} for r in rows]
-        return answer_response(conversation_id, messages, rows, body.mode, text[:60], "chat")
+        return answer_response(user, conversation_id, messages, rows, body.mode, text[:60], "chat")
 
     @app.post("/api/conversations/{conversation_id}/retry")
-    def retry_answer(conversation_id: str, body: retry_in):
+    def retry_answer(conversation_id: str, body: retry_in, user: dict = Depends(signed_in)):
         # the last answer is dropped and asked for again, the question stays as it was
-        conversation = conversation_or_404(conversation_id)
-        if body.mode not in modes:
-            raise HTTPException(400, "Unknown subject.")
+        conversation = conversation_or_404(user, conversation_id)
+        check_mode(user, body.mode)
         if not db.drop_last_answer(conversation_id):
             raise HTTPException(400, "There's no answer to try again yet.")
         messages = db.api_messages(conversation_id)
@@ -461,9 +604,9 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if note:
             rows.append(note)
             messages.append(note)
-        return answer_response(conversation_id, messages, rows, body.mode, "", "retry")
+        return answer_response(user, conversation_id, messages, rows, body.mode, "", "retry")
 
-    def answer_response(conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str):
+    def answer_response(user: dict, conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str):
         # once code has run in a chat the tool stays on, since the history holds its runs
         sandbox = db.get_container(conversation_id)
         code = runs_code(mode) or sandbox is not None
@@ -516,7 +659,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                     save_stopped(partial, searches)
             ended = True
             if final.usage:
-                log_usage(kind)(final.usage)
+                log_usage(user, kind)(final.usage)
 
             # a refused turn is not saved, so the student can rephrase and carry on
             if final.stop_reason == "refusal":
@@ -540,9 +683,9 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         )
 
     @app.get("/api/outputs/{file_id}")
-    async def get_output(file_id: str):
-        # only files that came out of a run in one of rahah's chats can be fetched
-        output = db.get_output(file_id)
+    async def get_output(file_id: str, user: dict = Depends(signed_in)):
+        # only files that came out of a run in one of the student's own chats can be fetched
+        output = db.get_output(user["id"], file_id)
         if not output:
             raise HTTPException(404, "That file doesn't exist.")
         try:
@@ -563,15 +706,15 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             },
         )
 
-    def set_or_404(set_id: str) -> dict:
-        study_set = db.get_set(set_id)
+    def set_or_404(user: dict, set_id: str) -> dict:
+        study_set = db.get_set(user["id"], set_id)
         if not study_set:
             raise HTTPException(404, "That set doesn't exist.")
         return study_set
 
     @app.get("/api/sets")
-    def list_sets():
-        return {"sets": db.list_sets()}
+    def list_sets(user: dict = Depends(signed_in)):
+        return {"sets": db.list_sets(user["id"])}
 
     @app.post("/api/sets")
     async def new_set(
@@ -583,20 +726,20 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         files: list[UploadFile] | None = File(None),
         note_ids: list[str] | None = Form(None),
         language: str = Form(""),
+        user: dict = Depends(signed_in),
     ):
         if kind not in kinds:
             raise HTTPException(400, "Unknown kind of study set.")
         if style not in styles:
             raise HTTPException(400, "Pick multiple choice, written, mixed or past paper.")
-        if mode not in modes:
-            raise HTTPException(400, "Unknown subject.")
+        check_mode(user, mode)
         if language and language not in answer_languages:
             raise HTTPException(400, "Pick an answer language from the list.")
         topic = topic.strip()
         if len(topic) > 2000:
             raise HTTPException(400, "Keep the topic under 2000 characters.")
         files = files or []
-        notes = db.note_files(note_ids or [])
+        notes = db.note_files(user["id"], note_ids or [])
         if len(notes) != len(set(note_ids or [])):
             raise HTTPException(400, "One of those notes was removed from your notes.")
         if len(files) + len(notes) > max_set_files:
@@ -621,7 +764,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
 
         count = max(1, min(count, max_items))
         try:
-            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(kind), language=language)
+            made = await make_set(claude(), cfg, kind, topic, count, mode, uploads, style, on_usage=log_usage(user, kind), language=language)
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -629,12 +772,12 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 raise
             log.warning("study set failed: %s", error)
             raise HTTPException(502, friendly_error(error))
-        set_id = db.add_set(kind, made["title"], mode, made["items"])
-        return db.get_set(set_id)
+        set_id = db.add_set(user["id"], kind, made["title"], mode, made["items"])
+        return db.get_set(user["id"], set_id)
 
     @app.get("/api/sets/{set_id}")
-    def get_set(set_id: str):
-        return set_or_404(set_id)
+    def get_set(set_id: str, user: dict = Depends(signed_in)):
+        return set_or_404(user, set_id)
 
     @app.post("/api/sets/{set_id}/mark")
     async def mark_written(
@@ -642,9 +785,10 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         index: int = Form(...),
         answer: str = Form(""),
         photo: UploadFile | None = File(None),
+        user: dict = Depends(signed_in),
     ):
         # one written answer, typed, spoken or a photo of working, marked against its mark scheme
-        study_set = set_or_404(set_id)
+        study_set = set_or_404(user, set_id)
         items = study_set["items"]
         if study_set["kind"] != "quiz" or not 0 <= index < len(items) or items[index].get("type") != "written":
             raise HTTPException(400, "That question can't be marked.")
@@ -664,7 +808,7 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         if not answer and not shot:
             raise HTTPException(400, "Write, say or photograph an answer first.")
         try:
-            return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage("marking"))
+            return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage(user, "marking"))
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -677,42 +821,44 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
             raise HTTPException(502, friendly_error(error))
 
     @app.post("/api/sets/{set_id}/cards")
-    def rate_card(set_id: str, body: card_in):
+    def rate_card(set_id: str, body: card_in, user: dict = Depends(signed_in)):
         # still learning or got it, for one flashcard
-        study_set = set_or_404(set_id)
+        study_set = set_or_404(user, set_id)
         if study_set["kind"] != "flashcards" or body.card >= len(study_set["items"]):
             raise HTTPException(400, "That card isn't in this deck.")
         box = db.rate_card(set_id, body.card, body.known)
         return {"box": box, "known": db.known_cards(set_id)}
 
     @app.post("/api/sets/{set_id}/score")
-    def record_score(set_id: str, body: score_in):
+    def record_score(set_id: str, body: score_in, user: dict = Depends(signed_in)):
         # scores are in marks, a multiple choice question is one mark and a written one its own count
-        study_set = set_or_404(set_id)
+        study_set = set_or_404(user, set_id)
         marks = total_marks(study_set["items"])
         if study_set["kind"] != "quiz" or body.score > marks:
             raise HTTPException(400, "That score doesn't fit this set.")
         return {"best_score": db.record_score(set_id, body.score, marks)}
 
     @app.get("/api/performance")
-    def performance():
-        return summarise(db.quiz_attempts())
+    def performance(user: dict = Depends(signed_in)):
+        return summarise(db.quiz_attempts(user["id"]))
 
     @app.get("/api/report")
-    def report(offset: int = Query(0, ge=-14 * 60, le=14 * 60)):
+    def report(offset: int = Query(0, ge=-14 * 60, le=14 * 60), user: dict = Depends(signed_in)):
         # the last seven days next to the seven before, on the student's clock
         now = time.time()
         since = now - 16 * 86400
-        return weekly_report(db.quiz_attempts(), db.card_activity(since), db.question_times(since), now, offset)
+        uid = user["id"]
+        return weekly_report(db.quiz_attempts(uid), db.card_activity(uid, since), db.question_times(uid, since), now, offset)
 
-    def study_history() -> tuple[list[dict], list[dict], dict, list[dict]]:
-        deadlines = [r for r in db.list_reminders() if is_upcoming(r)][:10]
-        return db.list_conversations(limit=20), db.list_sets(limit=20), summarise(db.quiz_attempts()), deadlines
+    def study_history(user: dict) -> tuple[list[dict], list[dict], dict, list[dict]]:
+        uid = user["id"]
+        deadlines = [r for r in db.list_reminders(uid) if is_upcoming(r)][:10]
+        return db.list_conversations(uid, limit=20), db.list_sets(uid, limit=20), summarise(db.quiz_attempts(uid)), deadlines
 
-    def recommendations_body(saved: dict | None, history: tuple) -> dict:
+    def recommendations_body(user: dict, saved: dict | None, history: tuple) -> dict:
         # fresh means nothing new has been studied since these were picked
         # a deck or quiz deleted since then is left out
-        items = [i for i in (saved["items"] if saved else []) if i["action"] != "open" or db.get_set(i["set_id"])]
+        items = [i for i in (saved["items"] if saved else []) if i["action"] != "open" or db.get_set(user["id"], i["set_id"])]
         return {
             "items": items,
             "created": saved["created"] if saved else None,
@@ -721,16 +867,16 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         }
 
     @app.get("/api/recommendations")
-    def get_recommendations():
-        return recommendations_body(db.get_recommendations(), study_history())
+    def get_recommendations(user: dict = Depends(signed_in)):
+        return recommendations_body(user, db.get_recommendations(user["id"]), study_history(user))
 
     @app.post("/api/recommendations")
-    async def new_recommendations():
-        history = study_history()
+    async def new_recommendations(user: dict = Depends(signed_in)):
+        history = study_history(user)
         if not has_activity(*history):
             raise HTTPException(400, "Study something first, then Rahah can suggest what comes next.")
         try:
-            items = await recommend(claude(), cfg, *history, on_usage=log_usage("suggestions"))
+            items = await recommend(claude(), cfg, *history, on_usage=log_usage(user, "suggestions"))
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -738,16 +884,16 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 raise
             log.warning("recommendations failed: %s", error)
             raise HTTPException(502, friendly_error(error))
-        db.save_recommendations(items, signature(*history))
-        return recommendations_body(db.get_recommendations(), history)
+        db.save_recommendations(user["id"], items, signature(*history))
+        return recommendations_body(user, db.get_recommendations(user["id"]), history)
 
     # reminders, the page works out today's date itself, since that depends on where the student is
 
     def reminder_out(reminder: dict) -> dict:
         return {**reminder, "reminder_days": reminder_days(reminder["lead_days"], reminder["every_days"])}
 
-    def reminder_or_404(reminder_id: str) -> dict:
-        reminder = db.get_reminder(reminder_id)
+    def reminder_or_404(user: dict, reminder_id: str) -> dict:
+        reminder = db.get_reminder(user["id"], reminder_id)
         if not reminder:
             raise HTTPException(404, "That reminder doesn't exist.")
         return reminder
@@ -760,45 +906,45 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         )
 
     @app.get("/api/reminders")
-    def list_reminders():
-        return {"reminders": [reminder_out(r) for r in db.list_reminders()], "kinds": reminder_kinds}
+    def list_reminders(user: dict = Depends(signed_in)):
+        return {"reminders": [reminder_out(r) for r in db.list_reminders(user["id"])], "kinds": reminder_kinds}
 
     @app.post("/api/reminders")
-    def new_reminder(body: reminder_in):
-        return reminder_out(db.get_reminder(db.save_reminder(body.model_dump())))
+    def new_reminder(body: reminder_in, user: dict = Depends(signed_in)):
+        return reminder_out(db.get_reminder(user["id"], db.save_reminder(user["id"], body.model_dump())))
 
     @app.put("/api/reminders/{reminder_id}")
-    def edit_reminder(reminder_id: str, body: reminder_in):
-        reminder_or_404(reminder_id)
-        return reminder_out(db.get_reminder(db.save_reminder(body.model_dump(), reminder_id)))
+    def edit_reminder(reminder_id: str, body: reminder_in, user: dict = Depends(signed_in)):
+        reminder_or_404(user, reminder_id)
+        return reminder_out(db.get_reminder(user["id"], db.save_reminder(user["id"], body.model_dump(), reminder_id)))
 
     @app.post("/api/reminders/{reminder_id}/done")
-    def finish_reminder(reminder_id: str, body: done_in):
-        reminder_or_404(reminder_id)
-        db.set_reminder_done(reminder_id, body.done)
-        return reminder_out(db.get_reminder(reminder_id))
+    def finish_reminder(reminder_id: str, body: done_in, user: dict = Depends(signed_in)):
+        reminder_or_404(user, reminder_id)
+        db.set_reminder_done(user["id"], reminder_id, body.done)
+        return reminder_out(db.get_reminder(user["id"], reminder_id))
 
     @app.post("/api/reminders/{reminder_id}/seen")
-    def saw_reminder(reminder_id: str, body: seen_in):
-        reminder_or_404(reminder_id)
-        return {"seen": db.mark_reminder_seen(reminder_id, body.day)}
+    def saw_reminder(reminder_id: str, body: seen_in, user: dict = Depends(signed_in)):
+        reminder_or_404(user, reminder_id)
+        return {"seen": db.mark_reminder_seen(user["id"], reminder_id, body.day)}
 
     @app.delete("/api/reminders/{reminder_id}")
-    def delete_reminder(reminder_id: str):
-        reminder_or_404(reminder_id)
-        db.delete_reminder(reminder_id)
+    def delete_reminder(reminder_id: str, user: dict = Depends(signed_in)):
+        reminder_or_404(user, reminder_id)
+        db.delete_reminder(user["id"], reminder_id)
         return {"ok": True}
 
     @app.post("/api/reminders/{reminder_id}/plan")
-    async def plan_reminder(reminder_id: str, body: plan_in):
+    async def plan_reminder(reminder_id: str, body: plan_in, user: dict = Depends(signed_in)):
         # today comes from the page, since the student's own date is what matters
-        reminder = reminder_or_404(reminder_id)
+        reminder = reminder_or_404(user, reminder_id)
         try:
             today = date.fromisoformat(body.today)
         except ValueError:
             raise HTTPException(422, "Pick a real date.")
         try:
-            days = await make_plan(claude(), cfg, reminder, today, body.topics.strip(), on_usage=log_usage("plan"))
+            days = await make_plan(claude(), cfg, reminder, today, body.topics.strip(), on_usage=log_usage(user, "plan"))
         except study_error as error:
             raise HTTPException(422, str(error))
         except Exception as error:
@@ -806,23 +952,23 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
                 raise
             log.warning("plan failed: %s", error)
             raise HTTPException(502, friendly_error(error))
-        db.save_plan(reminder_id, {"made": body.today, "topics": body.topics.strip(), "days": days})
-        return reminder_out(db.get_reminder(reminder_id))
+        db.save_plan(user["id"], reminder_id, {"made": body.today, "topics": body.topics.strip(), "days": days})
+        return reminder_out(db.get_reminder(user["id"], reminder_id))
 
     @app.post("/api/reminders/{reminder_id}/plan/day")
-    def plan_day(reminder_id: str, body: plan_day_in):
-        reminder = reminder_or_404(reminder_id)
+    def plan_day(reminder_id: str, body: plan_day_in, user: dict = Depends(signed_in)):
+        reminder = reminder_or_404(user, reminder_id)
         plan = reminder["plan"]
         day = next((d for d in (plan or {}).get("days", []) if d["date"] == body.date), None)
         if not day:
             raise HTTPException(404, "That day isn't in the plan.")
         day["done"] = body.done
-        db.save_plan(reminder_id, plan)
-        return reminder_out(db.get_reminder(reminder_id))
+        db.save_plan(user["id"], reminder_id, plan)
+        return reminder_out(db.get_reminder(user["id"], reminder_id))
 
     @app.get("/api/reminders/{reminder_id}/plan.ics")
-    def plan_ics(reminder_id: str):
-        reminder = reminder_or_404(reminder_id)
+    def plan_ics(reminder_id: str, user: dict = Depends(signed_in)):
+        reminder = reminder_or_404(user, reminder_id)
         if not reminder["plan"]:
             raise HTTPException(404, "There's no plan for this yet.")
         return Response(
@@ -832,21 +978,21 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         )
 
     @app.get("/api/reminders/calendar.ics")
-    def all_reminders_calendar():
-        upcoming = [r for r in db.list_reminders() if is_upcoming(r)]
+    def all_reminders_calendar(user: dict = Depends(signed_in)):
+        upcoming = [r for r in db.list_reminders(user["id"]) if is_upcoming(r)]
         if not upcoming:
             raise HTTPException(404, "There are no upcoming reminders to add.")
         return calendar_response(upcoming, "rahah reminders")
 
     @app.get("/api/reminders/{reminder_id}/calendar.ics")
-    def reminder_calendar(reminder_id: str):
-        reminder = reminder_or_404(reminder_id)
+    def reminder_calendar(reminder_id: str, user: dict = Depends(signed_in)):
+        reminder = reminder_or_404(user, reminder_id)
         return calendar_response([reminder], reminder["title"])
 
     # the weekly timetable
 
-    def class_or_404(class_id: str) -> dict:
-        item = db.get_class(class_id)
+    def class_or_404(user: dict, class_id: str) -> dict:
+        item = db.get_class(user["id"], class_id)
         if not item:
             raise HTTPException(404, "That class doesn't exist.")
         return item
@@ -859,40 +1005,40 @@ def create_app(cfg: settings | None = None, client=None) -> FastAPI:
         )
 
     @app.get("/api/timetable")
-    def list_classes():
-        return {"classes": db.list_classes()}
+    def list_classes(user: dict = Depends(signed_in)):
+        return {"classes": db.list_classes(user["id"])}
 
     @app.post("/api/timetable")
-    def new_class(body: class_in):
-        return db.get_class(db.save_class(body.model_dump()))
+    def new_class(body: class_in, user: dict = Depends(signed_in)):
+        return db.get_class(user["id"], db.save_class(user["id"], body.model_dump()))
 
     @app.put("/api/timetable/{class_id}")
-    def edit_class(class_id: str, body: class_in):
-        class_or_404(class_id)
-        return db.get_class(db.save_class(body.model_dump(), class_id))
+    def edit_class(class_id: str, body: class_in, user: dict = Depends(signed_in)):
+        class_or_404(user, class_id)
+        return db.get_class(user["id"], db.save_class(user["id"], body.model_dump(), class_id))
 
     @app.delete("/api/timetable/{class_id}")
-    def delete_class(class_id: str):
-        class_or_404(class_id)
-        db.delete_class(class_id)
+    def delete_class(class_id: str, user: dict = Depends(signed_in)):
+        class_or_404(user, class_id)
+        db.delete_class(user["id"], class_id)
         return {"ok": True}
 
     @app.get("/api/timetable/calendar.ics")
-    def timetable_calendar():
-        classes = db.list_classes()
+    def timetable_calendar(user: dict = Depends(signed_in)):
+        classes = db.list_classes(user["id"])
         if not classes:
             raise HTTPException(404, "There are no classes to add yet.")
         return timetable_response(classes, "rahah timetable")
 
     @app.get("/api/timetable/{class_id}/calendar.ics")
-    def class_calendar(class_id: str):
-        item = class_or_404(class_id)
+    def class_calendar(class_id: str, user: dict = Depends(signed_in)):
+        item = class_or_404(user, class_id)
         return timetable_response([item], item["title"])
 
     @app.delete("/api/sets/{set_id}")
-    def delete_set(set_id: str):
-        set_or_404(set_id)
-        db.delete_set(set_id)
+    def delete_set(set_id: str, user: dict = Depends(signed_in)):
+        set_or_404(user, set_id)
+        db.delete_set(user["id"], set_id)
         return {"ok": True}
 
     app.mount("/static", StaticFiles(directory=static_dir), name="static")

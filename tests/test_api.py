@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.modes import modes
 
-from .fakes import fake_client, message, page_citation, search_block, search_result, stopped_stream, text_block, thinking_block, web_citation
+from .fakes import signed_in, fake_client, message, page_citation, search_block, search_result, stopped_stream, text_block, thinking_block, web_citation
 
 pdf_bytes = b"%PDF-1.4 fake pdf for tests"
 
@@ -17,7 +17,7 @@ def setup(tmp_path):
     def build(replies=()):
         claude = fake_client(replies)
         app = create_app(settings(db_path=tmp_path / "test.db"), client=claude)
-        return TestClient(app), claude
+        return signed_in(TestClient(app)), claude
     return build
 
 
@@ -124,7 +124,7 @@ def test_history_is_replayed_unchanged_and_mode_notes_only_on_change(setup):
 
 def test_haiku_is_not_sent_the_fallback_setting(tmp_path):
     claude = fake_client([message([text_block("hi")])])
-    web = TestClient(create_app(settings(model="claude-haiku-5-5", db_path=tmp_path / "h.db"), client=claude))
+    web = signed_in(TestClient(create_app(settings(model="claude-haiku-5-5", db_path=tmp_path / "h.db"), client=claude)))
     ask(web, new_chat(web), "hello")
     call = claude.beta.messages.calls[0]
     assert call["model"] == "claude-haiku-5-5"
@@ -357,7 +357,8 @@ def test_rahah_can_be_installed_as_an_app(setup):
 def test_the_database_is_backed_up_once_a_day_and_old_copies_go(tmp_path):
     from app.store import store
     db = store(tmp_path / "live.db")
-    db.add_subject("Law of torts")
+    owner = db.create_user("runie", "runie@example.com", None)
+    db.add_subject(owner["id"], "Law of torts")
     folder = tmp_path / "backups"
     # a week of older copies already there
     folder.mkdir()
@@ -375,7 +376,7 @@ def test_the_database_is_backed_up_once_a_day_and_old_copies_go(tmp_path):
 
 def test_the_server_backs_up_when_it_starts(tmp_path):
     with TestClient(create_app(settings(db_path=tmp_path / "start.db"), client=fake_client())) as web:
-        assert web.get("/api/modes").status_code == 200
+        assert web.get("/api/auth/config").status_code == 200
     assert len(list((tmp_path / "backups").glob("rahah-*.db"))) == 1
 
 

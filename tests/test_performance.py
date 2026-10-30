@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.performance import grade_for, percent, summarise
 
-from .fakes import fake_client, message, text_block
+from .fakes import signed_in, fake_client, message, text_block
 
 
 def test_grades_follow_the_scale_at_each_boundary():
@@ -52,7 +52,7 @@ def web(tmp_path):
         {"question": f"Q{i}", "options": ["a", "b", "c", "d"], "answer": 0, "explanation": ""} for i in range(4)
     ]}
     claude = fake_client([message([text_block(json.dumps(quiz))])])
-    return TestClient(create_app(settings(db_path=tmp_path / "p.db"), client=claude))
+    return signed_in(TestClient(create_app(settings(db_path=tmp_path / "p.db"), client=claude)))
 
 
 def test_every_attempt_is_kept_and_deleting_the_quiz_clears_them(web):

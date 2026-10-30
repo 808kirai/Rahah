@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.recommend import clean, describe_history
 
-from .fakes import fake_client, message, text_block
+from .fakes import signed_in, fake_client, message, text_block
 from .test_api import ask, new_chat
 
 
@@ -28,7 +28,7 @@ def setup(tmp_path):
     def build(replies=()):
         claude = fake_client(replies)
         app = create_app(settings(db_path=tmp_path / "rec.db"), client=claude)
-        return TestClient(app), claude
+        return signed_in(TestClient(app)), claude
     return build
 
 

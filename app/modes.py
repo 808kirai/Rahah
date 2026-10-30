@@ -112,28 +112,39 @@ def custom_mode(name: str) -> dict:
 
 
 def sync_custom(subjects: list[dict]) -> None:
-    """swap the custom subjects in modes for the ones saved now"""
+    """swap the custom subjects in modes for the ones saved now, every student's
+
+    ids are random, so one student's subject never clashes with another's, and the
+    server checks a subject is the student's own before using it, see allowed_mode
+    """
     for key in [k for k in modes if k.startswith(custom_prefix)]:
         del modes[key]
     for subject in subjects:
         modes[subject["id"]] = custom_mode(subject["name"])
 
 
-def find_mode(name: str) -> str | None:
+def allowed_mode(mode: str, own: set[str]) -> bool:
+    """a built in subject, or one of the student's own"""
+    return mode in modes and (not mode.startswith(custom_prefix) or mode in own)
+
+
+def find_mode(name: str, own: set[str]) -> str | None:
     """the id of a subject with this name, ignoring case, so the same subject isn't added twice"""
     wanted = name.casefold()
-    return next((key for key, m in modes.items() if m["name"].casefold() == wanted), None)
+    return next((key for key, m in modes.items() if allowed_mode(key, own) and m["name"].casefold() == wanted), None)
 
 
 def runs_code(mode: str) -> bool:
     return modes[mode].get("runs_code", False)
 
 
-def public_modes() -> list[dict]:
+def public_modes(own: set[str]) -> list[dict]:
+    # built in subjects and the student's own, never anyone else's
     return [
         {
             "id": key, "name": m["name"], "hint": m["hint"], "group": m["group"], "menu": m["menu"],
             "runs_code": runs_code(key), "custom": m.get("custom", False),
         }
         for key, m in modes.items()
+        if allowed_mode(key, own)
     ]

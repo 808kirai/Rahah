@@ -1688,6 +1688,170 @@ button.plan-task:focus-visible {
     }
 }
 
+/* the sign in screen, the app stays hidden behind it */
+body.signed-out .main,
+body.signed-out .dock-wrap,
+body.signed-out .toasts {
+    display: none !important;
+}
+
+.auth {
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+.auth[hidden] {
+    display: none;
+}
+
+.auth-card {
+    width: min(420px, 100%);
+    padding: 2rem 1.75rem 1.5rem;
+    border: 1px solid var(--panel-line);
+    border-radius: 28px;
+    background: var(--panel-bg);
+    box-shadow: 0 30px 80px -40px rgba(8, 105, 154, 0.45);
+}
+
+.auth-brand {
+    margin: 0 0 1.25rem;
+}
+
+.auth-title {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.auth-sub {
+    margin: 0.35rem 0 1.25rem;
+    color: var(--text-2);
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.auth-tabs {
+    margin-bottom: 1.1rem;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.auth-form .field[hidden] {
+    display: none;
+}
+
+.auth-submit {
+    margin-top: 0.35rem;
+    width: 100%;
+    justify-content: center;
+}
+
+.auth-providers {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+}
+
+.auth-providers[hidden],
+.auth-apple[hidden] {
+    display: none;
+}
+
+.auth-apple {
+    width: 100%;
+    justify-content: center;
+}
+
+.auth-apple svg {
+    fill: currentColor;
+    stroke: none;
+}
+
+.auth-or {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.3rem 0 0;
+    color: var(--text-2);
+    font-size: 0.8rem;
+}
+
+.auth-or::before,
+.auth-or::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--panel-line);
+}
+
+.auth-note {
+    margin: 1.25rem 0 0;
+    color: var(--text-2);
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+/* who's signed in, at the top of settings */
+.account-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.account-avatar {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+}
+
+.account-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.account-text small {
+    color: var(--text-2);
+    font-size: 0.78rem;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.account-password {
+    margin-top: 0.6rem;
+}
+
+.account-password-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+}
+
+.account-password-form .btn {
+    align-self: flex-start;
+}
+
+.account-box:empty {
+    display: none;
+}
+
 /* settings */
 .field-hint {
     margin: 0 0 0.5rem;

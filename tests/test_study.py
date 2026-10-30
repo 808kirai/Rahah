@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.study import clean_quiz, clean_text
 
-from .fakes import fake_client, message, text_block
+from .fakes import signed_in, fake_client, message, text_block
 
 pdf_bytes = b"%PDF-1.4 fake pdf for tests"
 
@@ -17,7 +17,7 @@ def setup(tmp_path):
     def build(replies=()):
         claude = fake_client(replies)
         app = create_app(settings(db_path=tmp_path / "study.db"), client=claude)
-        return TestClient(app), claude
+        return signed_in(TestClient(app)), claude
     return build
 
 
@@ -249,17 +249,18 @@ def test_due_cards_follow_the_box_gaps(tmp_path):
     import time as _time
     from app.store import store
     db = store(tmp_path / "due.db")
-    deck = db.add_set("flashcards", "Cells", "science", [{"front": "a", "back": "b"}] * 3)
+    uid = db.create_user("runie", "runie@example.com", None)["id"]
+    deck = db.add_set(uid, "flashcards", "Cells", "science", [{"front": "a", "back": "b"}] * 3)
     db.rate_card(deck, 0, False)  # box 1
     db.rate_card(deck, 1, True)   # box 2
     db.rate_card(deck, 2, True)
     db.rate_card(deck, 2, True)   # box 3
     now = _time.time()
-    assert db.due_cards(now) == []
+    assert db.due_cards(uid, now) == []
     # a day later only the box 1 card is due, two days later box 2 joins it, four days later all three
-    assert db.due_cards(now + 86400)[0]["due"] == 1
-    assert db.due_cards(now + 2 * 86400)[0]["due"] == 2
-    assert db.due_cards(now + 4 * 86400)[0] == {"id": deck, "title": "Cells", "due": 3}
+    assert db.due_cards(uid, now + 86400)[0]["due"] == 1
+    assert db.due_cards(uid, now + 2 * 86400)[0]["due"] == 2
+    assert db.due_cards(uid, now + 4 * 86400)[0] == {"id": deck, "title": "Cells", "due": 3}
 
 
 def test_notes_are_kept_by_subject_and_used_in_chats_and_sets(setup):

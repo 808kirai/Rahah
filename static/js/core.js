@@ -74,6 +74,8 @@ function escape_html(text) {
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
+    // a session that ran out or was signed out elsewhere goes back to the sign in screen
+    if (response.status === 401 && !path.startsWith("/api/auth/") && typeof show_auth === "function") show_auth();
     if (!response.ok) {
         let detail = `Something went wrong (${response.status}).`;
         try {

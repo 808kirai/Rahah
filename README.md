@@ -55,6 +55,17 @@ Pages
 - Calendar files for reminders and for the timetable, so a phone's own calendar reminds you even when Rahah is closed. Each class repeats weekly with an alert 15 minutes before it starts
 - Every card has a small hand drawn sketch of what it's about, which draws itself in once when the card first shows
 
+Accounts
+
+- Students sign up with a username, email and password, and sign in with either the username or the email
+- Each student's chats, tests, decks, notes, reminders, timetable, subjects, suggestions, progress and usage are their own. Nobody else can list, open, change or use them, and every route checks this on the server
+- The first account is the admin. It takes over everything made before accounts and sees the total usage and every student's answer ratings in the usage box
+- Passwords are hashed with scrypt and never stored as typed. Signing in sets a session cookie for 30 days that the page's script can't read, and only a hash of the session is stored
+- Wrong passwords are slowed down: after 8 tries for one name or address there's a 15 minute wait
+- Settings shows who's signed in, a sign out button and a way to change the password, which signs out other devices. The answer language and low-data mode are saved with the account, so they follow the student to another device
+- Signing out, or someone else signing in on the same device, clears the copies saved for offline use, so one student never sees another's decks
+- Not yet: password reset by email and email checks need an email service, which comes with deployment
+
 Look and feel
 
 - A near black navy theme with soft teal glows and a solid blue accent, after a Dribbble reference, and a matching light theme
@@ -87,7 +98,7 @@ You need Python 3.12 and an API key from platform.claude.com.
 
     C:\Users\altru\venvs\rahah\Scripts\python -m uvicorn app.main:create_app --factory --reload --port 8000
 
-5. Open http://127.0.0.1:8000 in a browser
+5. Open http://127.0.0.1:8000 in a browser and create your account. The first account made becomes the admin and takes over every chat, test, note and reminder made before accounts existed, so make yours before anyone else signs up
 
 Running the tests
 
@@ -109,6 +120,7 @@ Project layout
 - `app/report.py` - The weekly report, this week next to last on the student's own clock
 - `app/modes.py` - Subject modes, the instruction each one adds, and the student's own subjects
 - `app/store.py` - Local SQLite storage for chats, files, notes, study sets, reminders, classes and subjects
+- `app/accounts.py` - Password hashing, sign up checks, sessions and the slow down after wrong passwords
 - `app/config.py` - Settings read from the environment
 - `static/` - The page, its styles, the app manifest, the service worker and the offline page
 - `static/js/` - The page's script in seven plain files with no build step, loaded in order and sharing one scope: `core.js` (shared helpers, markdown, diagrams), `chat.js` (answers, voice, printing, attachments, settings), `pages.js` (home, chats and tests, notes, suggestions), `reminders.js` (reminders, timetable, revision plans), `study.js` (tool sheets, flashcards, tests), `performance.js` (scores, weekly report, usage) and `main.js` (conversations, theme, message box, start). Code that runs as a file loads can only use what earlier files define
@@ -160,5 +172,6 @@ Every question is billed to the API key. Opus 5.5 costs 4 dollars per million in
 
 Roadmap
 
-- Student accounts with saved chats, their own subjects and daily usage limits
+- Daily usage limits per student, and an admin page
+- Sign in with Google and Apple
 - Deployment to a public web address, with a calendar link that updates by itself and push notifications

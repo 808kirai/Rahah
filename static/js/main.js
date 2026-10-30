@@ -250,7 +250,193 @@ function apply_modes(modes, redraw = true) {
     if (redraw) render_rows();
 }
 
+// accounts, the sign in screen and what changes when a student signs in or out
+
+async function load_me() {
+    try {
+        const response = await fetch("/api/me");
+        if (response.status === 401) return null;
+        if (!response.ok) throw new Error("not reachable");
+        return await response.json();
+    } catch (error) {
+        // offline, the last student on this device carries on with what's saved
+        try {
+            return JSON.parse(localStorage.getItem("rahah-me") || "null");
+        } catch (e) {
+            return null;
+        }
+    }
+}
+
+// saved copies on this device belong to whoever was signed in, so they go when someone else signs in or out
+async function forget_saved_data() {
+    try {
+        ["rahah-queue", "rahah-offline-sets", "rahah-me", "rahah-settings"].forEach((key) => localStorage.removeItem(key));
+    } catch (e) {}
+    try {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => k.startsWith("rahah-data")).map((k) => caches.delete(k)));
+    } catch (e) {}
+}
+
+function remember_me(me) {
+    try {
+        const before = localStorage.getItem("rahah-user");
+        localStorage.setItem("rahah-user", me.id);
+        localStorage.setItem("rahah-me", JSON.stringify(me));
+        return before && before !== me.id;
+    } catch (e) {
+        return false;
+    }
+}
+
+const auth = { mode: "login", config: null };
+
+async function show_auth() {
+    if (!el("auth").hidden) return;
+    document.body.classList.add("signed-out");
+    el("auth").hidden = false;
+    set_auth_mode(auth.mode);
+    if (!auth.config) {
+        try {
+            auth.config = await (await fetch("/api/auth/config")).json();
+        } catch (e) {
+            auth.config = {};
+        }
+        set_up_providers();
+    }
+    (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
+}
+
+function set_auth_mode(mode) {
+    auth.mode = mode;
+    const signup = mode === "signup";
+    document.querySelectorAll("[data-auth-tab]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.authTab === mode)));
+    document.querySelectorAll(".auth-signup-only").forEach((n) => (n.hidden = !signup));
+    document.querySelectorAll(".auth-login-only").forEach((n) => (n.hidden = signup));
+    el("auth-title").textContent = signup ? "Make your account" : "Welcome back";
+    el("auth-sub").textContent = signup ? "Free to start. Your chats, tests and notes stay in your own account." : "Sign in to pick up where you left off.";
+    el("auth-submit").textContent = signup ? "Create account" : "Sign in";
+    el("auth-password").autocomplete = signup ? "new-password" : "current-password";
+    el("auth-password").placeholder = signup ? "At least 8 characters" : "";
+    show_auth_error("");
+}
+
+function show_auth_error(text) {
+    el("auth-error").textContent = text;
+    el("auth-error").hidden = !text;
+}
+
+// google and apple buttons appear once their keys are set on the server
+function set_up_providers() {
+    const config = auth.config || {};
+    el("auth-providers").hidden = !config.google_client_id && !config.apple_client_id;
+}
+
+async function finish_sign_in(me) {
+    if (remember_me(me)) await forget_saved_data();
+    remember_me(me);
+    // a fresh start loads everything for this student
+    location.hash = "#/";
+    location.reload();
+}
+
+document.querySelectorAll("[data-auth-tab]").forEach((tab) => tab.addEventListener("click", () => set_auth_mode(tab.dataset.authTab)));
+
+el("auth-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const signup = auth.mode === "signup";
+    const password = el("auth-password").value;
+    const body = signup
+        ? { username: el("auth-username").value.trim(), email: el("auth-email").value.trim(), password }
+        : { login: el("auth-login").value.trim(), password };
+    if (signup ? !body.username || !body.email || !password : !body.login || !password) {
+        show_auth_error(signup ? "Fill in a username, email and password." : "Fill in your username or email and password.");
+        return;
+    }
+    el("auth-submit").disabled = true;
+    show_auth_error("");
+    try {
+        const response = await api(signup ? "/api/auth/signup" : "/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        await finish_sign_in(await response.json());
+    } catch (error) {
+        show_auth_error(error.message);
+        el("auth-submit").disabled = false;
+    }
+});
+
+async function sign_out() {
+    try {
+        await fetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {}
+    await forget_saved_data();
+    try {
+        localStorage.removeItem("rahah-user");
+    } catch (e) {}
+    location.hash = "#/";
+    location.reload();
+}
+
+// the account part of the settings box, who's signed in, a new password and signing out
+function render_account() {
+    const me = state.me;
+    const box = el("account-box");
+    if (!me) {
+        box.innerHTML = "";
+        return;
+    }
+    const shown = me.name || me.username;
+    box.innerHTML = `
+        <div class="account-row">
+            <span class="account-avatar" aria-hidden="true">${escape_html(shown.slice(0, 1).toUpperCase())}</span>
+            <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.email ? ` · ${escape_html(me.email)}` : ""}${me.is_admin ? " · Admin" : ""}</small></span>
+            <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
+        </div>
+        <details class="perf-details account-password">
+            <summary>${me.has_password ? "Change password" : "Add a password"}</summary>
+            <div class="account-password-form">
+                ${me.has_password ? '<input class="text-input" type="password" id="password-current" autocomplete="current-password" placeholder="Current password">' : ""}
+                <input class="text-input" type="password" id="password-new" autocomplete="new-password" placeholder="New password, at least 8 characters">
+                <button class="btn btn-soft btn-small" type="button" data-save-password>Save password</button>
+                <p class="field-hint" id="password-note" hidden></p>
+            </div>
+        </details>`;
+}
+
+el("account-box").addEventListener("click", async (event) => {
+    if (event.target.closest("[data-sign-out]")) sign_out();
+    if (!event.target.closest("[data-save-password]")) return;
+    const note = el("password-note");
+    try {
+        await api("/api/me/password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ current: el("password-current")?.value || "", new: el("password-new").value }),
+        });
+        note.textContent = "Password saved. Other devices were signed out.";
+        state.me.has_password = true;
+    } catch (error) {
+        note.textContent = error.message;
+    }
+    note.hidden = false;
+});
+
 async function start() {
+    const me = await load_me();
+    if (!me) {
+        show_auth();
+        return;
+    }
+    state.me = me;
+    if (remember_me(me)) await forget_saved_data();
+    remember_me(me);
+    render_account();
+    // the greeting uses the student's first name, or their username before they've added one
+    el("welcome").textContent = `Welcome back, ${(me.name || me.username).split(" ")[0]}`;
     sync_theme_label();
     try {
         set_hint_mode(localStorage.getItem("rahah-hints") === "1");

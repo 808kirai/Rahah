@@ -841,18 +841,33 @@ function settings_body() {
 }
 
 function load_settings() {
+    let saved = state.me?.settings || {};
+    if (!Object.keys(saved).length) {
+        try {
+            saved = JSON.parse(localStorage.getItem("rahah-settings") || "{}");
+        } catch (e) {}
+    }
+    state.settings = { language: typeof saved.language === "string" ? saved.language : "", low_data: Boolean(saved.low_data) };
     try {
-        const saved = JSON.parse(localStorage.getItem("rahah-settings") || "{}");
-        state.settings = { language: typeof saved.language === "string" ? saved.language : "", low_data: Boolean(saved.low_data) };
+        localStorage.setItem("rahah-settings", JSON.stringify(state.settings));
     } catch (e) {}
     apply_settings();
 }
 
+// saved with the account, so they follow the student to another device, and here for the next page load
 function save_settings(change) {
     state.settings = { ...state.settings, ...change };
     try {
         localStorage.setItem("rahah-settings", JSON.stringify(state.settings));
     } catch (e) {}
+    if (state.me) {
+        state.me.settings = state.settings;
+        api("/api/me", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ settings: state.settings }),
+        }).catch(() => {});
+    }
     apply_settings();
 }
 

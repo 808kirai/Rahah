@@ -7,7 +7,7 @@ from app.config import settings
 from app.main import create_app
 from app.tutor import code_tool, display_from_content, web_tool
 
-from .fakes import fake_client, message, run_block, run_result, text_block, thinking_block
+from .fakes import signed_in, fake_client, message, run_block, run_result, text_block, thinking_block
 from .test_api import ask, new_chat
 
 
@@ -16,7 +16,7 @@ def setup(tmp_path):
     def build(replies=()):
         claude = fake_client(replies)
         app = create_app(settings(db_path=tmp_path / "code.db"), client=claude)
-        return TestClient(app), claude
+        return signed_in(TestClient(app)), claude
     return build
 
 
