@@ -316,6 +316,16 @@ class store:
         with self._connect() as db:
             return db.execute("select count(*) from users").fetchone()[0]
 
+    def user_file_ids(self, user_id: str) -> list[str]:
+        # every file the student keeps with claude, from their notes library and their chats
+        with self._connect() as db:
+            rows = db.execute(
+                "select id from notes where user_id = ? union "
+                "select f.id from files f join conversations c on c.id = f.conversation_id where c.user_id = ?",
+                (user_id, user_id),
+            ).fetchall()
+        return [r[0] for r in rows]
+
     def delete_user(self, user_id: str) -> None:
         # owned rows go first, then the account, and their chats, sets and progress go with them
         with self._connect() as db:

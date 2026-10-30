@@ -9,7 +9,7 @@ from app.config import settings
 from app.main import create_app
 from app.store import store
 
-from .fakes import fake_client, message, text_block
+from .fakes import fake_client, message, signed_in, text_block
 
 
 @pytest.fixture
@@ -383,3 +383,31 @@ def test_a_new_account_needs_the_terms_box_ticked(make, tmp_path):
     assert new.status_code == 400 and "Tick the box" in new.json()["detail"]
     assert TestClient(app).post("/api/auth/google", json={"credential": "amina", "agreed": True}).status_code == 200
     assert TestClient(app).post("/api/auth/google", json={"credential": "amina"}).status_code == 200
+
+
+def test_a_student_can_delete_their_own_account_and_everything_in_it(make):
+    app, claude = make([message([text_block("Hi.")])])
+    admin = signed_in(TestClient(app), "runie")
+    amina = TestClient(app)
+    sign_up(amina, "amina")
+    chat = amina.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    amina.post(f"/api/conversations/{chat}/messages", json={"text": "hello"})
+    upload = amina.post("/api/files", data={"conversation_id": chat}, files={"file": ("a.txt", b"some notes", "text/plain")}).json()["id"]
+    note = amina.post("/api/notes", data={"mode": "science"}, files={"file": ("n.txt", b"notes", "text/plain")}).json()["id"]
+    # the wrong password changes nothing
+    assert amina.post("/api/me/delete", json={"password": "wrong horse!"}).status_code == 400
+    assert amina.get("/api/me").status_code == 200
+    gone = amina.post("/api/me/delete", json={"password": "correct horse!"})
+    assert gone.status_code == 200
+    assert amina.get("/api/me").status_code == 401
+    assert set(claude.files.deleted) >= {upload, note}
+    # the account is gone for good, its name is free again, and the admin's list no longer has it
+    assert TestClient(app).post("/api/auth/login", json={"login": "amina", "password": "correct horse!"}).status_code == 401
+    assert "amina" not in [u["username"] for u in admin.get("/api/admin/users").json()["users"]]
+    assert sign_up(TestClient(app), "amina").status_code == 200
+
+
+def test_the_admin_cant_delete_their_own_account(make):
+    app, _ = make()
+    admin = signed_in(TestClient(app), "runie")
+    assert admin.post("/api/me/delete", json={"password": "correct horse!"}).status_code == 400

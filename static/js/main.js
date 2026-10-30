@@ -680,7 +680,7 @@ async function sign_out() {
 
 function show_account() {
     if (state.busy) return;
-    enter_page("#/account", "Account", '<div class="performance account-page" id="account"><div id="account-box"></div><div id="usage-slot"></div></div>');
+    enter_page("#/account", "Account", '<div class="performance account-page" id="account"><div id="account-box"></div><div id="usage-slot"></div><div id="account-end"></div></div>');
     render_account();
     render_usage();
     sync_view();
@@ -749,7 +749,62 @@ function render_account() {
             <a class="btn btn-accent btn-small" href="#/admin">Manage students</a>
         </section>` : ""}`;
     render_account_links();
+    render_delete_card();
 }
+
+// deleting the account sits last on the page, behind a second step, and the admin can't delete theirs here
+function render_delete_card(open = false) {
+    const me = state.me;
+    const slot = el("account-end");
+    if (!slot || !me) return;
+    if (me.is_admin) {
+        slot.innerHTML = "";
+        return;
+    }
+    const check = me.has_password
+        ? '<input class="text-input" type="password" id="delete-check" autocomplete="current-password" placeholder="Your password">'
+        : `<input class="text-input" id="delete-check" autocomplete="off" placeholder="Type ${escape_html(me.username)} to confirm">`;
+    slot.innerHTML = `<section class="perf-card delete-card">
+        <div class="perf-head">
+            <h3>Delete account</h3>
+            <p>Removes your account and everything in it: chats, tests, decks, notes, reminders and progress. This can't be undone.</p>
+        </div>
+        ${open ? `<div class="account-fields">${check}</div>
+        <div class="account-actions">
+            <button class="btn btn-soft btn-small delete-go" type="button" data-delete-confirm>Delete my account for good</button>
+            <button class="btn btn-ghost btn-small" type="button" data-delete-cancel>Keep it</button>
+            <p class="field-hint" id="delete-note" hidden></p>
+        </div>` : '<button class="btn btn-ghost btn-small delete-go" type="button" data-delete-open>Delete my account</button>'}
+    </section>`;
+    if (open) el("delete-check").focus();
+}
+
+el("thread").addEventListener("click", async (event) => {
+    if (!event.target.closest("#account-end")) return;
+    if (event.target.closest("[data-delete-open]")) render_delete_card(true);
+    if (event.target.closest("[data-delete-cancel]")) render_delete_card(false);
+    const go = event.target.closest("[data-delete-confirm]");
+    if (!go) return;
+    const typed = el("delete-check").value;
+    go.disabled = true;
+    try {
+        await api("/api/me/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(state.me.has_password ? { password: typed } : { confirm: typed.trim() }),
+        });
+        // everything kept on this device for offline use goes too, then back to the sign in page
+        await forget_saved_data();
+        try {
+            localStorage.removeItem("rahah-user");
+        } catch (e) {}
+        location.hash = "#/";
+        location.reload();
+    } catch (error) {
+        go.disabled = false;
+        account_note("delete-note", error.message);
+    }
+});
 
 // connected accounts, and a way to connect google or apple to an account made with a password
 async function render_account_links() {

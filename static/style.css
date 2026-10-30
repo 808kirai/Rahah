@@ -1873,6 +1873,11 @@ body.signed-out .toasts {
     color: var(--accent-text);
 }
 
+/* the delete button reads in mauve, the colour for things going wrong, so it isn't pressed by accident */
+.delete-card .delete-go {
+    color: var(--mauve-text);
+}
+
 .help-choices {
     display: flex;
     flex-wrap: wrap;

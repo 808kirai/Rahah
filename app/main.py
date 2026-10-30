@@ -83,6 +83,12 @@ class signup_in(BaseModel):
     agreed: bool = False
 
 
+class delete_me_in(BaseModel):
+    # a password account confirms with its password, a google or apple one by typing its username
+    password: str = Field(default="", max_length=200)
+    confirm: str = Field(default="", max_length=40)
+
+
 class login_in(BaseModel):
     login: str = Field(min_length=1, max_length=200)
     password: str = Field(min_length=1, max_length=200)
@@ -561,6 +567,30 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         db.update_user(user["id"], password=hash_password(body.new))
         # other devices are signed out, this one stays in
         db.end_sessions(user["id"], keep=request.cookies.get(session_cookie))
+        return {"ok": True}
+
+    @app.post("/api/me/delete")
+    async def delete_me(body: delete_me_in, response: Response, user: dict = Depends(signed_in)):
+        """a student deletes their own account and everything in it, here and with claude"""
+        if user["is_admin"]:
+            raise HTTPException(400, "The admin account can't be deleted from here.")
+        if user["password"]:
+            if not check_password(body.password, user["password"]):
+                raise HTTPException(400, "That password isn't right.")
+        elif body.confirm != user["username"]:
+            raise HTTPException(400, "Type your username exactly to confirm.")
+        files = db.user_file_ids(user["id"])
+        db.delete_user(user["id"])
+        sync_custom(db.list_subjects())
+        response.delete_cookie(session_cookie, path="/")
+        # their files with claude go too, a file that can't be removed now is only logged
+        for file_id in files:
+            try:
+                await claude().files.delete(file_id)
+            except Exception as error:
+                if not is_claude_error(error):
+                    raise
+                log.warning("couldn't remove file %s from claude: %s", file_id, error)
         return {"ok": True}
 
     # the admin page, every student with what they've used, their limit and whether they can sign in
