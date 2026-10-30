@@ -170,7 +170,7 @@ thread.addEventListener("scroll", (event) => {
 // the placeholder names the chosen subject so picking one feels like it did something
 function sync_placeholder() {
     const mode = mode_select.value;
-    input.placeholder = !mode || mode === "general" ? "Ask anything, or drop a PDF here" : `Ask about ${mode_name(mode).toLowerCase()}`;
+    input.placeholder = !mode || mode === "general" ? "Ask anything, or drop a PDF" : `Ask about ${mode_name(mode).toLowerCase()}`;
 }
 
 mode_select.addEventListener("change", sync_placeholder);
