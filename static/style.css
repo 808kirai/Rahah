@@ -2944,6 +2944,34 @@ body.signed-out .toasts {
     position: relative;
 }
 
+/* a stat card that opens a box, like average gpa */
+.stat-card.pick-card {
+    cursor: pointer;
+    transition: box-shadow 0.2s var(--ease-out), transform 0.3s var(--ease-out);
+}
+
+.stat-card.pick-card:hover,
+.stat-card.pick-card:focus-visible {
+    outline: none;
+    transform: translateY(-2px);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 45%, transparent), var(--card-shadow);
+}
+
+.gpa-list .gpa-track {
+    flex: 0 1 6rem;
+    min-width: 2.5rem;
+}
+
+.gpa-list .allowance-track {
+    display: block;
+}
+
+.gpa-list .gpa-tests {
+    color: var(--text-2);
+    font-size: 0.8rem;
+    min-width: 3.5rem;
+}
+
 /* a suggestion card, what to do on top, then the topic and why */
 .card-grid .tile {
     width: auto;

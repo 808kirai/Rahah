@@ -33,12 +33,14 @@ function sparkline(points) {
     </svg>`;
 }
 
-const stat_sketches = { "Average score": "chart", "GPA": "target", "Tests taken": "checklist", "Best subject": "trophy" };
+const stat_sketches = { "Average score": "chart", "Average GPA": "target", "Tests taken": "checklist", "Best subject": "trophy" };
 
 const gpa_text = (value) => (value === null || value === undefined ? "–" : value.toFixed(2));
 
-function stat_card(label, value, note, extra = "", small = false) {
-    return `<div class="stat-card">
+// with open set, the card is a button that opens a details box, like average gpa opening each subject's gpa
+function stat_card(label, value, note, extra = "", small = false, open = "") {
+    const button = open ? ` pick-card" tabindex="0" role="button" ${open} aria-label="${label}, ${String(value).replace(/<[^>]*>/g, "").trim()}. Show each subject` : "";
+    return `<div class="stat-card${button}">
         ${stat_sketches[label] ? sketch_html(stat_sketches[label], "small") : ""}
         <span class="stat-label">${label}</span>
         <span class="stat-value${small ? " small" : ""}">${value}</span>
@@ -72,7 +74,7 @@ function render_performance_row() {
     }
     slot.innerHTML = row_html("Your performance", [
         stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(state.performance.timeline)),
-        stat_card("Average GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`),
+        stat_card("Average GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}`, "", false, "data-gpa-box"),
         stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`),
         `<button class="stat-card more" type="button" data-performance>See all your results ${icons.next}</button>`,
     ].join(""));
@@ -261,7 +263,7 @@ function render_performance() {
     page.innerHTML = `
         <div class="kpis">
             ${stat_card("Average score", `${o.average}% ${grade_pill(o.grade)}`, `${o.correct} of ${o.questions} marks`, sparkline(p.timeline))}
-            ${stat_card("Average GPA", gpa_text(o.gpa), `The average of your subject GPAs, out of 4.0, across ${plural(o.subjects, "subject")}`)}
+            ${stat_card("Average GPA", gpa_text(o.gpa), `Out of 4.0, across ${plural(o.subjects, "subject")}. Tap for each subject`, "", false, "data-gpa-box")}
             ${stat_card("Tests taken", o.attempts, `Across ${plural(o.quizzes, "test")}`)}
             ${stat_card("Best subject", escape_html(mode_name(best.mode)), weakest ? `${best.average}% average · needs work: ${escape_html(mode_name(weakest.mode))}` : `${best.average}% average`, "", true)}
         </div>
@@ -521,7 +523,36 @@ function show_subject_detail(mode) {
 el("detail-close").addEventListener("click", () => detail_sheet.close());
 
 // a subject or test row opens its box, by click or by enter or space, and a test inside a subject's box swaps the box over
+// every subject's gpa, best first, each one opening that subject's box
+function show_gpa_detail() {
+    const p = state.performance;
+    if (!p?.overall) return;
+    const subjects = [...p.subjects].sort((a, b) => (b.gpa ?? -1) - (a.gpa ?? -1));
+    el("detail-title").textContent = "Average GPA";
+    el("detail-body").innerHTML = `
+        <p class="detail-sub">The average of your subject GPAs, so each subject counts the same. A subject's GPA counts each test once, at its best attempt</p>
+        <div class="detail-stats">
+            ${detail_stat("Average GPA", gpa_text(p.overall.gpa))}
+            ${detail_stat("Subjects", p.overall.subjects)}
+        </div>
+        <p class="detail-heading">By subject, choose one for its tests</p>
+        <ul class="detail-list gpa-list">${subjects.map((s) => `<li class="pick-row" tabindex="0" role="button" data-subject="${escape_html(s.mode)}">
+            <span class="detail-name">${escape_html(mode_name(s.mode))}</span>
+            <span class="gpa-track" aria-hidden="true"><span class="allowance-track"><span class="allowance-bar" style="width: ${Math.round(((s.gpa ?? 0) / 4) * 100)}%"></span></span></span>
+            <span class="num"><strong>${gpa_text(s.gpa)}</strong></span>${grade_pill(s.grade)}
+            <span class="num gpa-tests">${plural(s.tests, "test")}</span>
+        </li>`).join("")}</ul>
+        <div class="sheet-actions">
+            <button class="btn btn-ghost" type="button" data-detail-close>Close</button>
+        </div>`;
+    if (!detail_sheet.open) detail_sheet.showModal();
+}
+
 function pick_detail(target) {
+    if (target.closest("[data-gpa-box]")) {
+        show_gpa_detail();
+        return true;
+    }
     const test = target.closest("[data-test]");
     if (test) {
         show_test_detail(test.dataset.test);
@@ -536,6 +567,11 @@ function pick_detail(target) {
 }
 
 thread.addEventListener("click", (event) => {
+    // the average gpa card also sits in the summary on home
+    if (event.target.closest("[data-gpa-box]")) {
+        show_gpa_detail();
+        return;
+    }
     if (!el("performance") || event.target.closest("a, button")) return;
     pick_detail(event.target);
 });
@@ -548,7 +584,7 @@ detail_sheet.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
-    const row = event.target.closest?.(".pick-row, .bar-row[data-subject]");
+    const row = event.target.closest?.(".pick-row, .bar-row[data-subject], [data-gpa-box]");
     if (!row) return;
     event.preventDefault();
     pick_detail(row);
