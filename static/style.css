@@ -40,12 +40,12 @@
     --panel-line: rgba(140, 200, 255, 0.06);
     --card-bg: var(--panel-bg);
     /* the top of a card, lit from below like the cards in the reference */
-    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.09), transparent 70%), rgba(22, 38, 54, 0.28);
+    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.055), transparent 70%), rgba(22, 38, 54, 0.28);
     /* the light behind the whole page, a teal wash from the top and a fainter one bottom right */
     --bg-glow:
-        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.15), transparent 70%),
-        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.08), transparent 70%),
-        radial-gradient(ellipse 40% 35% at -5% 55%, rgba(10, 90, 140, 0.045), transparent 70%);
+        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.05), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.03), transparent 70%),
+        radial-gradient(ellipse 40% 35% at -5% 55%, rgba(10, 90, 140, 0.015), transparent 70%);
 
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -88,10 +88,10 @@
     --panel-bg: rgba(255, 255, 255, 0.28);
     --panel-line: rgba(12, 26, 38, 0.06);
     --card-bg: rgba(255, 255, 255, 0.45);
-    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.05), transparent 70%), rgba(226, 236, 243, 0.55);
+    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.03), transparent 70%), rgba(226, 236, 243, 0.55);
     --bg-glow:
-        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.06), transparent 70%),
-        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.03), transparent 70%);
+        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.025), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.012), transparent 70%);
 }
 
 * {
