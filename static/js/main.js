@@ -801,6 +801,8 @@ function render_me_face() {
     const slot = el("me-face");
     if (!slot) return;
     slot.hidden = !state.me;
+    // signed in, the student's picture takes the logo's place beside rahah's name
+    document.body.classList.toggle("has-face", Boolean(state.me));
     if (state.me) slot.innerHTML = face_html(state.me.avatar, state.me.name || state.me.username, "tiny");
 }
 

@@ -2260,6 +2260,8 @@ body.signed-out .toasts {
     width: 100%;
     height: 100%;
     display: block;
+    /* the faces draw their own lines, so the outline every icon gets is turned off */
+    stroke: none;
 }
 
 .avatar-face.small,
@@ -2270,15 +2272,21 @@ body.signed-out .toasts {
 
 .avatar-face.tiny,
 .account-avatar.tiny {
-    width: 30px;
-    height: 30px;
-    font-size: 0.8rem;
+    width: 34px;
+    height: 34px;
+    font-size: 0.9rem;
+    text-decoration: none;
 }
 
-/* the student's picture beside rahah's name, on the tab pages like the name itself */
+/* the student's picture in the logo's place before rahah's name, on the tab pages like the name itself */
+.has-face .nav .brand .logo-img {
+    display: none;
+}
+
 .me-face {
     display: inline-flex;
-    margin-left: 0.7rem;
+    margin-right: 0.6rem;
+    text-decoration: none;
     border-radius: 50%;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-text) 35%, transparent);
     transition: box-shadow 0.2s, transform var(--dur) var(--ease-out);
