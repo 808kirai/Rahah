@@ -87,12 +87,16 @@ function render_leaderboard() {
     // a search in progress stays put when the page redraws after adding someone
     const typed = el("people-search")?.value || "";
     const headline = alone ? "Add friends to see how you compare." : above === 0 ? "You're top of your friends this week." : `${above} friend${above === 1 ? " is" : "s are"} above you.`;
-    const rows = board.map((r) => `<li class="board-row${r.you ? " you" : ""}">
+    // the top three get gold, silver and bronze, once they've scored something
+    const medal = (r) => (r.place <= 3 && r.points > 0 ? ["gold", "silver", "bronze"][r.place - 1] : "");
+    const trophy = '<svg class="board-trophy" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h10v5.5a5 5 0 0 1-10 0z"/><path d="M7 5.5H4.5a3 3 0 0 0 3 4.3M17 5.5h2.5a3 3 0 0 1-3 4.3"/><path d="M12 14v3.5"/><path d="M8.5 21h7l-1-3.5h-5z"/></svg>';
+    const rows = board.map((r) => `<li class="board-row${r.you ? " you" : ""}${medal(r) ? ` ${medal(r)}` : ""}">
         <span class="board-place">${r.place}</span>
         ${face_html(r.photo, r.name, "small")}
         <span class="board-who"><strong>${escape_html(r.you ? "You" : r.name)}</strong>
             <small>${study_time_text(r.minutes)} studied · ${plural(r.marks, "mark")} · ${plural(r.cards, "card")} · ${plural(r.days, "day")}</small></span>
-        <span class="board-points"><strong>${r.points}</strong><small>points</small></span>
+        ${medal(r) ? `<span class="board-medal" title="${["First", "Second", "Third"][r.place - 1]} place">${trophy}</span>` : ""}
+        <span class="board-points" title="${plural(r.points, "point")}"><strong>${r.points}</strong><small>pts</small></span>
     </li>`).join("");
     page.innerHTML = `
         <section class="perf-card board-card">

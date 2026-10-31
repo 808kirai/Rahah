@@ -2024,8 +2024,50 @@ body.signed-out .toasts {
     color: var(--text-2);
 }
 
-.board-row:nth-child(1) .board-place {
-    color: var(--accent-text);
+/* first, second and third, their place in gold, silver and bronze with a trophy to match */
+.board-row {
+    --medal: var(--text-2);
+}
+
+.board-row.gold {
+    --medal: #f2c94c;
+}
+
+.board-row.silver {
+    --medal: #c3ccd6;
+}
+
+.board-row.bronze {
+    --medal: #d08a4e;
+}
+
+.board-row .board-place {
+    color: var(--medal);
+}
+
+.board-row.gold .board-place,
+.board-row.silver .board-place,
+.board-row.bronze .board-place {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.board-medal {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--medal) 16%, transparent);
+}
+
+.board-trophy {
+    width: 20px;
+    height: 20px;
+    fill: color-mix(in srgb, var(--medal) 35%, transparent);
+    stroke: var(--medal);
+    stroke-width: 1.7;
 }
 
 .account-avatar.small {
@@ -2050,20 +2092,32 @@ body.signed-out .toasts {
     color: var(--text-2);
 }
 
+/* the points in a circle, with pts underneath */
 .board-points {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    line-height: 1.15;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--medal) 70%, transparent);
+    line-height: 1.05;
     font-variant-numeric: tabular-nums;
 }
 
+.board-row:not(.gold):not(.silver):not(.bronze) .board-points {
+    box-shadow: inset 0 0 0 2px var(--border);
+}
+
 .board-points strong {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
 }
 
 .board-points small {
-    font-size: 0.7rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
     color: var(--text-2);
 }
 
