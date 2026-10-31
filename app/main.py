@@ -2,7 +2,7 @@
 
 import asyncio
 import gzip
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -1565,24 +1565,40 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         now = datetime.now(timezone.utc)
         start = board.week_start(now, board_zone)
         people = {user["id"]: user, **{f: db.get_user(f) for f in db.friend_ids(user["id"])}}
-        numbers = db.week_numbers(
-            list(people), start.timestamp(), start.date().isoformat(),
-            lambda t: board.local_day(datetime.fromtimestamp(t, timezone.utc), board_zone),
-        )
+        day_of = lambda t: board.local_day(datetime.fromtimestamp(t, timezone.utc), board_zone)
+        numbers = db.week_numbers(list(people), start.timestamp(), start.date().isoformat(), day_of)
+        # last week, for how this week compares
+        before = start - timedelta(days=7)
+        last_week = db.week_numbers([user["id"]], before.timestamp(), before.date().isoformat(), day_of,
+                                    end=start.timestamp(), end_day=start.date().isoformat())[user["id"]]
         rows = []
         for uid, person in people.items():
             n = numbers[uid]
             rows.append({
                 "username": person["username"], "name": board.first_name(person["name"], person["username"]),
                 "points": board.points_for(n["marks"], n["cards"], n["minutes"], n["days"]),
-                "minutes": n["minutes"], "marks": n["marks"], "cards": n["cards"], "days": n["days"], "you": uid == user["id"],
+                "minutes": n["minutes"], "marks": n["marks"], "cards": n["cards"], "days": n["days"],
+                "accuracy": n["accuracy"], "you": uid == user["id"],
             })
         rows.sort(key=lambda r: (-r["points"], not r["you"], r["username"].lower()))
         for place, row in enumerate(rows, 1):
             row["place"] = place
         mine = next(r for r in rows if r["you"])
+        # the race: the friend just ahead and the one just behind, and test accuracy among those who took tests
+        ahead = next((r for r in reversed(rows) if r["points"] > mine["points"]), None)
+        behind = next((r for r in rows if r["points"] < mine["points"]), None)
+        tested = sorted((r for r in rows if r["accuracy"] is not None), key=lambda r: -r["accuracy"])
+        standing = {
+            "ahead": {"name": ahead["name"], "gap": ahead["points"] - mine["points"]} if ahead else None,
+            "behind": {"name": behind["name"], "gap": mine["points"] - behind["points"]} if behind else None,
+            "last_week": board.points_for(last_week["marks"], last_week["cards"], last_week["minutes"], last_week["days"]),
+            "accuracy": mine["accuracy"],
+            "accuracy_place": next((i for i, r in enumerate(tested, 1) if r["you"]), None),
+            "tested": len(tested),
+            "top_points": rows[0]["points"],
+        }
         return {
-            "week_start": start.date().isoformat(), "board": rows,
+            "week_start": start.date().isoformat(), "board": rows, "standing": standing,
             "above": sum(1 for r in rows if r["points"] > mine["points"]),
             "rules": {"mark": board.points_per_mark, "card": board.points_per_card, "minutes": board.minutes_per_point, "day": board.points_per_day},
         }

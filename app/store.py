@@ -518,35 +518,49 @@ class store:
             db.execute("insert into study_time (user_id, day, minutes, last) values (?, ?, 1, ?)", (uid, day, now))
             return 1
 
-    def week_numbers(self, user_ids: list[str], start: float, first_day: str, day_of) -> dict[str, dict]:
-        """for each student, this week's marks, cards practised, minutes studied and study days.
-        day_of turns a time into that day's date where the leaderboard keeps time"""
-        found = {u: {"marks": 0, "cards": 0, "minutes": 0, "days": set()} for u in user_ids}
+    def week_numbers(self, user_ids: list[str], start: float, first_day: str, day_of,
+                     end: float | None = None, end_day: str | None = None) -> dict[str, dict]:
+        """for each student, a week's marks, cards practised, minutes studied, study days and test accuracy,
+        from start up to end. day_of turns a time into that day's date where the leaderboard keeps time"""
+        found = {u: {"marks": 0, "cards": 0, "minutes": 0, "days": set(), "accuracy": None} for u in user_ids}
         if not user_ids:
             return {}
+        until = end if end is not None else float("inf")
+        last_day = end_day or "9999-12-31"
         marks_in = ",".join("?" * len(user_ids))
         with self._connect() as db:
-            # each test's best score this week
+            # each test's best score in the week
             for row in db.execute(
                 f"select s.user_id, max(a.score) as best, group_concat(a.created) as times from quiz_attempts a "
-                f"join study_sets s on s.id = a.set_id where s.user_id in ({marks_in}) and a.created >= ? group by a.set_id",
-                (*user_ids, start),
+                f"join study_sets s on s.id = a.set_id where s.user_id in ({marks_in}) and a.created >= ? and a.created < ? "
+                f"group by a.set_id",
+                (*user_ids, start, until),
             ).fetchall():
                 found[row["user_id"]]["marks"] += row["best"] or 0
                 found[row["user_id"]]["days"].update(day_of(float(t)) for t in row["times"].split(","))
+            # how much of each test was right, across every attempt in the week
+            for row in db.execute(
+                f"select s.user_id, avg(a.score * 100.0 / a.total) as accuracy from quiz_attempts a "
+                f"join study_sets s on s.id = a.set_id where s.user_id in ({marks_in}) and a.created >= ? and a.created < ? "
+                f"and a.total > 0 group by s.user_id",
+                (*user_ids, start, until),
+            ).fetchall():
+                found[row["user_id"]]["accuracy"] = round(row["accuracy"])
             for row in db.execute(
                 f"select s.user_id, p.updated from card_progress p join study_sets s on s.id = p.set_id "
-                f"where s.user_id in ({marks_in}) and p.updated >= ?",
-                (*user_ids, start),
+                f"where s.user_id in ({marks_in}) and p.updated >= ? and p.updated < ?",
+                (*user_ids, start, until),
             ).fetchall():
                 found[row["user_id"]]["cards"] += 1
                 found[row["user_id"]]["days"].add(day_of(row["updated"]))
             for row in db.execute(
-                f"select user_id, created from usage where user_id in ({marks_in}) and created >= ?", (*user_ids, start)
+                f"select user_id, created from usage where user_id in ({marks_in}) and created >= ? and created < ?",
+                (*user_ids, start, until),
             ).fetchall():
                 found[row["user_id"]]["days"].add(day_of(row["created"]))
             for row in db.execute(
-                f"select user_id, day, minutes from study_time where user_id in ({marks_in}) and day >= ?", (*user_ids, first_day)
+                f"select user_id, day, minutes from study_time where user_id in ({marks_in}) and day >= ? and day < ?",
+                (*user_ids, first_day, last_day),
             ).fetchall():
                 found[row["user_id"]]["minutes"] += row["minutes"]
                 if row["minutes"] >= 5:

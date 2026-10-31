@@ -1979,9 +1979,22 @@ body.signed-out .toasts {
     color: var(--accent-text);
 }
 
+/* this week's card, the heading, the rows and the points line evenly spaced */
+.board-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.board-card .perf-head,
+.board-card .perf-head p,
+.board-grid .perf-head p {
+    margin: 0;
+}
+
 .board {
     list-style: none;
-    margin: 0.4rem 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -2055,7 +2068,108 @@ body.signed-out .toasts {
 }
 
 .board-rules {
-    margin: 0.9rem 0 0;
+    margin: 0;
+}
+
+/* finding friends, the friends list and the standing, three tall cards side by side */
+.board-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+    align-items: stretch;
+}
+
+.board-grid .perf-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    min-height: 22rem;
+    margin: 0;
+}
+
+.board-grid .perf-head,
+.board-grid .people-list {
+    margin: 0;
+}
+
+.standing-race {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.standing-race strong {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+
+.standing-race span {
+    color: var(--text-2);
+}
+
+.standing-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+
+.standing-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent-fill);
+}
+
+.standing-bar-note {
+    margin: -0.4rem 0 0;
+    font-size: 0.78rem;
+    color: var(--text-2);
+}
+
+.standing-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: auto 0 0;
+}
+
+.standing-facts div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 12px;
+    background: var(--surface-2);
+    font-size: 0.85rem;
+}
+
+.standing-facts dt {
+    color: var(--text-2);
+}
+
+.standing-facts dd {
+    margin: 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.standing-facts dd.up {
+    color: var(--mint-text);
+}
+
+.standing-facts dd.down {
+    color: var(--mauve-text);
+}
+
+@media (max-width: 1000px) {
+    .board-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
 }
 
 .people-list {
@@ -2080,12 +2194,12 @@ body.signed-out .toasts {
 }
 
 .friend-finder .search {
+    flex: none;
     width: 100%;
     margin-top: 0.4rem;
 }
 
-.leaderboard-page .perf-card + .perf-card,
-.leaderboard-page .perf-card + .page-note + .perf-card {
+.leaderboard-page > .perf-card + .perf-card {
     margin-top: 1rem;
 }
 
@@ -2102,7 +2216,19 @@ body.signed-out .toasts {
 
     .phone-friend-note {
         display: block;
-        margin: 1rem 0;
+        margin: 1rem 0 0;
+    }
+
+    .board-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .board-grid .friend-finder {
+        display: none;
+    }
+
+    .board-grid .perf-card {
+        min-height: 0;
     }
 
     .home-search {

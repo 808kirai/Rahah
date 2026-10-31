@@ -91,3 +91,10 @@ def test_the_leaderboard_ranks_friends_by_this_weeks_points(tmp_path):
     assert second["you"] and second["minutes"] == 1 and second["points"] == 0
     assert board["above"] == 1 and first["place"] == 1 and second["place"] == 2
     assert amina.get("/api/leaderboard").json()["above"] == 0
+    # the race: runie is 7 behind amina, amina leads runie by 7, and amina got 75% across her two attempts
+    standing = board["standing"]
+    assert standing["ahead"] == {"name": "amina", "gap": 7} and standing["behind"] is None
+    assert standing["accuracy"] is None and standing["tested"] == 1 and standing["last_week"] == 0
+    theirs = amina.get("/api/leaderboard").json()
+    assert theirs["standing"]["behind"] == {"name": "runie", "gap": 7} and theirs["standing"]["ahead"] is None
+    assert theirs["standing"]["accuracy"] == 75 and theirs["standing"]["accuracy_place"] == 1

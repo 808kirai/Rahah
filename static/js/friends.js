@@ -81,7 +81,7 @@ async function load_leaderboard() {
 function render_leaderboard() {
     const page = el("leaderboard");
     if (!page || !state.board) return;
-    const { board, above, rules } = state.board;
+    const { board, above, rules, standing } = state.board;
     const f = state.friends || { friends: [], asked: [], sent: [] };
     const alone = board.length === 1;
     // a search in progress stays put when the page redraws after adding someone
@@ -107,21 +107,52 @@ function render_leaderboard() {
             <div class="perf-head"><h3>Friend requests</h3><p>They'd like to compare with you.</p></div>
             <ul class="people-list">${f.asked.map(person_html).join("")}</ul>
         </section>` : ""}
-        <section class="perf-card friend-finder">
-            <div class="perf-head"><h3>Add friends</h3><p>Search by username or name. They'll need to accept.</p></div>
-            <input class="search" id="people-search" type="search" placeholder="Search people" aria-label="Search people" autocomplete="off">
-            <div id="people-found"></div>
-        </section>
         <p class="page-note phone-friend-note">To add friends, search their name at the top of Home or Chats &amp; Tests.</p>
-        <section class="perf-card">
-            <div class="perf-head"><h3>Your friends</h3><p>${f.friends.length ? `${plural(f.friends.length, "friend")}` : "No friends yet."}</p></div>
-            ${f.friends.length || f.sent.length ? `<ul class="people-list">${f.friends.map((p) => person_html(p).replace(`<span class="page-note on">${icons.check}Friends</span>`,
-                `<button class="btn btn-ghost btn-small" type="button" data-friend-drop="${escape_html(p.username)}" data-friend-remove>Remove</button>`)).join("")}${f.sent.map(person_html).join("")}</ul>` : ""}
-        </section>`;
+        <div class="board-grid">
+            <section class="perf-card friend-finder">
+                <div class="perf-head"><h3>Add friends</h3><p>Search by username or name. They'll need to accept.</p></div>
+                <input class="search" id="people-search" type="search" placeholder="Search people" aria-label="Search people" autocomplete="off">
+                <div id="people-found"></div>
+            </section>
+            <section class="perf-card">
+                <div class="perf-head"><h3>Your friends</h3><p>${f.friends.length ? `${plural(f.friends.length, "friend")}` : "No friends yet."}</p></div>
+                ${f.friends.length || f.sent.length ? `<ul class="people-list">${f.friends.map((p) => person_html(p).replace(`<span class="page-note on">${icons.check}Friends</span>`,
+                    `<button class="btn btn-ghost btn-small" type="button" data-friend-drop="${escape_html(p.username)}" data-friend-remove>Remove</button>`)).join("")}${f.sent.map(person_html).join("")}</ul>` : ""}
+            </section>
+            ${standing_html(standing, board)}
+        </div>`;
     if (typed) {
         el("people-search").value = typed;
         render_people_found();
     }
+}
+
+// how the race looks from where the student is: who to catch, how far ahead, the trend and accuracy
+function standing_html(s, board) {
+    const mine = board.find((r) => r.you);
+    const change = mine.points - s.last_week;
+    const race = s.ahead
+        ? `<strong>${s.ahead.gap}</strong><span>point${s.ahead.gap === 1 ? "" : "s"} to pass ${escape_html(s.ahead.name)}</span>`
+        : s.behind
+            ? `<strong>${s.behind.gap}</strong><span>point${s.behind.gap === 1 ? "" : "s"} ahead of ${escape_html(s.behind.name)}</span>`
+            : `<strong>${mine.points}</strong><span>points so far this week</span>`;
+    const share = s.top_points ? Math.round((mine.points / s.top_points) * 100) : 0;
+    return `<section class="perf-card standing-card">
+        <div class="perf-head"><h3>Your standing</h3><p>${board.length > 1 ? `Number ${mine.place} of ${board.length}` : "Just you so far"}</p></div>
+        <div class="standing-race">${race}</div>
+        <div class="standing-bar" aria-hidden="true"><span style="width: ${share}%"></span></div>
+        <p class="standing-bar-note">${mine.place === 1 ? "You're setting the pace." : `${share}% of the leader's points`}</p>
+        <dl class="standing-facts">
+            <div><dt>On last week</dt><dd class="${change > 0 ? "up" : change < 0 ? "down" : ""}">${change > 0 ? "+" : ""}${change} points</dd></div>
+            <div><dt>Test accuracy</dt><dd>${s.accuracy === null ? "No tests yet" : `${s.accuracy}%${s.tested > 1 ? `, ${ordinal(s.accuracy_place)} of ${s.tested}` : ""}`}</dd></div>
+            <div><dt>Study time</dt><dd>${study_time_text(mine.minutes)}</dd></div>
+        </dl>
+    </section>`;
+}
+
+function ordinal(n) {
+    const end = n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th";
+    return `${n}${end}`;
 }
 
 function render_people_found() {
@@ -184,18 +215,21 @@ thread.addEventListener("input", (event) => {
     if (event.target.id === "home-search") find_people(event.target.value.trim(), render_home_search);
 });
 
-// time spent studying counts towards the leaderboard, a minute at a time while rahah is open and being used.
-// a minute only counts if there's been a tap, a key or a scroll in the last two minutes
-let last_active = Date.now();
-["pointerdown", "keydown", "scroll", "touchstart", "input"].forEach((name) =>
-    document.addEventListener(name, () => (last_active = Date.now()), { passive: true, capture: true }));
+// time spent studying counts towards the leaderboard, one minute at a time, and only minutes in which the
+// student did something themselves: a tap, a click, a key, or scrolling with a finger or the mouse wheel.
+// rahah scrolling itself while an answer comes in doesn't count, and neither does sitting idle
+let acted_this_minute = false;
+["pointerdown", "keydown", "wheel", "touchmove", "input"].forEach((name) =>
+    document.addEventListener(name, (event) => {
+        if (event.isTrusted) acted_this_minute = true;
+    }, { passive: true, capture: true }));
 
 function start_study_clock() {
     if (start_study_clock.running) return;
     start_study_clock.running = true;
     setInterval(() => {
-        if (!state.me || document.visibilityState !== "visible" || !navigator.onLine) return;
-        if (Date.now() - last_active > 2 * 60 * 1000) return;
-        api("/api/study-time", { method: "POST" }).catch(() => {});
+        const counts = acted_this_minute && state.me && document.visibilityState === "visible" && navigator.onLine;
+        acted_this_minute = false;
+        if (counts) api("/api/study-time", { method: "POST" }).catch(() => {});
     }, 60 * 1000);
 }
