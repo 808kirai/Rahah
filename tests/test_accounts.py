@@ -180,6 +180,11 @@ def test_usage_is_counted_per_student_and_the_admin_sees_it_all(make):
     assert brian["percent"] == round(100 * brian["today"] / 0.5)
     assert rows["runie"]["cap"] is None and rows["runie"]["percent"] is None
     assert student.get("/api/me").json()["allowance"]["percent"] == brian["percent"]
+    # the group numbers leave the admin out, so one student who spent something is one active student
+    summary = admin.get("/api/admin/users").json()["summary"]
+    assert summary["signups_today"] == 1 and summary["signups_week"] == 1 and summary["signups_before"] == 0
+    assert summary["active_today"] == 1 and summary["avg_today"] == brian["today"]
+    assert summary["at_limit"] == 0 and student.get("/api/admin/users").status_code == 403
 
 
 def test_changing_the_password_signs_out_other_devices(make):

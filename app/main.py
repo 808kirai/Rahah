@@ -853,6 +853,22 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         now = time.time()
         return {"today": db.cost_by_user(day_start(now)), "week": db.cost_by_user(now - 7 * 86400), "all": db.cost_by_user(0)}
 
+    def admin_summary(rows: list[dict]) -> dict:
+        """the numbers that say how students are doing as a group, the admin's own account left out"""
+        now = time.time()
+        students = [r for r in rows if not r["is_admin"]]
+        spending = [r for r in students if r["today"] > 0]
+        return {
+            "signups_today": sum(1 for r in students if r["created"] >= day_start(now)),
+            "signups_week": sum(1 for r in students if r["created"] >= now - 7 * 86400),
+            "signups_before": sum(1 for r in students if now - 14 * 86400 <= r["created"] < now - 7 * 86400),
+            "active_today": len(spending),
+            "active_week": sum(1 for r in students if r["last_seen"] and r["last_seen"] >= now - 7 * 86400),
+            "avg_today": round(sum(r["today"] for r in spending) / len(spending), 4) if spending else 0,
+            "at_limit": sum(1 for r in students if r["percent"] is not None and r["percent"] >= 100),
+            "near_limit": sum(1 for r in students if r["percent"] is not None and 80 <= r["percent"] < 100),
+        }
+
     @app.get("/api/admin/users")
     def admin_users(user: dict = Depends(admin_only)):
         costs = all_costs()
@@ -860,6 +876,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return {
             "users": rows, "default_cap": cfg.daily_cap, "total": {k: round(sum(v.values()), 4) for k, v in costs.items()},
             "budget": cfg.daily_budget, "budget_used": round(db.student_cost_since(day_start(time.time())), 4),
+            "summary": admin_summary(rows),
         }
 
     def other_user_or_404(user_id: str) -> dict:

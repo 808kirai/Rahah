@@ -389,6 +389,19 @@ async function load_admin() {
     render_admin();
 }
 
+// how students are doing as a group: growth, who's active and who's running out of their limit
+function admin_summary_html(s) {
+    const change = s.signups_week - s.signups_before;
+    const growth = s.signups_before || s.signups_week
+        ? (change === 0 ? "Same as the week before" : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)} on the week before`)
+        : "No signups yet";
+    return `<div class="kpis">
+        ${stat_card("New students", s.signups_week, `${s.signups_today} today. ${growth}`)}
+        ${stat_card("Active today", s.active_today, s.active_today ? `${dollars(s.avg_today)} each on average. ${s.active_week} active this week` : `${s.active_week} active this week`)}
+        ${stat_card("At their limit", s.at_limit, `${s.near_limit} more are over 80% of today's limit`)}
+    </div>`;
+}
+
 function render_admin() {
     const page = el("admin");
     const a = state.admin;
@@ -404,6 +417,7 @@ function render_admin() {
             ${stat_card("Last 7 days", dollars(a.total.week), "Across every student")}
             ${stat_card("All time", dollars(a.total.all), `Default daily limit ${`$${a.default_cap.toFixed(2)}`} each`)}
         </div>
+        ${a.summary ? admin_summary_html(a.summary) : ""}
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Every student</h3>
