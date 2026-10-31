@@ -920,6 +920,11 @@ function render_quiz() {
         render_quiz_start();
         return;
     }
+    // looking back at a question already answered, or the current one once it's answered
+    if (s.viewing !== null && s.viewing !== undefined) {
+        render_past(s.viewing);
+        return;
+    }
     const q = s.set.items[s.index];
     if (is_written(q)) {
         render_written(q, total);
@@ -928,7 +933,7 @@ function render_quiz() {
     el("study").innerHTML = `
         <div class="quiz">
             <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
-            <p class="study-meta">Question ${s.index + 1} of ${total}${timer_html()}</p>
+            ${quiz_top(s.index, `Question ${s.index + 1} of ${total}${timer_html()}`)}
             <div class="quiz-question answer">${render_markdown(q.question)}</div>
             <div class="quiz-options">${q.options.map((option, i) => `
                 <button class="option" type="button" data-option="${i}">
@@ -1021,7 +1026,7 @@ function render_written(q, total) {
     el("study").innerHTML = `
         <div class="quiz">
             <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
-            <p class="study-meta">Question ${s.index + 1} of ${total} · ${q.marks} mark${q.marks === 1 ? "" : "s"}${timer_html()}</p>
+            ${quiz_top(s.index, `Question ${s.index + 1} of ${total} · ${q.marks} mark${q.marks === 1 ? "" : "s"}${timer_html()}`)}
             <div class="quiz-question answer">${render_markdown(q.question)}</div>
             <div class="written">
                 <textarea class="text-input written-answer" id="written-answer" rows="5" maxlength="5000" placeholder="Write your answer, say it, or add a photo of your working" aria-label="Your answer"></textarea>
@@ -1041,6 +1046,83 @@ function render_written(q, total) {
         el("written-photo-input").value = "";
         if (file) set_written_photo(await shrink_photo(file));
     });
+    if (s.draft) {
+        el("written-answer").value = s.draft.text;
+        if (s.draft.photo) set_written_photo(s.draft.photo);
+        s.draft = null;
+    }
+}
+
+// the line above a question, its number and the timer, with a way back to the questions before it
+function quiz_top(at, meta) {
+    return `<div class="quiz-top">
+        ${at > 0 ? `<button class="btn btn-ghost btn-small quiz-prev" type="button" data-quiz="prev">${icons.prev}Previous</button>` : "<span></span>"}
+        <p class="study-meta">${meta}</p>
+        <span></span>
+    </div>`;
+}
+
+// an answered question looked back on, as it was answered. nothing can be changed, only read
+function render_past(i) {
+    const s = state.study;
+    const total = s.set.items.length;
+    const q = s.set.items[i];
+    const r = s.results[i] || { score: 0, marks: question_marks(q), unanswered: true };
+    const current = i === s.index;
+    const last = s.index === total - 1;
+    let body;
+    if (is_written(q)) {
+        const grade = r.score === r.marks ? "right" : r.score === 0 ? "wrong" : "partial";
+        body = `<div class="review-answer past-answer"><span>Your answer</span><div class="answer">${your_answer(q, r)}</div></div>
+            <div class="feedback ${grade}">
+                <strong>${r.score} out of ${r.marks}</strong>
+                ${r.feedback ? `<div class="answer">${render_markdown(r.feedback)}</div>` : ""}
+                <details class="model-answer"${current ? "" : " open"}><summary>Model answer</summary><div class="answer">${render_markdown(q.model_answer)}</div></details>
+            </div>`;
+    } else {
+        body = `<div class="quiz-options">${q.options.map((option, j) => `
+                <button class="option${j === q.answer ? " correct" : j === r.chosen ? " wrong" : ""}" type="button" disabled>
+                    <span class="option-key">${"ABCDEF"[j]}</span>
+                    <span class="option-text">${inline_markdown(option)}</span>
+                </button>`).join("")}
+            </div>
+            <div class="feedback ${r.score ? "right" : "wrong"}">
+                <strong>${r.score ? "Correct" : "Not quite"}</strong>
+                ${q.explanation ? `<div class="answer">${render_markdown(q.explanation)}</div>` : ""}
+            </div>`;
+    }
+    const forward = current
+        ? `<button class="btn btn-accent" type="button" data-quiz="next">${last ? "See your score" : "Next question"}</button>`
+        : `<button class="btn btn-accent" type="button" data-quiz="forward">Next${icons.next}</button>`;
+    el("study").innerHTML = `
+        <div class="quiz">
+            <div class="quiz-progress" aria-hidden="true"><span style="width: ${(s.index / total) * 100}%"></span></div>
+            ${quiz_top(i, `Question ${i + 1} of ${total}${current ? "" : " · looking back"}${timer_html()}`)}
+            <div class="quiz-question answer">${render_markdown(q.question)}</div>
+            ${body}
+            <div class="study-controls">${forward}</div>
+        </div>`;
+}
+
+// stepping back keeps what was half written on the question being answered
+function step_back() {
+    const s = state.study;
+    const from = s.viewing ?? s.index;
+    if (from <= 0) return;
+    if ((s.viewing === null || s.viewing === undefined) && !s.answered && is_written(s.set.items[s.index]) && el("written-answer")) {
+        s.draft = { text: el("written-answer").value, photo: s.photo };
+    }
+    stop_answer_voice();
+    s.viewing = from - 1;
+    render_quiz();
+}
+
+function step_forward() {
+    const s = state.study;
+    const to = (s.viewing ?? s.index) + 1;
+    // back to the question being answered, still open if it hasn't been answered yet
+    s.viewing = to >= s.index && !s.answered ? null : to;
+    render_quiz();
 }
 
 function set_written_photo(file) {
@@ -1161,7 +1243,7 @@ async function mark_written() {
 
 function answer_option(i) {
     const s = state.study;
-    if (s.answered || s.done) return;
+    if (s.answered || s.done || (s.viewing !== null && s.viewing !== undefined)) return;
     const q = s.set.items[s.index];
     if (is_written(q) || i < 0 || i >= q.options.length) return;
     s.answered = true;
@@ -1190,6 +1272,8 @@ async function next_question() {
     stop_answer_voice();
     s.index += 1;
     s.answered = false;
+    s.viewing = null;
+    s.draft = null;
     if (s.index < s.set.items.length) {
         render_quiz();
         return;
@@ -1229,7 +1313,7 @@ function render_results() {
     el("study").innerHTML = `
         <div class="quiz-results">
             <p class="study-meta">Test complete</p>
-            <p class="score"><strong>${s.score}</strong> / ${total}${in_marks ? " marks" : ""}</p>
+            ${score_ring(s.score, total, in_marks)}
             <p class="score-note">${note}</p>
             <div class="study-controls">
                 ${missed ? `<button class="btn btn-accent" type="button" data-quiz="review">Review ${plural(missed, "mistake")}</button>` : ""}
@@ -1242,6 +1326,19 @@ function render_results() {
                 <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete test</button>
             </div>
         </div>`;
+}
+
+// the score in a circle that fills to the share of marks, green when it's strong, blue in the middle, mauve when low
+function score_ring(score, total, in_marks) {
+    const pct = total ? Math.round((score / total) * 100) : 0;
+    const level = pct >= 70 ? "high" : pct >= 40 ? "mid" : "low";
+    return `<div class="score-ring ${level}" style="--pct: ${pct}" role="img" aria-label="${score} out of ${total}${in_marks ? " marks" : ""}, ${pct} percent">
+        <div class="score-ring-inner">
+            <strong>${score}</strong>
+            <small>of ${total}${in_marks ? " marks" : ""}</small>
+            <span class="score-ring-pct">${pct}%</span>
+        </div>
+    </div>`;
 }
 
 // the questions that lost marks, in test order
@@ -1310,7 +1407,7 @@ function ask_about_question(i) {
 function restart_quiz() {
     const s = state.study;
     clearInterval(s.ticker);
-    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null, results: [], started: false, deadline: null, time_up: false });
+    Object.assign(s, { index: 0, score: 0, answered: false, done: false, photo: null, results: [], started: false, deadline: null, time_up: false, viewing: null, draft: null });
     render_quiz();
 }
 
@@ -1361,6 +1458,8 @@ thread.addEventListener("click", (event) => {
         if (quiz.dataset.quiz === "review") render_review();
         if (quiz.dataset.quiz === "start") start_quiz();
         if (quiz.dataset.quiz === "results") render_results();
+        if (quiz.dataset.quiz === "prev") step_back();
+        if (quiz.dataset.quiz === "forward") step_forward();
         return;
     }
     const minutes = target.closest("[data-minutes]");

@@ -1037,10 +1037,17 @@ button.picker-heading:focus-visible {
 }
 
 .chat-card-art {
-    display: grid;
-    place-items: center;
+    position: relative;
+    display: block;
     aspect-ratio: 16 / 10;
     color: var(--text);
+}
+
+/* centred by position rather than grid, since safari doesn't stretch a grid to a box's shape */
+.chat-card-art > .play {
+    position: absolute;
+    inset: 0;
+    margin: auto;
 }
 
 /* the one solid accent thing on a card, the button that opens it */
@@ -4315,9 +4322,14 @@ body:not(.is-page) .me-face {
 
 .study-extra {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 0.4rem;
     margin-top: 0.6rem;
+}
+
+.study-extra .btn {
+    white-space: nowrap;
 }
 
 .quiz-progress {
@@ -4600,6 +4612,93 @@ body:not(.is-page) .me-face {
 .score-note {
     margin-top: 0.4rem;
     color: var(--text-2);
+}
+
+/* the score after a test, in a ring that fills to the share of marks */
+.score-ring {
+    --ring: var(--accent-text);
+    display: grid;
+    place-items: center;
+    width: 168px;
+    height: 168px;
+    margin: 0.6rem auto 0.4rem;
+    border-radius: 50%;
+    background: conic-gradient(var(--ring) calc(var(--pct) * 1%), color-mix(in srgb, var(--text-2) 18%, transparent) 0);
+    animation: ring-in 0.8s var(--ease-out) backwards;
+}
+
+.score-ring.high {
+    --ring: var(--mint-text);
+}
+
+.score-ring.low {
+    --ring: var(--mauve-text);
+}
+
+.score-ring-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 144px;
+    height: 144px;
+    border-radius: 50%;
+    background: var(--bg);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+}
+
+.score-ring-inner strong {
+    font-size: 2.9rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.score-ring-inner small {
+    font-size: 0.85rem;
+    color: var(--text-2);
+}
+
+.score-ring-pct {
+    margin-top: 0.35rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ring);
+    background: color-mix(in srgb, var(--ring) 14%, transparent);
+}
+
+@keyframes ring-in {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: none; }
+}
+
+/* the line above each question, previous on the left and the question number in the middle */
+.quiz-top {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.quiz-top .study-meta {
+    margin: 0;
+}
+
+.quiz-prev {
+    justify-self: start;
+}
+
+.quiz-prev svg,
+[data-quiz="forward"] svg {
+    width: 16px;
+    height: 16px;
+}
+
+.past-answer {
+    margin-bottom: 0.75rem;
 }
 
 /* performance, stat tiles, charts and tables, all in the accent on slate */
