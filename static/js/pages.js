@@ -466,7 +466,7 @@ function show_chats() {
     if (state.busy) return;
     enter_page("#/chats", "Chats & Tests", `<div class="list-page" id="chats">
         <div class="page-tools">
-            <input class="search" id="chat-search" type="search" placeholder="Search chats, tests and people" aria-label="Search chats, tests and people" hidden>
+            <input class="search" id="chat-search" type="search" placeholder="Search chats, tests and people" aria-label="Search chats, tests and people">
             <button class="btn btn-soft btn-small" type="button" data-tool="quiz" data-mode="exam">${icons.quiz}New test</button>
             <div class="new-chat">
                 <button class="btn btn-accent btn-small" type="button" id="new-chat-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-chat-menu">${icons.plus}New chat</button>

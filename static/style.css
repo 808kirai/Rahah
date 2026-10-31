@@ -2249,14 +2249,10 @@ body.signed-out .toasts {
     flex-shrink: 0;
 }
 
-.friend-finder .search,
-.home-search {
-    max-width: none;
-}
-
 .friend-finder .search {
     flex: none;
     width: 100%;
+    max-width: none;
     margin-top: 0.4rem;
 }
 
@@ -2264,47 +2260,46 @@ body.signed-out .toasts {
     margin-top: 1rem;
 }
 
-.phone-friend-note,
-.home-search {
-    display: none;
-}
-
-/* on phones, friends are found from the search at the top of home and chats and tests */
 @media (max-width: 720px) {
-    .friend-finder {
-        display: none;
+    /* the chats and tests search gets its own full row above the buttons */
+    .page-tools {
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
 
-    .phone-friend-note {
-        display: block;
-        margin: 1rem 0 0;
+    .page-tools .search {
+        flex-basis: 100%;
+        max-width: none;
     }
 
     .board-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .board-grid .friend-finder {
-        display: none;
-    }
-
     .board-grid .perf-card {
         min-height: 0;
-    }
-
-    .home-search {
-        display: block;
-        width: calc(100% - 2 * var(--gutter));
-        margin: 0.5rem var(--gutter) 0.4rem;
-    }
-
-    .home-found {
-        padding: 0 var(--gutter);
     }
 
     .board-who small {
         white-space: normal;
     }
+}
+
+/* the message box under the top bar on phones, its menus open downwards from there */
+.top-composer {
+    position: relative;
+    z-index: 15;
+    padding: 0 var(--gutter) 0.5rem;
+}
+
+.top-composer:empty {
+    display: none;
+}
+
+.composer-up .composer .input-menu {
+    top: calc(100% + 10px);
+    bottom: auto;
+    animation-name: picker-in;
 }
 
 /* a student's photo, cut to a circle */

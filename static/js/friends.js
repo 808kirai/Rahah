@@ -111,7 +111,6 @@ function render_leaderboard() {
             <div class="perf-head"><h3>Friend requests</h3><p>They'd like to compare with you.</p></div>
             <ul class="people-list">${f.asked.map(person_html).join("")}</ul>
         </section>` : ""}
-        <p class="page-note phone-friend-note">To add friends, search their name at the top of Home or Chats &amp; Tests.</p>
         <div class="board-grid">
             <section class="perf-card friend-finder">
                 <div class="perf-head"><h3>Add friends</h3><p>Search by username or name. They'll need to accept.</p></div>
@@ -188,35 +187,10 @@ thread.addEventListener("click", async (event) => {
         if (el("leaderboard")) load_leaderboard();
         render_people_found();
         if (el("chat-groups")) render_chats();
-        render_home_search();
     } catch (error) {
         button.disabled = false;
         alert(error.message);
     }
-});
-
-// home on phones has one search for chats, tests and people
-function render_home_search() {
-    const box = el("home-search");
-    const slot = el("home-found");
-    if (!box || !slot) return;
-    const words = box.value.trim().toLowerCase();
-    el("rows").hidden = words.length >= 2;
-    if (words.length < 2) {
-        slot.innerHTML = "";
-        return;
-    }
-    const tests = state.sets.filter((s) => s.title.toLowerCase().includes(words)).slice(0, 6);
-    const chats = state.conversations.filter((c) => c.title.toLowerCase().includes(words)).slice(0, 6);
-    const link = (href, title, meta) => `<li><a href="${href}"><strong>${escape_html(title)}</strong><span class="found-meta">${meta}</span></a></li>`;
-    slot.innerHTML = `
-        ${tests.length ? `<h2 class="section-title">Tests and decks</h2><ul class="found-list">${tests.map((s) => link(`#/set/${s.id}`, s.title, escape_html(mode_name(s.mode)))).join("")}</ul>` : ""}
-        ${chats.length ? `<h2 class="section-title">Chats</h2><ul class="found-list">${chats.map((c) => link(`#/c/${c.id}`, c.title, `${escape_html(mode_name(c.mode))} · ${time_ago(c.updated, true)}`)).join("")}</ul>` : ""}
-        <h2 class="section-title">People</h2>${people_html(people_search.found, people_search.words)}`;
-}
-
-thread.addEventListener("input", (event) => {
-    if (event.target.id === "home-search") find_people(event.target.value.trim(), render_home_search);
 });
 
 // time spent studying counts towards the leaderboard, one minute at a time, and only minutes in which the

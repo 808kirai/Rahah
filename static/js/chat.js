@@ -136,7 +136,20 @@ function sync_view() {
     document.body.classList.toggle("is-page", view in page_titles);
     el("page-title").textContent = page_titles[view] || "Home";
     sync_nav_line();
+    place_composer(view);
 }
+
+// on a phone the message box sits at the top of home and chats and tests, under the top bar,
+// and goes back down above the tabs everywhere else, like in a chat where replies are typed
+const phone_screen = matchMedia("(max-width: 720px)");
+function place_composer(view = current_view()) {
+    const box = el("composer");
+    const up = phone_screen.matches && (view === "home" || view === "chats");
+    const home = up ? el("top-composer") : document.querySelector(".dock");
+    if (box.parentElement !== home) home.appendChild(box);
+    document.body.classList.toggle("composer-up", up);
+}
+phone_screen.addEventListener("change", () => place_composer());
 
 function leave_home() {
     if (current_view() === "chat") return;

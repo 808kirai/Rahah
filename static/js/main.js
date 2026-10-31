@@ -1160,6 +1160,7 @@ async function start() {
     try {
         await route();
     } catch (e) {}
+    place_composer();
     done_booting();
     start_study_clock();
     focus_input();
