@@ -1306,7 +1306,8 @@ function render_results() {
     const s = state.study;
     const total = s.set.items.reduce((sum, q) => sum + question_marks(q), 0);
     const best = s.set.best_score;
-    let note = s.score === total ? "Full marks." : best !== null && best !== undefined && best > s.score ? `Your best is ${best} out of ${total}.` : "Go again to lock it in.";
+    let note = score_message(total ? (s.score / total) * 100 : 0);
+    if (best !== null && best !== undefined && best > s.score) note += ` Your best is ${best} out of ${total}.`;
     if (s.time_up) note = `Time's up. ${note}`;
     const in_marks = s.set.items.some(is_written);
     const missed = missed_questions().length;
@@ -1326,6 +1327,16 @@ function render_results() {
                 <button class="btn btn-ghost btn-small" type="button" data-study-delete>${icons.trash}Delete test</button>
             </div>
         </div>`;
+}
+
+// a few words after a test that fit how it went
+function score_message(pct) {
+    if (pct >= 100) return "Full marks. Brilliant work!";
+    if (pct >= 85) return "Excellent. You really know this.";
+    if (pct >= 70) return "Great job. Just a few slips to fix.";
+    if (pct >= 50) return "Good effort. Review your mistakes and go again.";
+    if (pct >= 30) return "You're getting there. Go over the topic, then try again.";
+    return "Tough one. Ask Rahah to explain it, then have another go.";
 }
 
 // the score in a circle that fills to the share of marks, green when it's strong, blue in the middle, mauve when low
