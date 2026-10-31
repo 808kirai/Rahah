@@ -16,6 +16,7 @@ const shell = [
     "/static/js/reminders.js",
     "/static/js/study.js",
     "/static/js/performance.js",
+    "/static/js/friends.js",
     "/static/js/main.js",
     "/static/sketches.js",
     "/static/style.css",

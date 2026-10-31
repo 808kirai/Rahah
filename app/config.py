@@ -50,6 +50,8 @@ class settings:
     # blank sends backups to the sending gmail account and alerts to the admin's email
     backup_email: str = ""
     alert_email: str = ""
+    # the leaderboard's week starts on monday at midnight here, and study days are counted here
+    leaderboard_zone: str = "Africa/Nairobi"
     # where students write for help, password resets and other requests
     support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
@@ -87,6 +89,7 @@ def load_settings() -> settings:
         public_url=(os.getenv("RAHAH_PUBLIC_URL", "") or os.getenv("RENDER_EXTERNAL_URL", "")).strip().rstrip("/"),
         backup_email=os.getenv("RAHAH_BACKUP_EMAIL", "").strip(),
         alert_email=os.getenv("RAHAH_ALERT_EMAIL", "").strip(),
+        leaderboard_zone=os.getenv("RAHAH_LEADERBOARD_ZONE", "Africa/Nairobi").strip() or "Africa/Nairobi",
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

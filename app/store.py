@@ -36,6 +36,20 @@ create table if not exists users (
     created real not null,
     last_seen real
 );
+create table if not exists friends (
+    requester text not null references users(id) on delete cascade,
+    addressee text not null references users(id) on delete cascade,
+    accepted integer not null default 0,
+    created real not null,
+    primary key (requester, addressee)
+);
+create table if not exists study_time (
+    user_id text not null references users(id) on delete cascade,
+    day text not null,
+    minutes integer not null default 0,
+    last real not null default 0,
+    primary key (user_id, day)
+);
 create table if not exists app_keys (
     name text primary key,
     value text not null
@@ -237,6 +251,9 @@ class store:
             if "share_token" not in set_columns:
                 db.execute("alter table study_sets add column share_token text")
                 db.execute("create unique index if not exists sets_by_share on study_sets(share_token)")
+            # whether other students can find this account in friend search
+            if "findable" not in columns:
+                db.execute("alter table users add column findable integer not null default 1")
             # the secret part of each student's calendar feed address
             if "calendar_token" not in columns:
                 db.execute("alter table users add column calendar_token text")
@@ -267,6 +284,7 @@ class store:
         user = dict(row)
         user["is_admin"] = bool(user["is_admin"])
         user["disabled"] = bool(user["disabled"])
+        user["findable"] = bool(user.get("findable", 1))
         user["settings"] = json.loads(user["settings"] or "{}")
         return user
 
@@ -327,11 +345,11 @@ class store:
         return row is not None
 
     def update_user(self, user_id: str, **fields) -> dict | None:
-        allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings")
+        allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings", "findable")
         fields = {k: v for k, v in fields.items() if k in allowed}
         if "settings" in fields:
             fields["settings"] = json.dumps(fields["settings"])
-        for flag in ("is_admin", "disabled"):
+        for flag in ("is_admin", "disabled", "findable"):
             if flag in fields:
                 fields[flag] = int(bool(fields[flag]))
         if fields:
@@ -417,6 +435,123 @@ class store:
     def end_session(self, token: str) -> None:
         with self._connect() as db:
             db.execute("delete from sessions where token = ?", (token_hash(token),))
+
+    # friends, a request becomes a friendship once the other student accepts
+
+    def search_people(self, uid: str, text: str, limit: int = 10) -> list[dict]:
+        # by the start of a username or any part of a name, only accounts that let themselves be found
+        query = text.strip().lower().replace("%", "").replace("_", "\\_")
+        with self._connect() as db:
+            rows = db.execute(
+                "select id, username, name from users where id != ? and disabled = 0 and findable = 1 "
+                "and (lower(username) like ? escape '\\' or lower(name) like ? escape '\\') "
+                "order by lower(username) like ? escape '\\' desc, username limit ?",
+                (uid, f"{query}%", f"%{query}%", f"{query}%", limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def friend_links(self, uid: str) -> list[dict]:
+        # every request to or from the student, with the other student's name, accepted or waiting
+        with self._connect() as db:
+            rows = db.execute(
+                "select f.requester, f.addressee, f.accepted, f.created, u.id as other_id, u.username, u.name "
+                "from friends f join users u on u.id = case when f.requester = ? then f.addressee else f.requester end "
+                "where (f.requester = ? or f.addressee = ?) and u.disabled = 0 order by u.username",
+                (uid, uid, uid),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def friend_ids(self, uid: str) -> list[str]:
+        return [link["other_id"] for link in self.friend_links(uid) if link["accepted"]]
+
+    def link_between(self, uid: str, other: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute(
+                "select * from friends where (requester = ? and addressee = ?) or (requester = ? and addressee = ?)",
+                (uid, other, other, uid),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def ask_friend(self, uid: str, other: str) -> str:
+        """sends a request, or accepts one they already sent, and says what the two are now"""
+        link = self.link_between(uid, other)
+        with self._connect() as db:
+            if link and link["accepted"]:
+                return "friends"
+            if link and link["requester"] == other:
+                db.execute("update friends set accepted = 1 where requester = ? and addressee = ?", (other, uid))
+                return "friends"
+            if link:
+                return "sent"
+            db.execute("insert into friends (requester, addressee, created) values (?, ?, ?)", (uid, other, time.time()))
+            return "sent"
+
+    def accept_friend(self, uid: str, other: str) -> bool:
+        with self._connect() as db:
+            return db.execute(
+                "update friends set accepted = 1 where requester = ? and addressee = ? and accepted = 0", (other, uid)
+            ).rowcount == 1
+
+    def drop_friend(self, uid: str, other: str) -> bool:
+        # removes a friend, cancels a request, or turns one down
+        with self._connect() as db:
+            return db.execute(
+                "delete from friends where (requester = ? and addressee = ?) or (requester = ? and addressee = ?)",
+                (uid, other, other, uid),
+            ).rowcount > 0
+
+    def requests_sent_since(self, uid: str, start: float) -> int:
+        with self._connect() as db:
+            return db.execute("select count(*) from friends where requester = ? and created >= ?", (uid, start)).fetchone()[0]
+
+    # time spent studying, a minute at a time while rahah is open and being used
+
+    def add_study_minute(self, uid: str, day: str, now: float, cap: int) -> int:
+        # a minute counts only if the last one was nearly a minute ago, and a day stops at the cap
+        with self._connect() as db:
+            row = db.execute("select minutes, last from study_time where user_id = ? and day = ?", (uid, day)).fetchone()
+            if row and (now - row["last"] < 50 or row["minutes"] >= cap):
+                return row["minutes"]
+            if row:
+                db.execute("update study_time set minutes = minutes + 1, last = ? where user_id = ? and day = ?", (now, uid, day))
+                return row["minutes"] + 1
+            db.execute("insert into study_time (user_id, day, minutes, last) values (?, ?, 1, ?)", (uid, day, now))
+            return 1
+
+    def week_numbers(self, user_ids: list[str], start: float, first_day: str, day_of) -> dict[str, dict]:
+        """for each student, this week's marks, cards practised, minutes studied and study days.
+        day_of turns a time into that day's date where the leaderboard keeps time"""
+        found = {u: {"marks": 0, "cards": 0, "minutes": 0, "days": set()} for u in user_ids}
+        if not user_ids:
+            return {}
+        marks_in = ",".join("?" * len(user_ids))
+        with self._connect() as db:
+            # each test's best score this week
+            for row in db.execute(
+                f"select s.user_id, max(a.score) as best, group_concat(a.created) as times from quiz_attempts a "
+                f"join study_sets s on s.id = a.set_id where s.user_id in ({marks_in}) and a.created >= ? group by a.set_id",
+                (*user_ids, start),
+            ).fetchall():
+                found[row["user_id"]]["marks"] += row["best"] or 0
+                found[row["user_id"]]["days"].update(day_of(float(t)) for t in row["times"].split(","))
+            for row in db.execute(
+                f"select s.user_id, p.updated from card_progress p join study_sets s on s.id = p.set_id "
+                f"where s.user_id in ({marks_in}) and p.updated >= ?",
+                (*user_ids, start),
+            ).fetchall():
+                found[row["user_id"]]["cards"] += 1
+                found[row["user_id"]]["days"].add(day_of(row["updated"]))
+            for row in db.execute(
+                f"select user_id, created from usage where user_id in ({marks_in}) and created >= ?", (*user_ids, start)
+            ).fetchall():
+                found[row["user_id"]]["days"].add(day_of(row["created"]))
+            for row in db.execute(
+                f"select user_id, day, minutes from study_time where user_id in ({marks_in}) and day >= ?", (*user_ids, first_day)
+            ).fetchall():
+                found[row["user_id"]]["minutes"] += row["minutes"]
+                if row["minutes"] >= 5:
+                    found[row["user_id"]]["days"].add(row["day"])
+        return {u: {**v, "days": len(v["days"])} for u, v in found.items()}
 
     # keys rahah makes for itself once, like the one that signs phone notifications
 

@@ -117,6 +117,10 @@ function route() {
         if (!el("performance")) show_performance();
         return;
     }
+    if (location.hash === "#/leaderboard") {
+        if (!el("leaderboard")) show_leaderboard();
+        return;
+    }
     if (location.hash === "#/admin") {
         if (!el("admin")) show_admin();
         return;
@@ -839,6 +843,16 @@ function render_account() {
         </div>
         <section class="perf-card">
             <div class="perf-head">
+                <h3>Friend search</h3>
+                <p>Let other students find you by your username or name to send a friend request. They only see your username and first name.</p>
+            </div>
+            <div class="choices" role="group" aria-label="Friend search">
+                <button class="choice" type="button" data-findable="0" aria-pressed="${!me.findable}">Off</button>
+                <button class="choice" type="button" data-findable="1" aria-pressed="${Boolean(me.findable)}">On</button>
+            </div>
+        </section>
+        <section class="perf-card">
+            <div class="perf-head">
                 <h3>Low-data mode</h3>
                 <p>For slow or expensive data: shorter answers, smaller photos, and no web searches or diagrams.</p>
             </div>
@@ -948,6 +962,20 @@ thread.addEventListener("click", async (event) => {
     if (!event.target.closest("#account-box")) return;
     const low = event.target.closest("[data-low-data]");
     if (low) save_settings({ low_data: low.dataset.lowData === "1" });
+    const findable = event.target.closest("[data-findable]");
+    if (findable) {
+        try {
+            state.me = await (await api("/api/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ findable: findable.dataset.findable === "1" }),
+            })).json();
+            remember_me(state.me);
+            render_account();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
     // a forgotten password, the same emailed link as the sign in page, sent to the email on the account
     const reset = event.target.closest("[data-send-reset]");
     if (reset) {
@@ -1066,6 +1094,7 @@ async function start() {
         await route();
     } catch (e) {}
     done_booting();
+    start_study_clock();
     focus_input();
 }
 

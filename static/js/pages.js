@@ -234,7 +234,7 @@ function render_chats() {
     const list = el("chat-groups");
     if (!list) return;
     const all_tests = state.sets.filter((s) => s.kind === "quiz");
-    el("chat-search").hidden = !state.conversations.length && !all_tests.length;
+    // the search also finds people, so it's always there
     const words = el("chat-search").value.trim().toLowerCase();
     const matches = (title) => !words || title.toLowerCase().includes(words);
     const tests = all_tests.filter((s) => matches(s.title));
@@ -268,8 +268,10 @@ function render_chats() {
     }
     // while searching, the found list covers chats, titles included
     const searching = words.length >= 2;
-    list.innerHTML = found_html(words) + tests_html + notes_html(words) + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
+    const people = searching ? `<h2 class="section-title">People</h2>${people_html(people_search.found, people_search.words)}` : "";
+    list.innerHTML = found_html(words) + tests_html + notes_html(words) + people + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
     if (words.length >= 2 && state.found_words !== words) search_chats(words);
+    if (searching && people_search.words !== words) find_people(words, render_chats);
 }
 
 // the notes library, grouped by subject, each note ready to ask about, test on, make cards from or summarise
@@ -464,7 +466,7 @@ function show_chats() {
     if (state.busy) return;
     enter_page("#/chats", "Chats & Tests", `<div class="list-page" id="chats">
         <div class="page-tools">
-            <input class="search" id="chat-search" type="search" placeholder="Search chats and tests" aria-label="Search chats and tests" hidden>
+            <input class="search" id="chat-search" type="search" placeholder="Search chats, tests and people" aria-label="Search chats, tests and people" hidden>
             <button class="btn btn-soft btn-small" type="button" data-tool="quiz" data-mode="exam">${icons.quiz}New test</button>
             <div class="new-chat">
                 <button class="btn btn-accent btn-small" type="button" id="new-chat-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-chat-menu">${icons.plus}New chat</button>

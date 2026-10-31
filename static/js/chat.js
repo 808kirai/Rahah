@@ -92,7 +92,7 @@ function add_notice(message_el, text) {
 
 // home, chats, reminders, performance and account are pages, a deck or quiz is a study view, anything else in the thread is a chat
 
-const page_titles = { home: "Home", chats: "Chats & Tests", reminders: "Reminders and Timetable", performance: "Performance", account: "Account", admin: "Students" };
+const page_titles = { home: "Home", chats: "Chats & Tests", reminders: "Reminders and Timetable", performance: "Performance", account: "Account", admin: "Students", leaderboard: "Leaderboard" };
 
 function current_view() {
     if (el("welcome")) return "home";
@@ -101,6 +101,7 @@ function current_view() {
     if (el("performance")) return "performance";
     if (el("account")) return "account";
     if (el("admin")) return "admin";
+    if (el("leaderboard")) return "leaderboard";
     if (el("study") || el("shared")) return "study";
     return "chat";
 }
@@ -131,6 +132,7 @@ function sync_view() {
     document.body.classList.toggle("is-reminders", view === "reminders");
     document.body.classList.toggle("is-performance", view === "performance");
     document.body.classList.toggle("is-study", view === "study");
+    document.body.classList.toggle("is-leaderboard", view === "leaderboard");
     document.body.classList.toggle("is-page", view in page_titles);
     el("page-title").textContent = page_titles[view] || "Home";
     sync_nav_line();

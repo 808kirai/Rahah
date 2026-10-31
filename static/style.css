@@ -1974,6 +1974,152 @@ body.signed-out .toasts {
     color: var(--accent-text);
 }
 
+/* the leaderboard, friends ranked by this week's points */
+.is-leaderboard #leaderboard-btn {
+    color: var(--accent-text);
+}
+
+.board {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.board-row,
+.person {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 16px;
+    background: var(--surface-2);
+}
+
+.board-row.you {
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 60%, transparent);
+}
+
+.board-place {
+    width: 1.6rem;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-2);
+}
+
+.board-row:nth-child(1) .board-place {
+    color: var(--accent-text);
+}
+
+.account-avatar.small {
+    width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.board-who,
+.person-who {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+}
+
+.board-who small,
+.person-who small {
+    font-size: 0.75rem;
+    color: var(--text-2);
+}
+
+.board-points {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+
+.board-points strong {
+    font-size: 1.15rem;
+}
+
+.board-points small {
+    font-size: 0.7rem;
+    color: var(--text-2);
+}
+
+.board-rules {
+    margin: 0.9rem 0 0;
+}
+
+.people-list {
+    list-style: none;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.person-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.friend-finder .search,
+.home-search {
+    max-width: none;
+}
+
+.friend-finder .search {
+    width: 100%;
+    margin-top: 0.4rem;
+}
+
+.leaderboard-page .perf-card + .perf-card,
+.leaderboard-page .perf-card + .page-note + .perf-card {
+    margin-top: 1rem;
+}
+
+.phone-friend-note,
+.home-search {
+    display: none;
+}
+
+/* on phones, friends are found from the search at the top of home and chats and tests */
+@media (max-width: 720px) {
+    .friend-finder {
+        display: none;
+    }
+
+    .phone-friend-note {
+        display: block;
+        margin: 1rem 0;
+    }
+
+    .home-search {
+        display: block;
+        width: calc(100% - 2 * var(--gutter));
+        margin: 0.5rem var(--gutter) 0.4rem;
+    }
+
+    .home-found {
+        padding: 0 var(--gutter);
+    }
+
+    .board-who small {
+        white-space: normal;
+    }
+}
+
 /* adding the calendar link, one button per calendar app */
 .calendar-choices {
     display: flex;
@@ -5200,6 +5346,7 @@ body.signed-out .toasts {
 .is-reminders .composer,
 .is-performance .composer,
 .is-account .composer,
+.is-leaderboard .composer,
 .is-study .composer {
     max-width: 0;
     opacity: 0;
@@ -5218,6 +5365,7 @@ body.signed-out .toasts {
 .is-reminders .dock,
 .is-performance .dock,
 .is-account .dock,
+.is-leaderboard .dock,
 .is-study .dock {
     gap: 0;
 }
@@ -5719,6 +5867,7 @@ body.signed-out .toasts {
     .is-reminders .composer,
     .is-performance .composer,
     .is-account .composer,
+    .is-leaderboard .composer,
     .is-study .composer {
         max-width: none;
         max-height: 0;

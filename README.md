@@ -54,6 +54,9 @@ Pages
 - The tabs are Home, Chats & Tests, Reminders, Performance and Account
 - Chats & Tests lists your saved tests with a New test card, then your chats grouped by day. Search looks inside every message of every chat, older ones too, and shows where the words were found. New chat drops down a box with your 5 newest chats
 - Reminders and Timetable splits the page in half. Reminders cover exams, CATs, midterms, assignments and other events, with reminders every few days from a chosen start until the day before and on the day, and a pop up and a desktop notification while Rahah is open. An exam, CAT or midterm can get a revision plan: a day by day plan up to the day before, with a focus and a few tasks each day, buttons that open the right tool for each task, days to tick off, and a calendar file. The weekly timetable lists classes day by day from today, with the class happening now marked
+- Friends and a weekly leaderboard: the trophy at the top opens the Leaderboard, where a student sees this week's points for themselves and their friends, ranked, and how many friends are above them. Points: 1 for each test mark (each test's best this week), 1 for each flashcard practised, 1 for every 6 minutes spent studying, and 5 for each day something was studied. The week starts on Monday at midnight Kenya time (RAHAH_LEADERBOARD_ZONE)
+- Study time counts while Rahah is open and being used: a minute is added each minute the page is showing and there's been a tap, key or scroll in the last two minutes, a minute can't be counted twice, and a day stops at 10 hours
+- Friends are found by username or name, and only see each other's username and first name. A request has to be accepted, either side can remove the other, and a student can send up to 30 requests a day and have up to 200 friends. Friend search on the Account tab turns off being found. On a computer the Leaderboard has its own search; on a phone, the search at the top of Home and of Chats & Tests finds chats, tests and people together
 - Share a test or deck: Share makes a private link, sent through the phone's share menu or copied. A friend who opens it sees what it is and who shared it, and Add to my tests copies it into their own account, with no AI used. Their answers and scores are their own, and the owner's best score doesn't come across. Someone signed out signs in or makes an account first, then lands on it. Stop sharing turns the link off, and copies already added stay
 - Phone notifications for reminders, even when Rahah is closed: Turn on notifications on the Reminders page signs that phone or browser up, and on each reminder day a notification arrives at 9am in the student's own time zone. Tapping it opens Reminders. Each day is sent once, a phone that turns notifications off is forgotten, and signing out stops them on that device. Rahah only sends to the real push services of Google, Apple, Mozilla and Microsoft, and signs each notification with a key pair it makes once and keeps in its database. On iPhone, notifications need Rahah added to the home screen first, and the page says so
 - Add to calendar gives each student a private calendar link with every upcoming reminder and their weekly classes, with alerts. An iPhone or Mac adds it in one tap, Google Calendar opens it to add, and the calendar checks it for changes, so new reminders and classes show up by themselves. Make a new link stops the old one working, and single reminders and revision plans can still be downloaded as calendar files
@@ -173,6 +176,7 @@ Project layout
 - `app/study.py` - Flashcards and tests, asked for as structured JSON and checked before saving, and the marking of written answers
 - `app/performance.py` - Test attempts turned into percentages, grades and summaries
 - `app/reminders.py` - Reminder dates, checks and calendar files
+- `app/friends.py` - Leaderboard points and the week they're counted in
 - `app/push.py` - Phone notifications for reminders and the calendar link's feed
 - `app/alerts.py` - Emails the admin when something breaks, gathered into one email at most every half hour
 - `app/mailer.py` - Sends email through Gmail, for password resets, backups and alerts
@@ -189,7 +193,7 @@ Project layout
 - `app/providers.py` - Checking Google and Apple sign in tokens
 - `app/config.py` - Settings read from the environment
 - `static/` - The page, its styles, the app manifest, the service worker and the offline page
-- `static/js/` - The page's script in seven plain files with no build step, loaded in order and sharing one scope: `core.js` (shared helpers, markdown, diagrams), `chat.js` (answers, voice, printing, attachments, settings), `pages.js` (home, chats and tests, notes, suggestions), `reminders.js` (reminders, timetable, revision plans), `study.js` (tool sheets, flashcards, tests), `performance.js` (scores, weekly report, usage) and `main.js` (conversations, theme, message box, start). Code that runs as a file loads can only use what earlier files define
+- `static/js/` - The page's script in eight plain files with no build step, loaded in order and sharing one scope: `core.js` (shared helpers, markdown, diagrams), `chat.js` (answers, voice, printing, attachments, settings), `pages.js` (home, chats and tests, notes, suggestions), `reminders.js` (reminders, timetable, revision plans), `study.js` (tool sheets, flashcards, tests), `performance.js` (scores, weekly report, usage), `friends.js` (friends, leaderboard, study time) and `main.js` (conversations, theme, message box, start). Code that runs as a file loads can only use what earlier files define
 - `tests/` - Tests with a fake Claude client
 
 Settings
@@ -209,6 +213,7 @@ Settings
 - `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`
 - `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
 - `RAHAH_SMTP_USER`, `RAHAH_SMTP_PASSWORD` - The Gmail address and app password that send password reset emails. Leave them out and Forgot password points to the help email instead. `RAHAH_SMTP_HOST` and `RAHAH_SMTP_PORT` change the provider, defaulting to Gmail on 587, and `RAHAH_PUBLIC_URL` sets the address in links if Render's own isn't there
+- `RAHAH_LEADERBOARD_ZONE` - The time zone the leaderboard's week and study days follow, defaulting to `Africa/Nairobi`
 - `RAHAH_BACKUP_EMAIL`, `RAHAH_ALERT_EMAIL` - Where the daily backup and problem alerts go once email is set up, defaulting to the sending Gmail account and the admin's email. `off` turns either one off
 - `RAHAH_CLIENT_IP_HEADER` - Online behind a host's proxy, the header holding each visitor's own address, `true-client-ip` on Render. Left blank the address comes from the connection
 - `GOOGLE_CLIENT_ID` - Turns on Sign in with Google, see above

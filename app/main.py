@@ -24,6 +24,7 @@ from .accounts import (
 from .alerts import alert_box, alert_handler
 from .mailer import send_email
 from .push import allowed_endpoint, due_today, feed_file, message_for, new_keys, send_push, zone
+from . import friends as board
 from .providers import identity, provider_error, verify_apple, verify_google
 from .modes import (
     allowed_mode, custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom,
@@ -118,6 +119,12 @@ class profile_in(BaseModel):
     name: str | None = Field(default=None, max_length=60)
     email: str | None = Field(default=None, max_length=200)
     settings: dict | None = None
+    # whether other students can find this account in friend search
+    findable: bool | None = None
+
+
+class friend_in(BaseModel):
+    username: str = Field(min_length=1, max_length=40)
 
 
 class google_in(BaseModel):
@@ -495,6 +502,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
+            "findable": user["findable"],
             "allowance": allowance_out(user),
             "models": choices_for(user["is_admin"]),
         }
@@ -733,6 +741,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             if len(json.dumps(body.settings)) > 2000:
                 raise HTTPException(400, "Those settings are too big.")
             change["settings"] = body.settings
+        if body.findable is not None:
+            change["findable"] = body.findable
         return user_out(db.update_user(user["id"], **change))
 
     @app.post("/api/me/password")
@@ -1474,6 +1484,108 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             media_type="text/calendar; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{safe_filename(name)}.ics"'},
         )
+
+    # friends and the weekly leaderboard
+
+    board_zone = board.zone(cfg.leaderboard_zone)
+    searches = counter(60, 60)
+
+    def person_out(row: dict, status: str) -> dict:
+        # what another student sees of someone, their username and first name only
+        return {"username": row["username"], "name": board.first_name(row["name"], row["username"]), "status": status}
+
+    def other_or_404(username: str, me: dict) -> dict:
+        found = db.find_user_by("username", clean_username(username))
+        if not found or found["disabled"] or found["id"] == me["id"]:
+            raise HTTPException(404, "There's no student with that username.")
+        return found
+
+    def link_status(link: dict | None, uid: str) -> str:
+        if not link:
+            return "none"
+        if link["accepted"]:
+            return "friends"
+        return "sent" if link["requester"] == uid else "asked"
+
+    @app.get("/api/people")
+    def find_people(q: str = Query("", max_length=40), user: dict = Depends(signed_in)):
+        text = q.strip()
+        if len(text) < 2:
+            return {"people": []}
+        if searches.full(user["id"]):
+            raise HTTPException(429, "Slow down a little, then search again.")
+        searches.add(user["id"])
+        links = {link["other_id"]: link for link in db.friend_links(user["id"])}
+        return {"people": [person_out(p, link_status(links.get(p["id"]), user["id"])) for p in db.search_people(user["id"], text)]}
+
+    @app.get("/api/friends")
+    def list_friends(user: dict = Depends(signed_in)):
+        out = {"friends": [], "asked": [], "sent": []}
+        for link in db.friend_links(user["id"]):
+            status = link_status(link, user["id"])
+            out[status].append(person_out(link, status))
+        return out
+
+    @app.post("/api/friends")
+    def add_friend(body: friend_in, user: dict = Depends(signed_in)):
+        other = other_or_404(body.username, user)
+        link = db.link_between(user["id"], other["id"])
+        if not link:
+            # a request needs the other student to be findable, unless they asked first
+            if not other["findable"]:
+                raise HTTPException(404, "There's no student with that username.")
+            if len(db.friend_ids(user["id"])) >= board.max_friends:
+                raise HTTPException(400, f"You can have up to {board.max_friends} friends.")
+            if db.requests_sent_since(user["id"], time.time() - 86400) >= board.requests_a_day:
+                raise HTTPException(429, "That's a lot of friend requests for one day. Try again tomorrow.")
+        return {"status": db.ask_friend(user["id"], other["id"])}
+
+    @app.post("/api/friends/{username}/accept")
+    def accept_friend(username: str, user: dict = Depends(signed_in)):
+        other = other_or_404(username, user)
+        if not db.accept_friend(user["id"], other["id"]):
+            raise HTTPException(404, "That friend request isn't there any more.")
+        return {"status": "friends"}
+
+    @app.delete("/api/friends/{username}")
+    def remove_friend(username: str, user: dict = Depends(signed_in)):
+        other = other_or_404(username, user)
+        db.drop_friend(user["id"], other["id"])
+        return {"status": "none"}
+
+    @app.post("/api/study-time")
+    def study_minute(user: dict = Depends(signed_in)):
+        # the page sends one of these each minute it's open and being used
+        now = datetime.now(timezone.utc)
+        minutes = db.add_study_minute(user["id"], board.local_day(now, board_zone), now.timestamp(), board.max_minutes_a_day)
+        return {"minutes_today": minutes}
+
+    @app.get("/api/leaderboard")
+    def leaderboard(user: dict = Depends(signed_in)):
+        now = datetime.now(timezone.utc)
+        start = board.week_start(now, board_zone)
+        people = {user["id"]: user, **{f: db.get_user(f) for f in db.friend_ids(user["id"])}}
+        numbers = db.week_numbers(
+            list(people), start.timestamp(), start.date().isoformat(),
+            lambda t: board.local_day(datetime.fromtimestamp(t, timezone.utc), board_zone),
+        )
+        rows = []
+        for uid, person in people.items():
+            n = numbers[uid]
+            rows.append({
+                "username": person["username"], "name": board.first_name(person["name"], person["username"]),
+                "points": board.points_for(n["marks"], n["cards"], n["minutes"], n["days"]),
+                "minutes": n["minutes"], "marks": n["marks"], "cards": n["cards"], "days": n["days"], "you": uid == user["id"],
+            })
+        rows.sort(key=lambda r: (-r["points"], not r["you"], r["username"].lower()))
+        for place, row in enumerate(rows, 1):
+            row["place"] = place
+        mine = next(r for r in rows if r["you"])
+        return {
+            "week_start": start.date().isoformat(), "board": rows,
+            "above": sum(1 for r in rows if r["points"] > mine["points"]),
+            "rules": {"mark": board.points_per_mark, "card": board.points_per_card, "minutes": board.minutes_per_point, "day": board.points_per_day},
+        }
 
     # phone notifications for reminders, and the calendar feed
 
