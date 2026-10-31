@@ -4649,24 +4649,22 @@ body:not(.is-page) .me-face {
 }
 
 .score-ring-inner strong {
-    font-size: 2.9rem;
+    font-size: 2.7rem;
     font-weight: 800;
     letter-spacing: -0.03em;
 }
 
-.score-ring-inner small {
-    font-size: 0.85rem;
-    color: var(--text-2);
-}
-
-.score-ring-pct {
-    margin-top: 0.35rem;
-    padding: 0.1rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.78rem;
+.score-ring-sign {
+    margin-left: 0.05em;
+    font-size: 0.55em;
     font-weight: 700;
     color: var(--ring);
-    background: color-mix(in srgb, var(--ring) 14%, transparent);
+}
+
+.score-ring-inner small {
+    margin-top: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--text-2);
 }
 
 @keyframes ring-in {

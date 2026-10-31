@@ -1334,9 +1334,8 @@ function score_ring(score, total, in_marks) {
     const level = pct >= 70 ? "high" : pct >= 40 ? "mid" : "low";
     return `<div class="score-ring ${level}" style="--pct: ${pct}" role="img" aria-label="${score} out of ${total}${in_marks ? " marks" : ""}, ${pct} percent">
         <div class="score-ring-inner">
-            <strong>${score}</strong>
-            <small>of ${total}${in_marks ? " marks" : ""}</small>
-            <span class="score-ring-pct">${pct}%</span>
+            <strong>${pct}<span class="score-ring-sign">%</span></strong>
+            <small>${score} of ${total}${in_marks ? " marks" : ""}</small>
         </div>
     </div>`;
 }
