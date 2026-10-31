@@ -7,6 +7,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from .accounts import (
 )
 from .alerts import alert_box, alert_handler
 from .mailer import send_email
+from .photos import square_photo
 from .push import allowed_endpoint, due_today, feed_file, message_for, new_keys, send_push, zone
 from . import friends as board
 from .providers import identity, provider_error, verify_apple, verify_google
@@ -121,8 +123,6 @@ class profile_in(BaseModel):
     settings: dict | None = None
     # whether other students can find this account in friend search
     findable: bool | None = None
-    # the picked face, blank for the first letter of their name
-    avatar: str | None = Field(default=None, max_length=20)
 
 
 class friend_in(BaseModel):
@@ -498,13 +498,29 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if not allowed_mode(mode, own_subjects(user)):
             raise HTTPException(400, "Unknown subject.")
 
+    # profile photos, kept on the disk beside the database, shown only to the student and their friends
+    photos_dir = cfg.db_path.parent / "photos"
+    max_photo_upload = 12 * 1024 * 1024
+
+    def photo_path(photo_id: str) -> Path | None:
+        return photos_dir / f"{photo_id}.jpg" if photo_id and re.fullmatch(r"p_[0-9a-f]{16}", photo_id) else None
+
+    def photo_url(user: dict) -> str:
+        photo_id = user.get("avatar") or ""
+        return f"/api/photos/{user['username']}?v={photo_id}" if photo_path(photo_id) else ""
+
+    def forget_photo(photo_id: str) -> None:
+        path = photo_path(photo_id)
+        if path and path.exists():
+            path.unlink()
+
     def user_out(user: dict) -> dict:
         # what the page knows about the student signed in
         return {
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
-            "findable": user["findable"], "avatar": user.get("avatar") or "",
+            "findable": user["findable"], "photo": photo_url(user),
             "allowance": allowance_out(user),
             "models": choices_for(user["is_admin"]),
         }
@@ -745,11 +761,37 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             change["settings"] = body.settings
         if body.findable is not None:
             change["findable"] = body.findable
-        if body.avatar is not None:
-            if body.avatar and body.avatar not in board.avatars:
-                raise HTTPException(400, "Pick one of the faces on the list.")
-            change["avatar"] = body.avatar
         return user_out(db.update_user(user["id"], **change))
+
+    @app.post("/api/me/photo")
+    async def set_photo(file: UploadFile = File(...), user: dict = Depends(signed_in)):
+        data = await file.read(max_photo_upload + 1)
+        if len(data) > max_photo_upload:
+            raise HTTPException(413, "That photo is too big. Pick one under 12 MB.")
+        try:
+            square = await asyncio.to_thread(square_photo, data)
+        except ValueError as error:
+            raise HTTPException(400, str(error))
+        photo_id = f"p_{secrets.token_hex(8)}"
+        photos_dir.mkdir(parents=True, exist_ok=True)
+        photo_path(photo_id).write_bytes(square)
+        forget_photo(user.get("avatar") or "")
+        return user_out(db.update_user(user["id"], avatar=photo_id))
+
+    @app.delete("/api/me/photo")
+    def remove_photo(user: dict = Depends(signed_in)):
+        forget_photo(user.get("avatar") or "")
+        return user_out(db.update_user(user["id"], avatar=""))
+
+    @app.get("/api/photos/{username}")
+    def show_photo(username: str, user: dict = Depends(signed_in)):
+        # the student's own photo, or a friend's, nobody else's
+        owner = db.find_user_by("username", clean_username(username))
+        path = photo_path(owner.get("avatar") or "") if owner and not owner["disabled"] else None
+        allowed = owner and (owner["id"] == user["id"] or link_status(db.link_between(user["id"], owner["id"]), user["id"]) == "friends")
+        if not path or not allowed or not path.exists():
+            raise HTTPException(404, "There's no photo here.")
+        return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
     @app.post("/api/me/password")
     def change_password(body: password_in, request: Request, user: dict = Depends(signed_in)):
@@ -775,6 +817,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         elif body.confirm != user["username"]:
             raise HTTPException(400, "Type your username exactly to confirm.")
         files = db.user_file_ids(user["id"])
+        forget_photo(user.get("avatar") or "")
         db.delete_user(user["id"])
         sync_custom(db.list_subjects())
         response.delete_cookie(session_cookie, path="/")
@@ -1498,7 +1541,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     def person_out(row: dict, status: str) -> dict:
         # what another student sees of someone, their username and first name only
-        return {"username": row["username"], "name": board.first_name(row["name"], row["username"]), "avatar": row.get("avatar") or "", "status": status}
+        # the photo only for friends, everyone else sees the first letter
+        photo = photo_url(row) if status == "friends" else ""
+        return {"username": row["username"], "name": board.first_name(row["name"], row["username"]), "photo": photo, "status": status}
 
     def other_or_404(username: str, me: dict) -> dict:
         found = db.find_user_by("username", clean_username(username))
@@ -1581,7 +1626,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         for uid, person in people.items():
             n = numbers[uid]
             rows.append({
-                "username": person["username"], "name": board.first_name(person["name"], person["username"]), "avatar": person.get("avatar") or "",
+                "username": person["username"], "name": board.first_name(person["name"], person["username"]), "photo": photo_url(person),
                 "points": board.points_for(n["marks"], n["cards"], n["minutes"], n["days"]),
                 "minutes": n["minutes"], "marks": n["marks"], "cards": n["cards"], "days": n["days"],
                 "accuracy": n["accuracy"], "you": uid == user["id"],

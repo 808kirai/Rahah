@@ -796,6 +796,36 @@ function show_account() {
     load_usage();
 }
 
+// a photo from the gallery, cut to its middle square and made smaller here first so it uploads quickly
+// on a slow connection. the server squares and cleans it again, so this only saves data
+async function shrink_photo(file) {
+    try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+        const side = Math.min(bitmap.width, bitmap.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = Math.min(512, side);
+        canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, canvas.width, canvas.height);
+        return await new Promise((done) => canvas.toBlob((blob) => done(blob || file), "image/jpeg", 0.9));
+    } catch (e) {
+        return file;
+    }
+}
+
+thread.addEventListener("change", async (event) => {
+    if (event.target.id !== "photo-pick" || !event.target.files[0]) return;
+    account_note("photo-note", "Uploading your photo…");
+    try {
+        const form = new FormData();
+        form.append("file", await shrink_photo(event.target.files[0]), "photo.jpg");
+        state.me = await (await api("/api/me/photo", { method: "POST", body: form })).json();
+        remember_me(state.me);
+        render_account();
+        render_me_face();
+    } catch (error) {
+        account_note("photo-note", error.message);
+    }
+});
+
 // the student's picture beside rahah's name at the top, a way to the account tab
 function render_me_face() {
     const slot = el("me-face");
@@ -803,7 +833,7 @@ function render_me_face() {
     slot.hidden = !state.me;
     // signed in, the student's picture takes the logo's place beside rahah's name
     document.body.classList.toggle("has-face", Boolean(state.me));
-    if (state.me) slot.innerHTML = face_html(state.me.avatar, state.me.name || state.me.username, "tiny");
+    if (state.me) slot.innerHTML = face_html(state.me.photo, state.me.name || state.me.username, "tiny");
 }
 
 function render_account() {
@@ -816,7 +846,7 @@ function render_account() {
         <div class="account-grid">
         <section class="perf-card">
             <div class="account-row">
-                ${face_html(me.avatar, shown)}
+                ${face_html(me.photo, shown)}
                 <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.is_admin ? " · Admin" : ""}</small></span>
                 <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
             </div>
@@ -856,11 +886,15 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Your picture</h3>
-                <p>Friends see it on the leaderboard, and it sits beside Rahah at the top.</p>
+                <p>Pick a photo from your gallery. Only friends you've accepted can see it, everyone else sees your first letter.</p>
             </div>
-            <div class="avatar-choices" role="group" aria-label="Your picture">
-                <button class="avatar-choice" type="button" data-avatar="" aria-pressed="${!me.avatar}" title="First letter">${face_html("", shown)}<span>Letter</span></button>
-                ${avatar_ids.map((id) => `<button class="avatar-choice" type="button" data-avatar="${id}" aria-pressed="${me.avatar === id}" title="${escape_html(avatars[id].name)}">${face_html(id, shown)}<span>${escape_html(avatars[id].name)}</span></button>`).join("")}
+            <div class="photo-row">
+                ${face_html(me.photo, shown, "large")}
+                <label class="btn btn-soft btn-small">
+                    <input type="file" id="photo-pick" accept="image/*" hidden>${me.photo ? "Change photo" : "Choose a photo"}
+                </label>
+                ${me.photo ? '<button class="btn btn-ghost btn-small" type="button" data-photo-remove>Remove</button>' : ""}
+                <p class="field-hint" id="photo-note" hidden></p>
             </div>
         </section>
         <section class="perf-card">
@@ -984,14 +1018,9 @@ thread.addEventListener("click", async (event) => {
     if (!event.target.closest("#account-box")) return;
     const low = event.target.closest("[data-low-data]");
     if (low) save_settings({ low_data: low.dataset.lowData === "1" });
-    const face = event.target.closest("[data-avatar]");
-    if (face) {
+    if (event.target.closest("[data-photo-remove]")) {
         try {
-            state.me = await (await api("/api/me", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ avatar: face.dataset.avatar }),
-            })).json();
+            state.me = await (await api("/api/me/photo", { method: "DELETE" })).json();
             remember_me(state.me);
             render_account();
             render_me_face();

@@ -251,9 +251,11 @@ class store:
             if "share_token" not in set_columns:
                 db.execute("alter table study_sets add column share_token text")
                 db.execute("create unique index if not exists sets_by_share on study_sets(share_token)")
-            # the face picked as a profile picture, blank for the first letter of their name
+            # the profile photo's id, blank for the first letter of their name
             if "avatar" not in columns:
                 db.execute("alter table users add column avatar text not null default ''")
+            # drawn faces came before photos, and are dropped
+            db.execute("update users set avatar = '' where avatar != '' and avatar not like 'p!_%' escape '!'")
             # whether other students can find this account in friend search
             if "findable" not in columns:
                 db.execute("alter table users add column findable integer not null default 1")

@@ -132,6 +132,12 @@ document.addEventListener("cancel", (event) => {
 // the rahah logo exactly as designed, the dark circle with its three chevrons
 const logo_mark = '<img class="logo-img" src="/static/img/logo.svg" alt="" aria-hidden="true">';
 
+// a student's picture, their photo, or the first letter of their name on a blue circle
+function face_html(photo, name, extra = "") {
+    if (photo) return `<img class="avatar-face ${extra}" src="${escape_html(photo)}" alt="" loading="lazy">`;
+    return `<span class="account-avatar ${extra}" aria-hidden="true">${escape_html(String(name || "?").slice(0, 1).toUpperCase())}</span>`;
+}
+
 // pages draw straight away from what's saved, then the server's answer arrives. drawing again only when
 // that answer is different keeps a page from flickering as its cards fade in a second time
 const last_seen = {};

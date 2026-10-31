@@ -28,7 +28,7 @@ def test_people_are_found_by_username_or_name_and_show_only_a_first_name(tmp_pat
     named(signed_in(TestClient(app), "amina_o"), "Amina Otieno")
     signed_in(TestClient(app), "brian")
     found = me.get("/api/people", params={"q": "ami"}).json()["people"]
-    assert found == [{"username": "amina_o", "name": "Amina", "avatar": "", "status": "none"}]
+    assert found == [{"username": "amina_o", "name": "Amina", "photo": "", "status": "none"}]
     assert me.get("/api/people", params={"q": "otie"}).json()["people"][0]["username"] == "amina_o"
     # too short a search finds nothing, and nobody finds themselves
     assert me.get("/api/people", params={"q": "a"}).json()["people"] == []
@@ -100,16 +100,46 @@ def test_the_leaderboard_ranks_friends_by_this_weeks_points(tmp_path):
     assert theirs["standing"]["accuracy"] == 75 and theirs["standing"]["accuracy_place"] == 1
 
 
-def test_a_picked_face_shows_to_friends_and_only_known_faces_are_allowed(tmp_path):
+def photo_bytes(kind="PNG", size=(900, 600), exif=False):
+    from io import BytesIO
+    from PIL import Image
+    out = BytesIO()
+    picture = Image.new("RGB", size, (200, 120, 40))
+    if exif:
+        data = Image.Exif()
+        data[0x010F] = "Phone maker"  # a camera note that shouldn't survive
+        picture.save(out, "JPEG", exif=data)
+    else:
+        picture.save(out, kind)
+    return out.getvalue()
+
+
+def test_a_profile_photo_is_squared_cleaned_and_only_friends_see_it(tmp_path):
+    from io import BytesIO
+    from PIL import Image
     app = made_app(tmp_path)
     me = signed_in(TestClient(app), "runie")
     amina = signed_in(TestClient(app), "amina")
-    assert amina.patch("/api/me", json={"avatar": "puffs"}).json()["avatar"] == "puffs"
-    assert amina.patch("/api/me", json={"avatar": "<script>"}).status_code == 400
-    assert me.get("/api/people", params={"q": "ami"}).json()["people"][0]["avatar"] == "puffs"
+    made = amina.post("/api/me/photo", files={"file": ("me.jpg", photo_bytes(exif=True), "image/jpeg")})
+    assert made.status_code == 200
+    url = made.json()["photo"]
+    assert url.startswith("/api/photos/amina?v=p_")
+    own = amina.get(url)
+    assert own.status_code == 200 and own.headers["content-type"] == "image/jpeg"
+    picture = Image.open(BytesIO(own.content))
+    assert picture.size == (256, 256) and not picture.getexif()
+    # a stranger, and someone with a request still waiting, can't see it, and search shows only the letter
+    assert me.get(url).status_code == 404
+    assert me.get("/api/people", params={"q": "ami"}).json()["people"][0]["photo"] == ""
     me.post("/api/friends", json={"username": "amina"})
+    assert me.get(url).status_code == 404
     amina.post("/api/friends/runie/accept")
+    assert me.get(url).status_code == 200
     rows = {r["username"]: r for r in me.get("/api/leaderboard").json()["board"]}
-    assert rows["amina"]["avatar"] == "puffs" and rows["runie"]["avatar"] == ""
-    # back to the letter
-    assert amina.patch("/api/me", json={"avatar": ""}).json()["avatar"] == ""
+    assert rows["amina"]["photo"] == url and rows["runie"]["photo"] == ""
+    assert me.get("/api/friends").json()["friends"][0]["photo"] == url
+    # a file that isn't a picture is turned away, and removing the photo goes back to the letter
+    bad = amina.post("/api/me/photo", files={"file": ("notes.png", b"not a picture at all", "image/png")})
+    assert bad.status_code == 400 and "photo" in bad.json()["detail"]
+    assert amina.delete("/api/me/photo").json()["photo"] == ""
+    assert me.get(url).status_code == 404

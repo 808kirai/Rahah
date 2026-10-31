@@ -8,3 +8,4 @@ httpx>=0.28
 pyjwt[crypto]>=2.10
 pywebpush>=2.5
 tzdata>=2026.1
+pillow>=11
