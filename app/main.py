@@ -121,6 +121,8 @@ class profile_in(BaseModel):
     settings: dict | None = None
     # whether other students can find this account in friend search
     findable: bool | None = None
+    # the picked face, blank for the first letter of their name
+    avatar: str | None = Field(default=None, max_length=20)
 
 
 class friend_in(BaseModel):
@@ -502,7 +504,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
-            "findable": user["findable"],
+            "findable": user["findable"], "avatar": user.get("avatar") or "",
             "allowance": allowance_out(user),
             "models": choices_for(user["is_admin"]),
         }
@@ -743,6 +745,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             change["settings"] = body.settings
         if body.findable is not None:
             change["findable"] = body.findable
+        if body.avatar is not None:
+            if body.avatar and body.avatar not in board.avatars:
+                raise HTTPException(400, "Pick one of the faces on the list.")
+            change["avatar"] = body.avatar
         return user_out(db.update_user(user["id"], **change))
 
     @app.post("/api/me/password")
@@ -1492,7 +1498,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     def person_out(row: dict, status: str) -> dict:
         # what another student sees of someone, their username and first name only
-        return {"username": row["username"], "name": board.first_name(row["name"], row["username"]), "status": status}
+        return {"username": row["username"], "name": board.first_name(row["name"], row["username"]), "avatar": row.get("avatar") or "", "status": status}
 
     def other_or_404(username: str, me: dict) -> dict:
         found = db.find_user_by("username", clean_username(username))
@@ -1575,7 +1581,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         for uid, person in people.items():
             n = numbers[uid]
             rows.append({
-                "username": person["username"], "name": board.first_name(person["name"], person["username"]),
+                "username": person["username"], "name": board.first_name(person["name"], person["username"]), "avatar": person.get("avatar") or "",
                 "points": board.points_for(n["marks"], n["cards"], n["minutes"], n["days"]),
                 "minutes": n["minutes"], "marks": n["marks"], "cards": n["cards"], "days": n["days"],
                 "accuracy": n["accuracy"], "you": uid == user["id"],

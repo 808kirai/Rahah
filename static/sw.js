@@ -19,6 +19,7 @@ const shell = [
     "/static/js/friends.js",
     "/static/js/main.js",
     "/static/sketches.js",
+    "/static/avatars.js",
     "/static/style.css",
     "/static/manifest.webmanifest",
     "/static/img/icon-192.png",

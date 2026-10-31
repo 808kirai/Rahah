@@ -17,6 +17,8 @@ points_per_day = 5
 # study time counted a day at most, so leaving rahah open doesn't keep earning
 max_minutes_a_day = 600
 max_friends = 200
+# the faces a student can pick as their picture, drawn on the page in static/avatars.js
+avatars = ("puffs", "fade", "nerd", "cool", "braids", "starry", "scarf", "sleepy", "bob", "beats")
 requests_a_day = 30
 
 

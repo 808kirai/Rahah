@@ -888,7 +888,7 @@ function open_model_menu() {
         <div class="menu-line" role="separator"></div>
         <button type="button" class="input-option model-option lang-row" role="menuitem" data-lang-open>
             <span><strong>Answer in</strong><small>Answers, tests, decks and Listen</small></span>
-            <span class="lang-now">${escape_html(state.settings.language || "Your question's language")}${icons.next}</span>
+            <span class="lang-now">${escape_html(state.settings.language || "Language")}${icons.next}</span>
         </button>`;
     menu.hidden = false;
     el("model-pick").setAttribute("aria-expanded", "true");

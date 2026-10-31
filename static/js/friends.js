@@ -16,7 +16,7 @@ function person_html(p) {
         friends: `<span class="page-note on">${icons.check}Friends</span>`,
     };
     return `<li class="person">
-        <span class="account-avatar small" aria-hidden="true">${escape_html(p.name.slice(0, 1).toUpperCase())}</span>
+        ${face_html(p.avatar, p.name, "small")}
         <span class="person-who"><strong>${escape_html(p.name)}</strong><small>@${escape_html(p.username)}</small></span>
         <span class="person-actions">${actions[p.status] || ""}</span>
     </li>`;
@@ -89,7 +89,7 @@ function render_leaderboard() {
     const headline = alone ? "Add friends to see how you compare." : above === 0 ? "You're top of your friends this week." : `${above} friend${above === 1 ? " is" : "s are"} above you.`;
     const rows = board.map((r) => `<li class="board-row${r.you ? " you" : ""}">
         <span class="board-place">${r.place}</span>
-        <span class="account-avatar small" aria-hidden="true">${escape_html(r.name.slice(0, 1).toUpperCase())}</span>
+        ${face_html(r.avatar, r.name, "small")}
         <span class="board-who"><strong>${escape_html(r.you ? "You" : r.name)}</strong>
             <small>${study_time_text(r.minutes)} studied · ${plural(r.marks, "mark")} · ${plural(r.cards, "card")} · ${plural(r.days, "day")}</small></span>
         <span class="board-points"><strong>${r.points}</strong><small>points</small></span>

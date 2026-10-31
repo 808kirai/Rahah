@@ -240,6 +240,8 @@ el("theme-toggle").addEventListener("click", () => {
 function resize_input() {
     input.style.height = "auto";
     input.style.height = `${Math.min(input.scrollHeight, 220)}px`;
+    // the buttons sit in the middle beside one line, and drop to the bottom once the text runs onto more
+    input.closest(".composer-row").classList.toggle("tall", input.scrollHeight > input.offsetHeight + 4 || input.offsetHeight > 60);
 }
 
 input.addEventListener("input", () => {
@@ -794,6 +796,14 @@ function show_account() {
     load_usage();
 }
 
+// the student's picture beside rahah's name at the top, a way to the account tab
+function render_me_face() {
+    const slot = el("me-face");
+    if (!slot) return;
+    slot.hidden = !state.me;
+    if (state.me) slot.innerHTML = face_html(state.me.avatar, state.me.name || state.me.username, "tiny");
+}
+
 function render_account() {
     const me = state.me;
     const box = el("account-box");
@@ -804,7 +814,7 @@ function render_account() {
         <div class="account-grid">
         <section class="perf-card">
             <div class="account-row">
-                <span class="account-avatar" aria-hidden="true">${escape_html(shown.slice(0, 1).toUpperCase())}</span>
+                ${face_html(me.avatar, shown)}
                 <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.is_admin ? " · Admin" : ""}</small></span>
                 <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
             </div>
@@ -841,6 +851,16 @@ function render_account() {
             </div>
         </section>
         </div>
+        <section class="perf-card">
+            <div class="perf-head">
+                <h3>Your picture</h3>
+                <p>Friends see it on the leaderboard, and it sits beside Rahah at the top.</p>
+            </div>
+            <div class="avatar-choices" role="group" aria-label="Your picture">
+                <button class="avatar-choice" type="button" data-avatar="" aria-pressed="${!me.avatar}" title="First letter">${face_html("", shown)}<span>Letter</span></button>
+                ${avatar_ids.map((id) => `<button class="avatar-choice" type="button" data-avatar="${id}" aria-pressed="${me.avatar === id}" title="${escape_html(avatars[id].name)}">${face_html(id, shown)}<span>${escape_html(avatars[id].name)}</span></button>`).join("")}
+            </div>
+        </section>
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Friend search</h3>
@@ -962,6 +982,21 @@ thread.addEventListener("click", async (event) => {
     if (!event.target.closest("#account-box")) return;
     const low = event.target.closest("[data-low-data]");
     if (low) save_settings({ low_data: low.dataset.lowData === "1" });
+    const face = event.target.closest("[data-avatar]");
+    if (face) {
+        try {
+            state.me = await (await api("/api/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ avatar: face.dataset.avatar }),
+            })).json();
+            remember_me(state.me);
+            render_account();
+            render_me_face();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
     const findable = event.target.closest("[data-findable]");
     if (findable) {
         try {
@@ -1059,6 +1094,7 @@ async function start() {
     if (remember_me(me)) await forget_saved_data();
     remember_me(me);
     render_account();
+    render_me_face();
     // the greeting uses the student's first name, or their username before they've added one
     // set on the page and on the copy home is rebuilt from, so it stays after leaving home
     const hello = `Welcome back, ${(me.name || me.username).split(" ")[0]}`;

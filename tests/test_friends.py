@@ -28,7 +28,7 @@ def test_people_are_found_by_username_or_name_and_show_only_a_first_name(tmp_pat
     named(signed_in(TestClient(app), "amina_o"), "Amina Otieno")
     signed_in(TestClient(app), "brian")
     found = me.get("/api/people", params={"q": "ami"}).json()["people"]
-    assert found == [{"username": "amina_o", "name": "Amina", "status": "none"}]
+    assert found == [{"username": "amina_o", "name": "Amina", "avatar": "", "status": "none"}]
     assert me.get("/api/people", params={"q": "otie"}).json()["people"][0]["username"] == "amina_o"
     # too short a search finds nothing, and nobody finds themselves
     assert me.get("/api/people", params={"q": "a"}).json()["people"] == []
@@ -98,3 +98,18 @@ def test_the_leaderboard_ranks_friends_by_this_weeks_points(tmp_path):
     theirs = amina.get("/api/leaderboard").json()
     assert theirs["standing"]["behind"] == {"name": "runie", "gap": 7} and theirs["standing"]["ahead"] is None
     assert theirs["standing"]["accuracy"] == 75 and theirs["standing"]["accuracy_place"] == 1
+
+
+def test_a_picked_face_shows_to_friends_and_only_known_faces_are_allowed(tmp_path):
+    app = made_app(tmp_path)
+    me = signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    assert amina.patch("/api/me", json={"avatar": "puffs"}).json()["avatar"] == "puffs"
+    assert amina.patch("/api/me", json={"avatar": "<script>"}).status_code == 400
+    assert me.get("/api/people", params={"q": "ami"}).json()["people"][0]["avatar"] == "puffs"
+    me.post("/api/friends", json={"username": "amina"})
+    amina.post("/api/friends/runie/accept")
+    rows = {r["username"]: r for r in me.get("/api/leaderboard").json()["board"]}
+    assert rows["amina"]["avatar"] == "puffs" and rows["runie"]["avatar"] == ""
+    # back to the letter
+    assert amina.patch("/api/me", json={"avatar": ""}).json()["avatar"] == ""

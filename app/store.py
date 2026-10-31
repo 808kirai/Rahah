@@ -251,6 +251,9 @@ class store:
             if "share_token" not in set_columns:
                 db.execute("alter table study_sets add column share_token text")
                 db.execute("create unique index if not exists sets_by_share on study_sets(share_token)")
+            # the face picked as a profile picture, blank for the first letter of their name
+            if "avatar" not in columns:
+                db.execute("alter table users add column avatar text not null default ''")
             # whether other students can find this account in friend search
             if "findable" not in columns:
                 db.execute("alter table users add column findable integer not null default 1")
@@ -345,7 +348,7 @@ class store:
         return row is not None
 
     def update_user(self, user_id: str, **fields) -> dict | None:
-        allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings", "findable")
+        allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings", "findable", "avatar")
         fields = {k: v for k, v in fields.items() if k in allowed}
         if "settings" in fields:
             fields["settings"] = json.dumps(fields["settings"])
@@ -443,7 +446,7 @@ class store:
         query = text.strip().lower().replace("%", "").replace("_", "\\_")
         with self._connect() as db:
             rows = db.execute(
-                "select id, username, name from users where id != ? and disabled = 0 and findable = 1 "
+                "select id, username, name, avatar from users where id != ? and disabled = 0 and findable = 1 "
                 "and (lower(username) like ? escape '\\' or lower(name) like ? escape '\\') "
                 "order by lower(username) like ? escape '\\' desc, username limit ?",
                 (uid, f"{query}%", f"%{query}%", f"{query}%", limit),
@@ -454,7 +457,7 @@ class store:
         # every request to or from the student, with the other student's name, accepted or waiting
         with self._connect() as db:
             rows = db.execute(
-                "select f.requester, f.addressee, f.accepted, f.created, u.id as other_id, u.username, u.name "
+                "select f.requester, f.addressee, f.accepted, f.created, u.id as other_id, u.username, u.name, u.avatar "
                 "from friends f join users u on u.id = case when f.requester = ? then f.addressee else f.requester end "
                 "where (f.requester = ? or f.addressee = ?) and u.disabled = 0 order by u.username",
                 (uid, uid, uid),
