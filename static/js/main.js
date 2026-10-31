@@ -798,7 +798,7 @@ function show_account() {
 
 // a photo from the gallery, cut to its middle square and made smaller here first so it uploads quickly
 // on a slow connection. the server squares and cleans it again, so this only saves data
-async function shrink_photo(file) {
+async function square_profile_photo(file) {
     try {
         const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
         const side = Math.min(bitmap.width, bitmap.height);
@@ -816,7 +816,7 @@ thread.addEventListener("change", async (event) => {
     account_note("photo-note", "Uploading your photo…");
     try {
         const form = new FormData();
-        form.append("file", await shrink_photo(event.target.files[0]), "photo.jpg");
+        form.append("file", await square_profile_photo(event.target.files[0]), "photo.jpg");
         state.me = await (await api("/api/me/photo", { method: "POST", body: form })).json();
         remember_me(state.me);
         render_account();
