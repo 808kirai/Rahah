@@ -2253,7 +2253,17 @@ body.signed-out .toasts {
     }
 }
 
+.account-actions {
+    flex-wrap: wrap;
+}
+
+.account-actions .btn {
+    white-space: nowrap;
+}
+
+/* a note under the buttons, on its own line so the buttons keep their shape */
 .account-actions .field-hint {
+    flex-basis: 100%;
     margin: 0;
 }
 

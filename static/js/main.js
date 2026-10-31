@@ -823,7 +823,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>${me.has_password ? "Password" : "Add a password"}</h3>
-                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} Forgot it? <a class="support-link" href="mailto:${escape_html(support_email())}?subject=Password%20reset" data-help="reset">Email us for a new one</a>.</p>
+                <p>At least 8 characters and a special character. ${me.has_password ? "Changing it signs you out on your other devices." : "Then you can also sign in with your username or email."} ${auth.config?.reset_by_email && me.email ? "Forgot it? We can email you a link to choose a new one." : `Forgot it? <a class="support-link" href="mailto:${escape_html(support_email())}?subject=Password%20reset" data-help="reset">Email us for a new one</a>.`}</p>
             </div>
             <div class="account-fields">
                 ${me.has_password ? '<input class="text-input" type="password" id="password-current" autocomplete="current-password" placeholder="Current password">' : ""}
@@ -832,6 +832,7 @@ function render_account() {
             </div>
             <div class="account-actions">
                 <button class="btn btn-soft btn-small" type="button" data-save-password>Save password</button>
+                ${auth.config?.reset_by_email && me.email ? '<button class="btn btn-ghost btn-small" type="button" data-send-reset>Reset password</button>' : ""}
                 <p class="field-hint" id="password-note" hidden></p>
             </div>
         </section>
@@ -947,6 +948,18 @@ thread.addEventListener("click", async (event) => {
     if (!event.target.closest("#account-box")) return;
     const low = event.target.closest("[data-low-data]");
     if (low) save_settings({ low_data: low.dataset.lowData === "1" });
+    // a forgotten password, the same emailed link as the sign in page, sent to the email on the account
+    const reset = event.target.closest("[data-send-reset]");
+    if (reset) {
+        reset.disabled = true;
+        try {
+            await api("/api/auth/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: state.me.email }) });
+            account_note("password-note", `A link is on its way to ${state.me.email}. Check your inbox and spam, it works for 30 minutes.`);
+        } catch (error) {
+            account_note("password-note", error.message);
+            reset.disabled = false;
+        }
+    }
     if (event.target.closest("[data-connect-apple]")) apple_sign_in((text) => alert(text));
     if (event.target.closest("[data-sign-out]")) sign_out();
     if (event.target.closest("[data-save-profile]")) {
