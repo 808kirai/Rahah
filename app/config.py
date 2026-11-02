@@ -26,6 +26,9 @@ class settings:
     max_tokens: int = 64000
     # what each student can spend in a day, in dollars, unless the admin sets their own amount
     daily_cap: float = 0.15
+    # a new account made with a password has to type a code sent to its email first. on when the server runs,
+    # off by default here so tests and local copies without email can sign up straight away
+    verify_email: bool = False
     # the most tokens one question can send to claude, about 75,000 words or 30 to 60 pdf pages, 0 for no cap
     max_prompt_tokens: int = 100_000
     # minutes without using rahah before a student is signed out, 0 never
@@ -86,6 +89,7 @@ def load_settings() -> settings:
         max_prompt_tokens=int(os.getenv("RAHAH_MAX_PROMPT_TOKENS", "100000")),
         idle_minutes=int(os.getenv("RAHAH_IDLE_MINUTES", "60")),
         https=os.getenv("RAHAH_HTTPS", "").strip().lower() in ("1", "true", "yes"),
+        verify_email=os.getenv("RAHAH_VERIFY_EMAIL", "1").strip().lower() in ("1", "true", "yes"),
         support_email=os.getenv("RAHAH_SUPPORT_EMAIL", "studywithrahah@gmail.com").strip() or "studywithrahah@gmail.com",
         admin_email=os.getenv("RAHAH_ADMIN_EMAIL", "").strip().lower(),
         daily_budget=float(os.getenv("RAHAH_DAILY_BUDGET", "10")),

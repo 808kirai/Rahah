@@ -39,7 +39,7 @@ def test_passwords_are_hashed_and_checked():
 def test_every_api_route_needs_a_signed_in_student(make):
     app, _ = make()
     web = TestClient(app)
-    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple", "/api/auth/forgot", "/api/auth/reset", "/api/health"}
+    open_routes = {"/api/auth/config", "/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/google", "/api/auth/apple", "/api/auth/forgot", "/api/auth/reset", "/api/auth/two-step", "/api/auth/signup/verify", "/api/health"}
     checked = 0
     for route in app.routes:
         path = getattr(route, "path", "")
@@ -488,6 +488,8 @@ def test_the_daily_limit_starts_again_at_the_students_own_midnight(make):
     # a made up zone is turned away, and a second change within the week is ignored so a new day can't be made early
     assert student.patch("/api/me", json={"timezone": "Mars/Base"}).status_code == 400
     assert student.patch("/api/me", json={"timezone": "America/New_York"}).json()["timezone"] == "Pacific/Kiritimati"
+
+
 def test_the_admin_signs_in_with_an_emailed_code_and_can_trust_the_device(tmp_path):
     from app.config import settings
     from app.main import create_app
@@ -514,3 +516,23 @@ def test_the_admin_signs_in_with_an_emailed_code_and_can_trust_the_device(tmp_pa
     web.post("/api/auth/logout")
     assert "two_step" not in web.post("/api/auth/login", json={"login": "runie", "password": "correct horse!"}).json()
 
+
+def test_a_new_account_is_made_only_after_the_emailed_code(tmp_path):
+    from app.config import settings
+    from app.main import create_app
+    import re as regex
+    sent = []
+    cfg = settings(db_path=tmp_path / "verify.db", smtp_user="studywithrahah@gmail.com", smtp_password="x", verify_email=True)
+    app = create_app(cfg, client=fake_client(), mailer=lambda to, subject, text, attachment=None: sent.append((to, subject, text)))
+    web = TestClient(app)
+    first = sign_up(web, "amina").json()
+    assert first["verify_email"] and sent[-1][0] == "amina@example.com"
+    # nothing is made yet, so the name is still free and nobody is signed in
+    assert web.get("/api/me").status_code == 401
+    code = regex.search(r"\b(\d{6})\b", sent[-1][2]).group(1)
+    wrong = "000000" if code != "000000" else "111111"
+    assert web.post("/api/auth/signup/verify", json={"ticket": first["ticket"], "code": wrong}).status_code == 400
+    me = web.post("/api/auth/signup/verify", json={"ticket": first["ticket"], "code": code}).json()
+    assert me["username"] == "amina" and web.get("/api/me").status_code == 200
+    # the code works once
+    assert web.post("/api/auth/signup/verify", json={"ticket": first["ticket"], "code": code}).status_code == 400

@@ -565,6 +565,8 @@ async function set_up_providers() {
 el("apple-button").addEventListener("click", () => apple_sign_in(show_provider_error));
 
 async function finish_sign_in(me) {
+    // a new account, or the admin signing in, is asked for the code that was just emailed
+    if (me.two_step || me.verify_email) return show_two_step(me);
     if (remember_me(me)) await forget_saved_data();
     remember_me(me);
     // a fresh sign in starts the hour away again
@@ -723,6 +725,59 @@ window.addEventListener("resize", () => {
     clearTimeout(auth_art_timer);
     auth_art_timer = setTimeout(draw_auth_art, 150);
 });
+
+// the six digit code from the email: to finish a new account, or the admin's second step, which can trust this device
+function show_two_step(info) {
+    const signup = Boolean(info.verify_email);
+    const card = document.querySelector(".auth-card");
+    card.classList.add("two-step");
+    el("auth-title").textContent = "Check your email";
+    card.querySelector(".two-step-form")?.remove();
+    const form = document.createElement("form");
+    form.className = "auth-form two-step-form";
+    form.noValidate = true;
+    form.innerHTML = `
+        <p class="auth-hint">We sent a 6-digit code to ${escape_html(info.to)}${signup ? " to check it's yours" : ""}. It works for 10 minutes.</p>
+        <div class="field">
+            <label class="field-label" for="two-step-code">Code</label>
+            <input class="text-input auth-input" id="two-step-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+        </div>
+        ${signup ? "" : '<label class="auth-agree"><input type="checkbox" id="two-step-trust" checked><span>Trust this device for 30 days</span></label>'}
+        <p class="sheet-error" id="two-step-error" role="alert" hidden></p>
+        <button class="btn btn-accent auth-submit" type="submit">${signup ? "Create account" : "Verify"}</button>
+        <button class="auth-link two-step-back" type="button">${signup ? "Go back" : "Use a different account"}</button>`;
+    el("auth-form").after(form);
+    el("two-step-code").focus();
+    form.querySelector(".two-step-back").addEventListener("click", () => {
+        // going back from a new account keeps what was typed, so a wrong email can be fixed
+        if (!signup) return location.reload();
+        form.remove();
+        card.classList.remove("two-step");
+        el("auth-title").textContent = "Create an account";
+        el("auth-submit").disabled = false;
+    });
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = form.querySelector(".auth-submit");
+        button.disabled = true;
+        try {
+            const response = await api(signup ? "/api/auth/signup/verify" : "/api/auth/two-step", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(signup
+                    ? { ticket: info.ticket, code: el("two-step-code").value }
+                    : { ticket: info.ticket, code: el("two-step-code").value, trust: el("two-step-trust").checked }),
+            });
+            await finish_sign_in(await response.json());
+        } catch (error) {
+            const note = el("two-step-error");
+            note.textContent = error.message;
+            note.hidden = false;
+            button.disabled = false;
+            el("two-step-code").select();
+        }
+    });
+}
 
 el("auth-form").addEventListener("submit", async (event) => {
     event.preventDefault();

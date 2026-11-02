@@ -241,6 +241,10 @@ class edit_in(message_in):
     index: int = Field(ge=0, le=100000)
 
 
+class verify_in(BaseModel):
+    ticket: str = Field(min_length=10, max_length=100)
+    code: str = Field(min_length=1, max_length=12)
+
 
 class two_step_in(BaseModel):
     ticket: str = Field(min_length=10, max_length=100)
@@ -773,11 +777,28 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         address = client_address(request)
         if signups.full(address):
             raise HTTPException(429, "Too many accounts were made from this connection today. Try again tomorrow.")
-        user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()), admin=admin_for(email), agreed=True)
-        remember_referrer(user, body.ref)
-        signups.add(address)
+        new = {"username": username, "email": email, "password": hash_password(body.password), "name": " ".join(body.name.split()), "ref": body.ref}
+        if cfg.verify_email and reset_by_email:
+            ticket = send_code(email, email, "Your Rahah code", "Your code to finish making your Rahah account is", {"kind": "sign_up", **new})
+            return {"verify_email": True, "ticket": ticket, "to": masked(email)}
+        return make_account(new, request, response)
+
+    def make_account(new: dict, request: Request, response: Response) -> dict:
+        user = db.create_user(new["username"], new["email"], new["password"], new["name"], admin=admin_for(new["email"]), agreed=True)
+        remember_referrer(user, new["ref"])
+        signups.add(client_address(request))
         start_session(request, response, user)
         return user_out(user)
+
+    @app.post("/api/auth/signup/verify")
+    def verify_sign_up(body: verify_in, request: Request, response: Response):
+        new = check_code(body.ticket, body.code, "sign_up", request)
+        # someone may have taken the name or email while the code was on its way
+        if db.taken("username", new["username"]):
+            raise HTTPException(400, "That username was just taken. Go back and pick another.")
+        if db.taken("email", new["email"]):
+            raise HTTPException(400, "An account already uses that email. Sign in instead.")
+        return make_account(new, request, response)
 
     @app.post("/api/auth/login")
     def log_in(body: login_in, request: Request, response: Response):
