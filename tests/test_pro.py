@@ -393,3 +393,20 @@ def test_a_big_question_goes_to_acolyte_even_when_mage_was_picked(tmp_path):
     # a normal sized question still goes to mage
     amina.post(f"/api/conversations/{chat}/messages", json={"text": "and briefly?", "model": "mage"})
     assert claude.beta.messages.calls[-1]["model"] == cfg.deep_model
+
+
+def test_apple_pay_is_offered_only_when_switched_on():
+    from app import billing
+    assert "apple_pay" not in billing.paystack("sk_test_x").channels
+    assert billing.paystack("sk_test_x", apple_pay=True).channels == ["mobile_money", "card", "apple_pay"]
+
+
+def test_the_apple_pay_domain_file_is_served_when_its_there(tmp_path):
+    app, pay = pro_app(tmp_path)
+    web = TestClient(app)
+    from app.main import static_dir
+    found = static_dir / "apple-pay" / "apple-developer-merchantid-domain-association"
+    response = web.get("/.well-known/apple-developer-merchantid-domain-association")
+    assert response.status_code == (200 if found.is_file() else 404)
+    # paystack's checkout may ask for payment inside its popup, nothing else can
+    assert 'payment=(self "https://checkout.paystack.com")' in web.get("/").headers["permissions-policy"]

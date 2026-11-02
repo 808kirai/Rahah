@@ -345,7 +345,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     }
     db = store(cfg.db_path)
     # how pro is paid for, tests swap in their own. off until paystack's secret key is set
-    payments = payments or (billing.paystack(cfg.paystack_secret) if cfg.paystack_secret else None)
+    payments = payments or (billing.paystack(cfg.paystack_secret, cfg.paystack_apple_pay) if cfg.paystack_secret else None)
     # how emails go out, tests swap in their own
     mailer = mailer or (lambda to, subject, text, attachment=None: send_email(cfg, to, subject, text, attachment))
     reset_by_email = bool(cfg.smtp_user and cfg.smtp_password)
@@ -1375,6 +1375,15 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     def privacy():
         # what rahah keeps and why, linked from sign in and the account tab, and given to google for sign in
         return FileResponse(static_dir / "privacy.html")
+
+    # the file apple checks before apple pay can run on this domain, downloaded from paystack's apple pay settings
+    apple_file = static_dir / "apple-pay" / "apple-developer-merchantid-domain-association"
+
+    @app.get("/.well-known/apple-developer-merchantid-domain-association")
+    def apple_pay_domain():
+        if not apple_file.is_file():
+            raise HTTPException(404, "Not set up.")
+        return FileResponse(apple_file, media_type="text/plain")
 
     @app.get("/terms")
     def terms():

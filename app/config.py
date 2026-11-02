@@ -64,6 +64,8 @@ class settings:
     # rahah pro, paid through paystack, hidden until the secret key is set
     paystack_secret: str = ""
     paystack_public: str = ""
+    # offer apple pay in the payment popup, once it's on in paystack and the domain is verified
+    paystack_apple_pay: bool = False
     # where students write for help, password resets and other requests
     support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
@@ -108,6 +110,7 @@ def load_settings() -> settings:
         leaderboard_zone=os.getenv("RAHAH_LEADERBOARD_ZONE", "Africa/Nairobi").strip() or "Africa/Nairobi",
         paystack_secret=os.getenv("PAYSTACK_SECRET_KEY", "").strip(),
         paystack_public=os.getenv("PAYSTACK_PUBLIC_KEY", "").strip(),
+        paystack_apple_pay=os.getenv("PAYSTACK_APPLE_PAY", "").strip().lower() in ("1", "true", "yes"),
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

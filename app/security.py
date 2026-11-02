@@ -95,7 +95,8 @@ def install(app, cfg, max_body_mb: int) -> None:
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         headers.setdefault("X-Frame-Options", "DENY")
-        headers.setdefault("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()")
+        # payments only in paystack's checkout, which apple pay needs to open from inside its popup
+        headers.setdefault("Permissions-Policy", 'camera=(self), microphone=(self), geolocation=(), payment=(self "https://checkout.paystack.com"), usb=()')
         # google's sign in opens a popup that has to talk back to the page
         headers.setdefault("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
         headers.setdefault("Content-Security-Policy", policy)

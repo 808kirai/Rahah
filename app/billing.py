@@ -94,8 +94,10 @@ class paystack:
 
     base = "https://api.paystack.co"
 
-    def __init__(self, secret: str):
+    def __init__(self, secret: str, apple_pay: bool = False):
         self.secret = secret
+        # apple pay is offered only once paystack has turned it on and the domain is verified
+        self.channels = ["mobile_money", "card"] + (["apple_pay"] if apple_pay else [])
 
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.secret}", "Content-Type": "application/json"}
@@ -108,7 +110,7 @@ class paystack:
             headers=self._headers(),
             json={
                 "email": email, "amount": amount * 100, "currency": currency, "reference": reference,
-                "callback_url": callback, "channels": ["mobile_money", "card"], "metadata": {"plan": plan},
+                "callback_url": callback, "channels": self.channels, "metadata": {"plan": plan},
             },
             timeout=20,
         )

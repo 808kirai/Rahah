@@ -235,6 +235,7 @@ Settings
 - `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
 - `RAHAH_REQUESTS_PER_MINUTE` - How many api requests one address can make a minute, averaged over five minutes, defaulting to 120. Paystack's payment messages aren't counted. 0 turns it off
 - `RAHAH_SMTP_USER`, `RAHAH_SMTP_PASSWORD` - The Gmail address and app password that send password reset emails. Leave them out and Forgot password points to the help email instead. `RAHAH_SMTP_HOST` and `RAHAH_SMTP_PORT` change the provider, defaulting to Gmail on 587, and `RAHAH_PUBLIC_URL` sets the address in links if Render's own isn't there
+- `PAYSTACK_APPLE_PAY` - Set to `1` to offer Apple Pay in the payment popup, once Apple Pay is on in Paystack and the domain is verified. Paystack's verification file goes in static/apple-pay/ and is served at /.well-known/apple-developer-merchantid-domain-association
 - `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY` - Turn on Rahah Pro and Max. Test keys take pretend payments, live keys take real ones. Set the webhook in Paystack's dashboard to `https://<your address>/api/paystack/webhook`
 - `RAHAH_LEADERBOARD_ZONE` - The time zone the leaderboard's week and study days follow, defaulting to `Africa/Nairobi`
 - `RAHAH_BACKUP_EMAIL`, `RAHAH_ALERT_EMAIL` - Where the daily backup and problem alerts go once email is set up, defaulting to the sending Gmail account and the admin's email. `off` turns either one off
