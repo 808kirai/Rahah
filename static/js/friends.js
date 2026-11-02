@@ -113,7 +113,7 @@ function render_leaderboard() {
                     <p>${headline} It starts again on Monday.</p>
                 </div>
                 <div class="plan-length" role="group" aria-label="Whose points">
-                    ${[["everyone", "Everyone"], ["friends", "Friends"]].map(([k, v]) => `<button type="button" class="${k === (scope || "friends") ? "on" : ""}" aria-pressed="${k === (scope || "friends")}" data-board-scope="${k}">${v}</button>`).join("")}
+                    ${[["everyone", "Overall"], ["friends", "Friends"]].map(([k, v]) => `<button type="button" class="${k === (scope || "friends") ? "on" : ""}" aria-pressed="${k === (scope || "friends")}" data-board-scope="${k}">${v}</button>`).join("")}
                 </div>
             </div>
             <ol class="board">${rows}</ol>

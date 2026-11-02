@@ -1979,7 +1979,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         minutes = db.add_study_minute(user["id"], board.local_day(now, board_zone), now.timestamp(), board.max_minutes_a_day)
         return {"minutes_today": minutes}
 
-    board_top = 10
+    board_top = 5
 
     def on_everyone_board(person: dict) -> bool:
         # every student who can be found, and the admin once they've chosen to show
@@ -2033,8 +2033,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "top_points": rows[0]["points"],
             "place": mine["place"], "total": len(rows),
         }
-        # the everyone board shows only the top ten, the student's own numbers come separately for their standing
-        shown = rows[:board_top] if scope == "everyone" else rows
+        # each board shows only the top five, the student's own numbers come separately for their standing
+        shown = rows[:board_top]
         return {
             "scope": scope, "top": board_top, "week_start": start.date().isoformat(), "board": shown, "me": mine, "standing": standing,
             "above": sum(1 for r in rows if r["points"] > mine["points"]),
