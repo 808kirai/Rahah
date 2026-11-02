@@ -6958,3 +6958,9 @@ body:not(.is-page) .me-face {
     margin-top: 0.8rem;
     align-self: center;
 }
+
+/* on the students page, the plan a student is on and how much of it they've used, and giving them one */
+.admin-pass {
+    color: var(--accent-text) !important;
+}
+

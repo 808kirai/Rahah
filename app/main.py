@@ -1275,10 +1275,22 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "last_seen": user["last_seen"], "daily_cap": user["daily_cap"],
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
             "pro_until": db.pro_until(user["id"]),
+            # the plan running now and how much of its allowance is used, for spotting who runs out early
+            **pass_of(user),
             "today": round(today, 4), "timezone": user.get("timezone") or cfg.leaderboard_zone,
             "week": round(costs["week"].get(user["id"], 0), 4),
             "all": round(costs["all"].get(user["id"], 0), 4),
         }
+
+    def pass_of(user: dict) -> dict:
+        if user["is_admin"]:
+            return {"tier": None, "pass_percent": None, "pass_name": ""}
+        a = allowance(user)
+        if not a["pro"]:
+            return {"tier": None, "pass_percent": None, "pass_name": ""}
+        plan = billing.plan_info(a["pro"]["plan"])
+        return {"tier": plan["tier"], "pass_percent": used_percent(a["pass_used"], a["pro"]["budget"]), "pass_name": plan["name"]}
+
 
     def all_costs() -> dict:
         now = time.time()

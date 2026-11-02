@@ -444,6 +444,18 @@ function revenue_html(r, total) {
     </div>`;
 }
 
+// a moment as the student sees it on their own clock, with their city, like "Sat 30 Nov, 3:42 pm Nairobi time"
+function student_time(seconds, zone) {
+    const place = (zone || "Africa/Nairobi").split("/").pop().replace(/_/g, " ");
+    try {
+        const shown = new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })
+            .format(new Date(seconds * 1000)).replace(" at ", ", ");
+        return `${shown} ${place} time`;
+    } catch (e) {
+        return short_date(seconds);
+    }
+}
+
 function render_admin() {
     const page = el("admin");
     const a = state.admin;
@@ -469,7 +481,7 @@ function render_admin() {
             <div class="table-wrap"><table class="admin-table">
                 <thead><tr><th>Student</th><th>Last seen</th><th class="num">Today</th><th class="num">Left today</th><th>Limit used</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>
                 <tbody>${a.users.map((u) => `<tr class="${u.disabled ? "is-off" : ""}">
-                    <td><strong>${escape_html(u.name || u.username)}</strong>${u.pro_until ? ` <span class="pro-badge" title="Pro until ${short_date(u.pro_until)}">Pro</span>` : ""}<small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small></td>
+                    <td><strong>${escape_html(u.name || u.username)}</strong>${u.tier ? ` ${tier_badge(u.tier)}` : ""}<small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small>${u.tier ? `<small class="admin-pass">${escape_html(u.pass_name)} until ${escape_html(student_time(u.pro_until, u.timezone))} · ${u.pass_percent}% of the pass used</small>` : ""}</td>
                     <td>${seen(u)}<small>Joined ${short_date(u.created)}</small></td>
                     <td class="num">${dollars(u.today)}</td>
                     <td class="num">${u.cap === null ? "–" : dollars(u.left)}</td>
