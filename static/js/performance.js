@@ -449,7 +449,7 @@ function render_admin() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Every student</h3>
-                <p>A blank limit uses the default of ${`$${a.default_cap.toFixed(2)}`} a day. Limits reset at midnight UTC</p>
+                <p>A blank limit uses the default of ${`$${a.default_cap.toFixed(2)}`} a day. Limits start again at each student's own midnight</p>
             </div>
             <div class="table-wrap"><table class="admin-table">
                 <thead><tr><th>Student</th><th>Last seen</th><th class="num">Today</th><th class="num">Left today</th><th>Limit used</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>

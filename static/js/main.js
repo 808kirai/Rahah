@@ -280,6 +280,23 @@ function apply_modes(modes, redraw = true) {
 
 // accounts, the sign in screen and what changes when a student signs in or out
 
+// the device's time zone, so the daily limit starts again at the student's own midnight
+async function send_timezone() {
+    let zone = "";
+    try {
+        zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch (e) {}
+    if (!zone || !state.me || state.me.timezone === zone || !navigator.onLine) return;
+    try {
+        state.me = await (await api("/api/me", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ timezone: zone }),
+        })).json();
+        remember_me(state.me);
+    } catch (e) {}
+}
+
 async function load_me() {
     try {
         const response = await fetch("/api/me");
@@ -1451,6 +1468,8 @@ async function start() {
     load_recommendations();
     load_performance();
     load_reminders();
+    await finish_pro_payment();
+    send_timezone();
     try {
         await route();
     } catch (e) {}

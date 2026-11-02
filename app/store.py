@@ -284,6 +284,10 @@ class store:
             if "parent_email" not in columns:
                 db.execute("alter table users add column parent_email text not null default ''")
                 db.execute("alter table users add column parent_sent text not null default ''")
+            # the student's time zone, so their daily limit starts again at their own midnight
+            if "timezone" not in columns:
+                db.execute("alter table users add column timezone text not null default ''")
+                db.execute("alter table users add column timezone_set real not null default 0")
             # whether other students can find this account in friend search
             if "findable" not in columns:
                 db.execute("alter table users add column findable integer not null default 1")
@@ -378,7 +382,8 @@ class store:
         return row is not None
 
     def update_user(self, user_id: str, **fields) -> dict | None:
-        allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings", "findable", "avatar")
+        allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings", "findable", "avatar",
+                   "referred_by", "referral_rewarded", "parent_email", "parent_sent", "timezone", "timezone_set")
         fields = {k: v for k, v in fields.items() if k in allowed}
         if "settings" in fields:
             fields["settings"] = json.dumps(fields["settings"])

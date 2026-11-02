@@ -3,6 +3,7 @@
 import asyncio
 import gzip
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -132,6 +133,9 @@ class profile_in(BaseModel):
     settings: dict | None = None
     # whether other students can find this account in friend search
     findable: bool | None = None
+    # the device's time zone, like Africa/Nairobi, for when the daily limit starts again
+    timezone: str | None = Field(default=None, max_length=64)
+
 
 class parent_in(BaseModel):
     email: str = Field(default="", max_length=200)
@@ -477,15 +481,37 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return user
 
     def zone_of(user: dict):
+        # the student's own time zone, or kenya's until their device has said
+        return board.zone(user.get("timezone") or cfg.leaderboard_zone)
+
+    def my_day_start(user: dict, now: float | None = None) -> float:
+        """the student's last midnight, where they are"""
+        tz = zone_of(user)
+        local = datetime.fromtimestamp(now or time.time(), tz)
+        return datetime.combine(local.date(), datetime.min.time(), tz).timestamp()
+
+    def my_next_midnight(user: dict, now: float) -> float:
+        tz = zone_of(user)
+        local = datetime.fromtimestamp(now, tz)
+        return datetime.combine(local.date() + timedelta(days=1), datetime.min.time(), tz).timestamp()
+
     def day_start(now: float) -> float:
         # the shared free budget resets at midnight utc, the same moment for everyone
         return now - now % 86400
 
     def allowance(user: dict) -> dict:
         now = time.time()
-        used = db.user_cost_since(user["id"], day_start(now))
+        used = db.user_cost_since(user["id"], my_day_start(user, now))
         cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
-        return {"cap": cap, "used": round(used, 4), "resets_in": int(day_start(now) + 86400 - now)}
+        # a pro pass gives ten times the daily limit, until the pass's own total is used up
+        pro = None if user["is_admin"] else db.active_pass(user["id"], now)
+        pass_used = None
+        if pro:
+            pass_used = db.user_cost_since(user["id"], pro["starts"])
+            if pass_used < pro["budget"]:
+                cap = cap * billing.plan_info(pro["plan"])["multiplier"]
+        return {"cap": cap, "used": round(used, 4), "resets_in": int(my_next_midnight(user, now) - now), "pro": pro, "pass_used": pass_used}
+
     def pro_active(a: dict) -> bool:
         return bool(a["pro"]) and a["pass_used"] < a["pro"]["budget"]
 
@@ -502,6 +528,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     def is_max(user: dict) -> bool:
         return tier_of(user) == "max"
+
+    def mage_used_today(user: dict) -> int:
+        return sum(db.usage_count_since(user["id"], my_day_start(user), kind=k, model=model_for(cfg, "mage")) for k in ("chat", "retry"))
 
     def free_mage_left(user: dict) -> bool:
         return is_pro(user) or mage_used_today(user) < billing.free_mage_a_day
@@ -581,7 +610,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
-            "findable": user["findable"], "photo": photo_url(user),
+            "findable": user["findable"], "photo": photo_url(user), "timezone": user.get("timezone") or "",
+            "pro": is_pro(user), "parent_email": user.get("parent_email") or "",
             "allowance": allowance_out(user),
             # archmage is the admin's alone
             "models": choices_for(user["is_admin"]), "tier": tier_of(user),
@@ -830,6 +860,13 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             change["settings"] = body.settings
         if body.findable is not None:
             change["findable"] = body.findable
+        if body.timezone and body.timezone != user.get("timezone"):
+            try:
+                ZoneInfo(body.timezone)
+            except Exception:
+                raise HTTPException(400, "That time zone isn't one we know.")
+            if not user.get("timezone") or time.time() - (user.get("timezone_set") or 0) >= 7 * 86400:
+                change["timezone"], change["timezone_set"] = body.timezone, time.time()
         return user_out(db.update_user(user["id"], **change))
 
     # rahah pro, passes bought with m-pesa or card through paystack
@@ -1109,7 +1146,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     # the admin page, every student with what they've used, their limit and whether they can sign in
 
     def admin_row(user: dict, costs: dict) -> dict:
-        today = costs["today"].get(user["id"], 0)
+        today = db.user_cost_since(user["id"], my_day_start(user))
         cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
         return {
             "cap": cap,
@@ -1119,7 +1156,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "is_admin": user["is_admin"], "disabled": user["disabled"], "created": user["created"],
             "last_seen": user["last_seen"], "daily_cap": user["daily_cap"],
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
-            "today": round(costs["today"].get(user["id"], 0), 4),
+            "pro_until": db.pro_until(user["id"]),
+            "today": round(today, 4), "timezone": user.get("timezone") or cfg.leaderboard_zone,
             "week": round(costs["week"].get(user["id"], 0), 4),
             "all": round(costs["all"].get(user["id"], 0), 4),
         }
@@ -1454,6 +1492,13 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         code = runs_code(mode) or sandbox is not None
         # the student's pick, or on auto, acolyte for everyday questions and mage for hard subjects
         use = chat_route(cfg, choice, mode, sandbox is not None)
+        # on auto, a free student who's had today's mage answers gets acolyte
+        if use.tier == "mage" and choice != "mage" and not free_mage_left(user):
+            use = chat_route(cfg, "acolyte", mode, sandbox is not None)
+        search = is_pro(user) or db.searches_since(user["id"], my_day_start(user)) < billing.free_searches_a_day
+        messages = trimmed_history(messages)
+        if not search:
+            messages = messages + [{"role": "system", "content": search_off_note}]
         # the route actually used, which changes if acolyte is too slow to start and mage answers instead
         answered = {"route": use}
 
@@ -1727,6 +1772,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if not answer and not shot:
             raise HTTPException(400, "Write, say or photograph an answer first.")
         check_allowance(user)
+        if shot and not is_pro(user) and db.usage_count_since(user["id"], my_day_start(user), kind="marking_photo") >= billing.free_photo_marks_a_day:
+            raise HTTPException(429, f"You've had {billing.free_photo_marks_a_day} photos marked today. Type your answer instead, or get Rahah Pro to mark as many photos as you like.")
         try:
             job = running.start(user["id"])
             try:
