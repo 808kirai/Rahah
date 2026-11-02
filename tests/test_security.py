@@ -179,3 +179,20 @@ def test_fixing_a_mistyped_admin_email_makes_that_account_admin_on_the_next_star
     amina = TestClient(fixed)
     amina.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})
     assert amina.get("/api/me").json()["is_admin"] is False
+
+def test_a_locked_sign_in_and_a_forged_payment_message_are_logged(tmp_path, caplog):
+    import logging
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import create_app
+    from .fakes import fake_client, signed_in
+    app = create_app(settings(db_path=tmp_path / "watch.db", paystack_secret="sk_test_secret"), client=fake_client(), payments=object())
+    signed_in(TestClient(app), "runie")
+    web = TestClient(app)
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            web.post("/api/auth/login", json={"login": "runie", "password": "wrong guess!"})
+        web.post("/api/paystack/webhook", content=b"{}", headers={"x-paystack-signature": "nope", "content-type": "application/json"})
+    text = caplog.text
+    assert text.count("sign in locked") == 1 and "for runie" in text
+    assert "wrong paystack signature" in text

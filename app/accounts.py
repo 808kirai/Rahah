@@ -104,15 +104,20 @@ class sign_in_guard:
         now = time.time()
         return any(len(self._recent(k, now)) >= self.tries for k in keys if k)
 
-    def failed(self, *keys: str) -> None:
+    def failed(self, *keys: str) -> bool:
+        """counts a wrong try, and says whether a name or address has just run out of tries"""
         now = time.time()
+        locked = False
         for k in keys:
             if k:
-                self._recent(k, now).append(now)
+                recent = self._recent(k, now)
+                recent.append(now)
+                locked = locked or len(recent) == self.tries
         # endless made up names can't fill the server's memory, old entries are cleared out
         if len(self.fails) > 50_000:
             for k in [k for k, v in self.fails.items() if not v or now - v[-1] > self.window]:
                 del self.fails[k]
+        return locked
 
     def cleared(self, *keys: str) -> None:
         for k in keys:

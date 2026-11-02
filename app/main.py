@@ -705,13 +705,15 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         user = db.find_user(login)
         if not user:
             check_password(body.password, stand_in_hash)
-            guard.failed(login.lower(), address)
+            if guard.failed(login.lower(), address):
+                log.warning("sign in locked for 15 minutes after %s wrong tries, for %s from %s", guard.tries, login.lower(), address)
             raise HTTPException(401, f"There's no account with that {'email' if '@' in login else 'username'}.")
         if not user["password"]:
             provider = "Google" if user["google_sub"] else "Apple" if user["apple_sub"] else ""
             raise HTTPException(401, f"This account signs in with {provider}. Use the {provider} button above." if provider else "This account has no password yet.")
         if not check_password(body.password, user["password"]):
-            guard.failed(login.lower(), address)
+            if guard.failed(login.lower(), address):
+                log.warning("sign in locked for 15 minutes after %s wrong tries, for %s from %s", guard.tries, login.lower(), address)
             raise HTTPException(401, "That password isn't right.")
         if user["disabled"]:
             raise HTTPException(403, f"This account has been turned off. Email {cfg.support_email} for help.")
@@ -1072,6 +1074,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         # paystack tells rahah about payments here too, so a pass is given even if the student closed the page
         body = await request.body()
         if not billing.signature_ok(cfg.paystack_secret, body, request.headers.get("x-paystack-signature")):
+            # someone pretending to be paystack, worth knowing about
+            log.warning("a payment message with a wrong paystack signature was turned away, from %s", client_address(request))
             raise HTTPException(401, "Not from Paystack.")
         try:
             event = json.loads(body)
