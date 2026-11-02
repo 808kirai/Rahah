@@ -257,6 +257,8 @@ def friendly_error(error: Exception) -> str:
         return "Rahah couldn't find an attached file. Try attaching it again."
     if isinstance(error, anthropic.RateLimitError):
         return "Rahah is busy right now. Wait a moment and try again."
+    if prompt_too_long(error):
+        return "This chat, with its files, has grown too long for Rahah to read. Start a new chat to keep going."
     if isinstance(error, anthropic.BadRequestError):
         return f"Rahah couldn't handle that request: {error.message}"
     if isinstance(error, anthropic.APIStatusError):
@@ -266,6 +268,8 @@ def friendly_error(error: Exception) -> str:
     return "Rahah isn't set up yet. Add ANTHROPIC_API_KEY to the .env file and restart the server."
 
 
+def prompt_too_long(error: Exception) -> bool:
+    return isinstance(error, anthropic.BadRequestError) and "prompt is too long" in str(error).lower()
 
 
 def is_claude_error(error: Exception) -> bool:
@@ -1504,7 +1508,19 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         answered = {"route": use}
 
         async def routed():
-            stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort)
+            # a chat grown past what claude can read in one go is asked again with only its latest part
+            started = False
+            try:
+                async for event in attempt(messages):
+                    started = True
+                    yield event
+            except anthropic.BadRequestError as error:
+                if started or not prompt_too_long(error):
+                    raise
+                log.info("a chat was too long for claude, asking again with only its latest messages")
+                async for event in attempt(trimmed_history(messages, keep=6, step=2)):
+                    yield event
+
         async def attempt(messages: list[dict]):
             stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort, search=search)
             backup = stall_backup(cfg, use)

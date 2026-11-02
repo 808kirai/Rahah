@@ -470,6 +470,27 @@ def test_a_voice_chat_turn_asks_for_a_spoken_answer(setup):
     assert any("talking to you by voice" in n for n in notes)
 
 
+def too_long_error():
+    import anthropic
+    import httpx
+    response = httpx.Response(400, request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+    return anthropic.BadRequestError("prompt is too long: 1003527 tokens > 1000000 maximum", response=response, body=None)
+
+
+def test_a_chat_too_long_for_claude_is_asked_again_with_its_latest_part(setup):
+    replies = [message([text_block(f"Answer {i}.")]) for i in range(5)] + [too_long_error(), message([text_block("Still here.")])]
+    web, claude = setup(replies)
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    for i in range(5):
+        web.post(f"/api/conversations/{chat}/messages", json={"text": f"question {i}"})
+    reply = web.post(f"/api/conversations/{chat}/messages", json={"text": "one more"}).text
+    assert "Still here." in reply
     # the second try sent only the latest few messages
     assert len(claude.beta.messages.calls[-1]["messages"]) < len(claude.beta.messages.calls[-2]["messages"])
 
+
+def test_a_chat_still_too_long_says_to_start_a_new_one(setup):
+    web, claude = setup([too_long_error(), too_long_error()])
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    reply = web.post(f"/api/conversations/{chat}/messages", json={"text": "hi"}).text
+    assert "Start a new chat" in reply
