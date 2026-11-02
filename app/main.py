@@ -266,7 +266,7 @@ def friendly_error(error: Exception) -> str:
     if isinstance(error, anthropic.RateLimitError):
         return "Rahah is busy right now. Wait a moment and try again."
     if isinstance(error, prompt_too_big):
-        return "That's too much to read in one question. Send a smaller part of the file, or start a new chat."
+        return "That's too much to read in one question. Send a smaller part of the file, or start a new chat." + (f" {error}" if str(error) else "")
     if prompt_too_long(error):
         return "This chat, with its files, has grown too long for Rahah to read. Start a new chat to keep going."
     if isinstance(error, anthropic.BadRequestError):
@@ -1540,6 +1540,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if use.tier == "mage" and choice != "mage" and not free_mage_left(user):
             use = chat_route(cfg, "acolyte", mode, sandbox is not None)
         search = is_pro(user) or db.searches_since(user["id"], my_day_start(user)) < billing.free_searches_a_day
+        # pro and max can send bigger files in one question, about 100 pages to free's 40
+        paid = is_pro(user)
+        prompt_cap = max(cfg.max_prompt_tokens, billing.paid_prompt_tokens) if paid and cfg.max_prompt_tokens > 0 else cfg.max_prompt_tokens
         messages = trimmed_history(messages)
         if not search:
             messages = messages + [{"role": "system", "content": search_off_note}]
@@ -1548,7 +1551,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
         async def routed():
             # a long chat or one with files is kept under the size cap first
-            fitted = await fit_prompt(claude(), use.model, messages, cfg.max_prompt_tokens)
+            fitted = await fit_prompt(claude(), use.model, messages, prompt_cap, "" if paid else "Pro and Max read about 100 pages at once.")
             # a chat grown past what claude can read in one go is asked again with only its latest part
             started = False
             try:

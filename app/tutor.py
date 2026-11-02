@@ -386,7 +386,7 @@ async def prompt_size(client, model: str, messages: list[dict]) -> int | None:
         return None
 
 
-async def fit_prompt(client, model: str, messages: list[dict], cap: int) -> list[dict]:
+async def fit_prompt(client, model: str, messages: list[dict], cap: int, too_big_note: str = "") -> list[dict]:
     """keeps a question under the size cap, so no answer costs a lot or holds up everyone else.
     a long chat or one with files is counted, and if it's over, the oldest messages go, keeping as many
     of the latest as fit. if the latest question alone is over, the student is asked for a smaller part"""
@@ -408,7 +408,7 @@ async def fit_prompt(client, model: str, messages: list[dict], cap: int) -> list
         else:
             high = middle - 1
     if best is None:
-        raise prompt_too_big()
+        raise prompt_too_big(too_big_note)
     return best
 
 

@@ -13,8 +13,8 @@ fonts = {"regular": here / "fonts" / "Inter-Regular.ttf", "semi": here / "fonts"
 
 # what each tier gives, listed on the receipt
 perks = {
-    "pro": ["10x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "A weekly report for a parent"],
-    "max": ["20x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "500 notes and a Max badge"],
+    "pro": ["10x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "Files up to about 100 pages", "A weekly report for a parent"],
+    "max": ["20x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "Files up to about 100 pages", "500 notes and a Max badge"],
 }
 
 # drawn at twice the size it's shown, so it stays sharp on phones

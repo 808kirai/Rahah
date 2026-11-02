@@ -344,3 +344,19 @@ def test_the_student_gets_one_receipt_email_for_a_purchase(tmp_path):
     # the receipt drawn as a picture, attached
     name, picture, kind = attachment
     assert name == "rahah-receipt.png" and kind == "image/png" and picture[1:4] == b"PNG"
+
+
+def test_pro_reads_bigger_files_than_free(tmp_path):
+    claude = fake_client([message([text_block("Read it all.")])])
+    # the question counts as 150,000 tokens, over free's 100,000 and under pro's 250,000
+    claude.beta.messages.counter = lambda messages: 150_000
+    cfg = settings(db_path=tmp_path / "pages.db", paystack_secret="sk_test_secret", daily_budget=0, max_prompt_tokens=1000)
+    app = create_app(cfg, client=claude, payments=fake_paystack())
+    signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    chat = amina.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    big = "summarise " + "page " * 3000
+    refused = amina.post(f"/api/conversations/{chat}/messages", json={"text": big}).text
+    assert "too much to read" in refused and "Pro and Max read about 100 pages" in refused
+    amina.post("/api/pro/trial")
+    assert "Read it all." in amina.post(f"/api/conversations/{chat}/messages", json={"text": big}).text

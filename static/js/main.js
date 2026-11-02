@@ -1064,11 +1064,11 @@ function render_account() {
 // the icons are rahah's own chevrons, one more for each step up
 const plan_details = {
     free: { name: "Free", tag: "Try Rahah", note: "Free for every student", steps: 1,
-        features: ["Ask anything, any subject", "Tests, flashcards and summaries", "Mage, 10 answers a day", "5 web searches a day", "5 photo markings a day", "Your 5 newest chats", "Friends and leaderboard"] },
+        features: ["Ask anything, any subject", "Tests, flashcards and summaries", "Mage, 10 answers a day", "5 web searches a day", "5 photo markings a day", "Files up to about 40 pages", "Your 5 newest chats", "Friends and leaderboard"] },
     pro: { name: "Pro", tag: "For steady study", steps: 2, popular: true, plus: "Everything in Free, plus:",
-        features: ["10x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "200 notes, double uploads"] },
+        features: ["10x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 100 pages", "200 notes, double uploads"] },
     max: { name: "Max", tag: "For intense study", steps: 3, plus: "Everything in Free, plus:",
-        features: ["20x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "500 notes, double uploads", "A Max badge on the leaderboard"] },
+        features: ["20x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 100 pages", "500 notes, double uploads", "A Max badge on the leaderboard"] },
 };
 const plan_lengths = { week: "Week", month: "Month", term: "Term" };
 
