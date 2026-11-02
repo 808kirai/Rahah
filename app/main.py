@@ -1404,6 +1404,22 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         # what rahah keeps and why, linked from sign in and the account tab, and given to google for sign in
         return FileResponse(static_dir / "privacy.html")
 
+    # for search engines: list the public pages, keep out the api, the calendar feeds and the pictures behind it
+    def site_base(request: Request) -> str:
+        return cfg.public_url or str(request.base_url).rstrip("/")
+
+    @app.get("/robots.txt")
+    def robots(request: Request):
+        lines = ["User-agent: *", "Allow: /", "Disallow: /api/", "Disallow: /cal/", f"Sitemap: {site_base(request)}/sitemap.xml"]
+        return Response("\n".join(lines) + "\n", media_type="text/plain")
+
+    @app.get("/sitemap.xml")
+    def sitemap(request: Request):
+        base = site_base(request)
+        pages = "".join(f"<url><loc>{base}{path}</loc></url>" for path in ("/", "/terms", "/privacy"))
+        return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{pages}</urlset>',
+                        media_type="application/xml")
+
     # the file apple checks before apple pay can run on this domain, downloaded from paystack's apple pay settings
     apple_file = static_dir / "apple-pay" / "apple-developer-merchantid-domain-association"
 

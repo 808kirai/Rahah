@@ -573,3 +573,14 @@ def test_a_file_too_big_on_its_own_says_file_too_large():
     from app import billing
     from app.tutor import pages_for
     assert pages_for(billing.paid_prompt_tokens["pro"]) == 100 and pages_for(billing.paid_prompt_tokens["max"]) == 200
+
+
+def test_search_engines_get_robots_a_sitemap_and_a_share_card(setup):
+    web, _ = setup()
+    robots = web.get("/robots.txt").text
+    assert "Disallow: /api/" in robots and "Sitemap:" in robots and robots.strip().endswith("/sitemap.xml")
+    sitemap = web.get("/sitemap.xml")
+    assert sitemap.headers["content-type"].startswith("application/xml") and "/privacy</loc>" in sitemap.text
+    page = web.get("/").text
+    assert "<title>Rahah · Study smarter with AI</title>" in page and 'property="og:image"' in page and "application/ld+json" in page
+    assert web.get("/static/img/share.png").status_code == 200
