@@ -835,7 +835,8 @@ async function square_profile_photo(file) {
 }
 
 thread.addEventListener("change", async (event) => {
-    if (event.target.id !== "photo-pick" || !event.target.files[0]) return;
+    // from the pen on the picture at the top, or the button on the picture card
+    if (!event.target.matches("[data-photo-input]") || !event.target.files[0]) return;
     account_note("photo-note", "Uploading your photo…");
     try {
         const form = new FormData();
@@ -874,8 +875,12 @@ function render_account() {
         <div class="account-grid">
         <section class="perf-card">
             <div class="account-row">
-                ${face_html(me.photo, shown)}
-                <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.is_admin ? " · Admin" : ""}</small></span>
+                <label class="face-edit" title="Change your picture" aria-label="Change your picture">
+                    ${face_html(me.photo, shown)}
+                    <span class="face-pen" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></span>
+                    <input type="file" accept="image/*" hidden data-photo-input>
+                </label>
+                <span class="account-text"><strong>${escape_html(shown)}${me.is_admin ? "" : tier_badge(me.tier)}</strong><small>@${escape_html(me.username)}${me.is_admin ? " · Admin" : ""}</small></span>
                 <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
             </div>
             <div class="switch-row">
@@ -925,7 +930,7 @@ function render_account() {
             <div class="photo-row">
                 ${face_html(me.photo, shown, "large")}
                 <label class="btn btn-soft btn-small">
-                    <input type="file" id="photo-pick" accept="image/*" hidden>${me.photo ? "Change photo" : "Choose a photo"}
+                    <input type="file" id="photo-pick" accept="image/*" hidden data-photo-input>${me.photo ? "Change photo" : "Choose a photo"}
                 </label>
                 ${me.photo ? '<button class="btn btn-ghost btn-small" type="button" data-photo-remove>Remove</button>' : ""}
                 <p class="field-hint" id="photo-note" hidden></p>

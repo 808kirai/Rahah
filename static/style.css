@@ -6771,6 +6771,41 @@ body:not(.is-page) .me-face {
     }
 }
 
+/* the picture on the account card, tap it or its pen to choose a new one */
+.face-edit {
+    position: relative;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.face-pen {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    box-shadow: 0 0 0 1.5px var(--panel-line), 0 2px 6px var(--shadow);
+}
+
+.face-pen svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: var(--text);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.face-edit:hover .face-pen,
+.face-edit:focus-within .face-pen {
+    background: var(--accent-soft);
+}
+
 /* pro or max beside rahah's name at the top */
 .nav-tier .pro-badge {
     margin-left: 0.45rem;
