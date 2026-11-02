@@ -6876,3 +6876,65 @@ body:not(.is-page) .me-face {
     margin: 0 auto 0.4rem;
     accent-color: var(--accent-text);
 }
+
+/* the pen beside a sent question, shown on hover on a computer and always on a phone */
+.bubble-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    width: 100%;
+}
+
+.bubble-row[hidden] {
+    display: none;
+}
+
+.edit-question {
+    display: none;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.edit-question svg {
+    width: 15px;
+    height: 15px;
+}
+
+.message.user.saved .edit-question {
+    display: grid;
+}
+
+.message.user.saved:hover .edit-question,
+.edit-question:focus-visible {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .message.user.saved .edit-question {
+        opacity: 0.7;
+    }
+}
+
+/* the box a question is edited in */
+.edit-box {
+    width: min(100%, 560px);
+    align-self: flex-end;
+}
+
+.edit-box textarea {
+    width: 100%;
+    resize: vertical;
+    border-radius: 18px;
+    line-height: 1.45;
+}
+
+.edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-top: 0.45rem;
+}

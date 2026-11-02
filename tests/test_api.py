@@ -494,3 +494,29 @@ def test_a_chat_still_too_long_says_to_start_a_new_one(setup):
     chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
     reply = web.post(f"/api/conversations/{chat}/messages", json={"text": "hi"}).text
     assert "Start a new chat" in reply
+
+
+def test_editing_a_question_asks_it_again_and_replaces_what_came_after(setup):
+    replies = [message([text_block("Paris.")]), message([text_block("Nairobi.")]), message([text_block("Rome.")])]
+    web, claude = setup(replies)
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    web.post(f"/api/conversations/{chat}/messages", json={"text": "capital of france"})
+    web.post(f"/api/conversations/{chat}/messages", json={"text": "capital of kenya"})
+    reply = web.post(f"/api/conversations/{chat}/edit", json={"index": 0, "text": "capital of italy"}).text
+    assert "Rome." in reply
+    # the edited question went to claude on its own, without the old turns after it
+    sent = claude.beta.messages.calls[-1]["messages"]
+    assert "capital of italy" in str(sent) and "kenya" not in str(sent) and "france" not in str(sent)
+    shown = [(m["role"], m["text"]) for m in web.get(f"/api/conversations/{chat}").json()["messages"]]
+    assert shown == [("user", "capital of italy"), ("assistant", "Rome.")]
+    assert web.post(f"/api/conversations/{chat}/edit", json={"index": 5, "text": "hi"}).status_code == 404
+
+
+def test_a_failed_edit_keeps_the_chat_as_it_was(setup):
+    replies = [message([text_block("Paris.")]), too_long_error(), too_long_error()]
+    web, claude = setup(replies)
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    web.post(f"/api/conversations/{chat}/messages", json={"text": "capital of france"})
+    web.post(f"/api/conversations/{chat}/edit", json={"index": 0, "text": "capital of italy"})
+    shown = [(m["role"], m["text"]) for m in web.get(f"/api/conversations/{chat}").json()["messages"]]
+    assert shown == [("user", "capital of france"), ("assistant", "Paris.")]

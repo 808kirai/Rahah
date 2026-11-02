@@ -50,7 +50,7 @@ async function open_conversation(conversation_id) {
         if (!conversation.messages.length) show_welcome();
         conversation.messages.forEach((m) => {
             if (m.role === "user") {
-                add_user_message(m.text, m.files || []);
+                add_user_message(m.text, m.files || [], true);
                 return;
             }
             const reply = add_assistant_message(m.text, m.sources || [], m.runs || []);

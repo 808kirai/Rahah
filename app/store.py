@@ -960,6 +960,25 @@ class store:
             } for r in down],
         }
 
+    def question_at(self, conversation_id: str, index: int) -> dict | None:
+        """the chat's question at this place, counting from the first, with its id, content and what the page shows"""
+        with self._connect() as db:
+            row = db.execute(
+                "select id, content, display from messages where conversation_id = ? and role = 'user' and display is not null "
+                "order by id limit 1 offset ?", (conversation_id, index),
+            ).fetchone()
+        if not row:
+            return None
+        return {"id": row["id"], "content": json.loads(row["content"]), "display": json.loads(row["display"])}
+
+    def api_messages_before(self, conversation_id: str, message_id: int) -> list[dict]:
+        # the history up to a question, for asking it again edited
+        with self._connect() as db:
+            rows = db.execute(
+                "select role, content from messages where conversation_id = ? and id < ? order by id", (conversation_id, message_id),
+            ).fetchall()
+        return [{"role": r["role"], "content": json.loads(r["content"])} for r in rows]
+
     def drop_last_answer(self, conversation_id: str) -> bool:
         """removes the answer after the last question, false when there is no question yet"""
         with self._connect() as db:
@@ -974,10 +993,13 @@ class store:
             )
         return True
 
-    def add_turn(self, conversation_id: str, rows: list[dict], mode: str, title: str) -> int | None:
-        # rows are written together so a failed turn never leaves half a history
+    def add_turn(self, conversation_id: str, rows: list[dict], mode: str, title: str, drop_from: int | None = None) -> int | None:
+        # rows are written together so a failed turn never leaves half a history. an edited question
+        # replaces the old one and everything after it, in the same step, so nothing is lost if the answer fails
         last_id = None
         with self._connect() as db:
+            if drop_from is not None:
+                db.execute("delete from messages where conversation_id = ? and id >= ?", (conversation_id, drop_from))
             for row in rows:
                 display = row.get("display")
                 cursor = db.execute(

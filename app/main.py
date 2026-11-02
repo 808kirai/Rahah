@@ -233,6 +233,11 @@ class message_in(BaseModel):
     model: str = "auto"
 
 
+class edit_in(message_in):
+    # which question, counting from the chat's first
+    index: int = Field(ge=0, le=100000)
+
+
 class retry_in(BaseModel):
     mode: str = default_mode
     hints: bool = False
@@ -1496,9 +1501,32 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             messages.append(note)
         return answer_response(user, conversation_id, messages, rows, body.mode, "", "retry", body.model, running.start(user["id"]))
 
+    @app.post("/api/conversations/{conversation_id}/edit")
+    def edit_question(conversation_id: str, body: edit_in, user: dict = Depends(signed_in)):
+        """a question asked again with new words: its old answer and everything after it go once the new answer is in.
+        files sent with it stay"""
+        conversation_or_404(user, conversation_id)
+        check_mode(user, body.mode)
+        check_choice(user, body.model)
+        check_allowance(user)
+        text = body.text.strip()
+        if not text:
+            raise HTTPException(400, "Write a question first.")
+        old = db.question_at(conversation_id, body.index)
+        if not old:
+            raise HTTPException(404, "That question isn't in this chat any more. Refresh and try again.")
+        content = [b for b in old["content"] if b.get("type") != "text"] + [{"type": "text", "text": text}]
+        rows = [{"role": "user", "content": content, "display": {**old["display"], "text": text}}]
+        note = turn_note(body.mode, hints=body.hints, extra=settings_notes(body))
+        if note:
+            rows.append(note)
+        messages = db.api_messages_before(conversation_id, old["id"]) + [{"role": r["role"], "content": r["content"]} for r in rows]
+        return answer_response(user, conversation_id, messages, rows, body.mode, text[:60] if body.index == 0 else "", "chat",
+                               body.model, running.start(user["id"]), drop_from=old["id"])
+
     def answer_response(
         user: dict, conversation_id: str, messages: list[dict], rows: list[dict], mode: str, title: str, kind: str,
-        choice: str = "auto", job: str = "",
+        choice: str = "auto", job: str = "", drop_from: int | None = None,
     ):
         # once code has run in a chat the tool stays on, since the history holds its runs
         sandbox = db.get_container(conversation_id)
@@ -1569,7 +1597,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             text = partial.strip()
             content = [{"type": "text", "text": text or "(The student stopped this answer before it began.)"}]
             display = {"text": text, "sources": [], "runs": [], "searches": searches, "stopped": True}
-            db.add_turn(conversation_id, rows + [{"role": "assistant", "content": content, "display": display}], mode, title)
+            db.add_turn(conversation_id, rows + [{"role": "assistant", "content": content, "display": display}], mode, title, drop_from=drop_from)
 
         async def events():
             final, ended, partial, searches = None, False, "", []
@@ -1610,7 +1638,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                 yield sse({"t": "error", "v": "Rahah returned an empty answer. Try asking again."})
                 return
             rows.append({"role": "assistant", "content": history_blocks(final.content), "display": display})
-            message_id = db.add_turn(conversation_id, rows, mode, title=title)
+            message_id = db.add_turn(conversation_id, rows, mode, title=title, drop_from=drop_from)
             if final.container:
                 db.set_container(conversation_id, final.container, final.container_expires.timestamp())
             truncated = final.stop_reason in ("max_tokens", "pause_turn")

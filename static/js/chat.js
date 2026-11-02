@@ -15,7 +15,7 @@ function file_pill_html(file) {
     return `<span class="file-pill">${file.kind === "image" ? icons.image : icons.doc}<span>${escape_html(file.name)}</span></span>`;
 }
 
-function add_user_message(text, files = []) {
+function add_user_message(text, files = [], saved = false) {
     leave_home();
     const message_el = document.createElement("div");
     message_el.className = "message user";
@@ -23,10 +23,107 @@ function add_user_message(text, files = []) {
     const bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.textContent = text;
-    message_el.appendChild(bubble);
+    // a pen beside a saved question, to change it and get a new answer without starting over
+    const row = document.createElement("div");
+    row.className = "bubble-row";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "icon-btn edit-question";
+    edit.title = "Edit";
+    edit.setAttribute("aria-label", "Edit this question");
+    edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+    row.append(edit, bubble);
+    message_el.appendChild(row);
+    message_el.classList.toggle("saved", saved);
     thread.appendChild(message_el);
     return message_el;
 }
+
+// editing a question: the bubble turns into a box with the words, and sending asks it again. the answers after it
+// leave the page, and on the server they're replaced only once the new answer has arrived
+function start_edit(message_el) {
+    if (state.busy || message_el.querySelector(".edit-box")) return;
+    const bubble = message_el.querySelector(".bubble");
+    const box = document.createElement("div");
+    box.className = "edit-box";
+    box.innerHTML = `<textarea class="text-input" rows="3" aria-label="Edit your question"></textarea>
+        <div class="edit-actions">
+            <button class="btn btn-ghost btn-small" type="button" data-edit-cancel>Cancel</button>
+            <button class="btn btn-accent btn-small" type="button" data-edit-send>Send</button>
+        </div>`;
+    const area = box.querySelector("textarea");
+    area.value = bubble.textContent;
+    message_el.querySelector(".bubble-row").hidden = true;
+    message_el.classList.add("editing");
+    message_el.appendChild(box);
+    area.style.height = `${Math.min(area.scrollHeight + 4, 320)}px`;
+    area.focus();
+    area.setSelectionRange(area.value.length, area.value.length);
+    area.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+            event.preventDefault();
+            send_edit(message_el);
+        }
+        if (event.key === "Escape") stop_edit(message_el);
+    });
+}
+
+function stop_edit(message_el) {
+    message_el.querySelector(".edit-box")?.remove();
+    message_el.querySelector(".bubble-row").hidden = false;
+    message_el.classList.remove("editing");
+}
+
+async function send_edit(message_el) {
+    const text = message_el.querySelector(".edit-box textarea").value.trim();
+    const bubble = message_el.querySelector(".bubble");
+    if (!text || state.busy || !state.conversation_id) return;
+    if (text === bubble.textContent.trim()) return stop_edit(message_el);
+    const index = [...thread.querySelectorAll(".message.user.saved")].indexOf(message_el);
+    if (index < 0) return;
+    // what came after this question leaves the page, the new answer takes its place
+    for (let next = message_el.nextElementSibling; next; next = message_el.nextElementSibling) next.remove();
+    stop_edit(message_el);
+    bubble.textContent = text;
+    run_edit(message_el, index, text);
+}
+
+async function run_edit(message_el, index, text) {
+    state.busy = true;
+    update_send_button();
+    const reply = add_assistant_message();
+    scroll_to_bottom();
+    const conversation_id = state.conversation_id;
+    let saved = false;
+    try {
+        saved = await run_answer(reply, (signal) => api(`/api/conversations/${conversation_id}/edit`, {
+            in_chat: true,
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index, text, mode: mode_select.value, hints: Boolean(state.hints), voice: talk.on, ...settings_body() }),
+            signal,
+        }), () => {}, () => {
+            // trying again after a failed edit sends the same edit
+            reply.remove();
+            run_edit(message_el, index, text);
+        });
+    } finally {
+        state.busy = false;
+        update_send_button();
+        load_history();
+        if (saved && index === 0) set_title(text.slice(0, 60));
+        offer_retry();
+    }
+}
+
+thread.addEventListener("click", (event) => {
+    const pen = event.target.closest(".edit-question");
+    if (pen) start_edit(pen.closest(".message.user"));
+    const message_el = event.target.closest(".message.user");
+    if (!message_el) return;
+    if (event.target.closest("[data-edit-cancel]")) stop_edit(message_el);
+    if (event.target.closest("[data-edit-send]")) send_edit(message_el);
+});
 
 // what the answer says while claude works, one slang word with ing on the end, no spaces or punctuation
 // each answer picks three and rotates through them until the words start arriving
@@ -430,6 +527,7 @@ async function send_message(text) {
         state.busy = false;
         update_send_button();
         load_history();
+        if (saved) question.classList.add("saved");
         if (saved && el("chat-title").textContent === "New chat") set_title(text.slice(0, 60));
         offer_retry();
         focus_input();
