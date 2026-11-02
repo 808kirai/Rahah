@@ -295,6 +295,9 @@ class store:
             # whether other students can find this account in friend search
             if "findable" not in columns:
                 db.execute("alter table users add column findable integer not null default 1")
+            # whether the admin shows on the leaderboards, off until they turn it on. students always show
+            if "on_board" not in columns:
+                db.execute("alter table users add column on_board integer not null default 0")
             # the secret part of each student's calendar feed address
             if "calendar_token" not in columns:
                 db.execute("alter table users add column calendar_token text")
@@ -326,6 +329,7 @@ class store:
         user["is_admin"] = bool(user["is_admin"])
         user["disabled"] = bool(user["disabled"])
         user["findable"] = bool(user.get("findable", 1))
+        user["on_board"] = bool(user.get("on_board", 0))
         user["settings"] = json.loads(user["settings"] or "{}")
         return user
 
@@ -387,11 +391,11 @@ class store:
 
     def update_user(self, user_id: str, **fields) -> dict | None:
         allowed = ("username", "email", "password", "name", "google_sub", "apple_sub", "is_admin", "daily_cap", "disabled", "settings", "findable", "avatar",
-                   "referred_by", "referral_rewarded", "parent_email", "parent_sent", "timezone", "timezone_set")
+                   "referred_by", "referral_rewarded", "parent_email", "parent_sent", "timezone", "timezone_set", "on_board")
         fields = {k: v for k, v in fields.items() if k in allowed}
         if "settings" in fields:
             fields["settings"] = json.dumps(fields["settings"])
-        for flag in ("is_admin", "disabled", "findable"):
+        for flag in ("is_admin", "disabled", "findable", "on_board"):
             if flag in fields:
                 fields[flag] = int(bool(fields[flag]))
         if fields:

@@ -887,6 +887,10 @@ function render_account() {
                 <span><strong>Low-data mode</strong><small>Shorter answers, smaller photos, no web search</small></span>
                 <button class="switch" type="button" role="switch" aria-checked="${Boolean(state.settings?.low_data)}" aria-label="Low-data mode" data-low-data-toggle><span></span></button>
             </div>
+            ${me.is_admin ? `<div class="switch-row">
+                <span><strong>Show me on the leaderboard</strong><small>Off keeps the admin account off every leaderboard</small></span>
+                <button class="switch" type="button" role="switch" aria-checked="${Boolean(me.on_board)}" aria-label="Show me on the leaderboard" data-board-toggle><span></span></button>
+            </div>` : ""}
             <div class="account-fields">
                 <label class="field">
                     <span class="field-label">Name</span>
@@ -1304,6 +1308,19 @@ function account_note(id, text) {
 thread.addEventListener("click", async (event) => {
     if (!event.target.closest("#account-box, #account-rest")) return;
     if (event.target.closest("[data-low-data-toggle]")) save_settings({ low_data: !state.settings.low_data });
+    if (event.target.closest("[data-board-toggle]")) {
+        try {
+            state.me = await (await api("/api/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ on_board: !state.me.on_board }),
+            })).json();
+            remember_me(state.me);
+            render_account();
+        } catch (error) {
+            account_note("profile-note", error.message);
+        }
+    }
     if (event.target.closest("[data-photo-remove]")) {
         try {
             state.me = await (await api("/api/me/photo", { method: "DELETE" })).json();

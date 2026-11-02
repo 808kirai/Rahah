@@ -133,6 +133,8 @@ class profile_in(BaseModel):
     settings: dict | None = None
     # whether other students can find this account in friend search
     findable: bool | None = None
+    # the admin's choice to show on the leaderboards
+    on_board: bool | None = None
     # the device's time zone, like Africa/Nairobi, for when the daily limit starts again
     timezone: str | None = Field(default=None, max_length=64)
 
@@ -613,7 +615,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return {
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
-            "idle_minutes": cfg.idle_minutes,
+            "idle_minutes": cfg.idle_minutes, "on_board": user["on_board"],
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
             "findable": user["findable"], "photo": photo_url(user), "timezone": user.get("timezone") or "",
             "pro": is_pro(user), "parent_email": user.get("parent_email") or "",
@@ -865,6 +867,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             change["settings"] = body.settings
         if body.findable is not None:
             change["findable"] = body.findable
+        if body.on_board is not None and user["is_admin"]:
+            change["on_board"] = body.on_board
         if body.timezone and body.timezone != user.get("timezone"):
             try:
                 ZoneInfo(body.timezone)
@@ -1978,8 +1982,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     board_top = 10
 
     def on_everyone_board(person: dict) -> bool:
-        # every student who can be found, and the admin
-        return not person["disabled"] and (person["is_admin"] or person["findable"])
+        # every student who can be found, and the admin once they've chosen to show
+        return not person["disabled"] and (person["on_board"] if person["is_admin"] else person["findable"])
 
     @app.get("/api/leaderboard")
     def leaderboard(scope: str = Query("friends", pattern="^(friends|everyone)$"), user: dict = Depends(signed_in)):
@@ -1992,7 +1996,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             people = {u["id"]: u for u in db.list_users() if on_everyone_board(u)}
             people[user["id"]] = user
         else:
-            people = {user["id"]: user, **{f: db.get_user(f) for f in friend_ids}}
+            friends = {f: db.get_user(f) for f in friend_ids}
+            # an admin who chose not to show is left off their friends' boards too
+            people = {user["id"]: user, **{f: p for f, p in friends.items() if p and not (p["is_admin"] and not p["on_board"])}}
         day_of = lambda t: board.local_day(datetime.fromtimestamp(t, timezone.utc), board_zone)
         numbers = db.week_numbers(list(people), start.timestamp(), start.date().isoformat(), day_of)
         # last week, for how this week compares

@@ -74,6 +74,8 @@ def test_a_friend_request_becomes_a_friendship_once_accepted(tmp_path):
 def test_the_leaderboard_ranks_friends_by_this_weeks_points(tmp_path):
     app = made_app(tmp_path, [message([text_block(json.dumps(quiz))])])
     me = signed_in(TestClient(app), "runie")
+    # runie is the admin, who shows on boards only once they choose to
+    me.patch("/api/me", json={"on_board": True})
     amina = signed_in(TestClient(app), "amina")
     me.post("/api/friends", json={"username": "amina"})
     amina.post("/api/friends/runie/accept")
@@ -110,9 +112,13 @@ def test_the_everyone_board_ranks_every_findable_student_and_the_admin(tmp_path)
     hidden.patch("/api/me", json={"findable": False})
     brian.post("/api/study-time")
     board = amina.get("/api/leaderboard", params={"scope": "everyone"}).json()
-    # amina isn't friends with anyone, but sees brian, the admin and herself, not chebet who hid
-    assert board["scope"] == "everyone" and sorted(r["username"] for r in board["board"]) == ["amina", "brian", "runie"]
-    assert board["standing"]["total"] == 3
+    # amina isn't friends with anyone, but sees brian and herself, not chebet who hid, nor the admin who hasn't chosen to show
+    assert board["scope"] == "everyone" and sorted(r["username"] for r in board["board"]) == ["amina", "brian"]
+    assert board["standing"]["total"] == 2
+    # only the admin can choose to show, and then they do
+    assert amina.patch("/api/me", json={"on_board": True}).json()["on_board"] is False
+    assert admin.patch("/api/me", json={"on_board": True}).json()["on_board"] is True
+    assert "runie" in [r["username"] for r in amina.get("/api/leaderboard", params={"scope": "everyone"}).json()["board"]]
     # chebet still sees herself, and the friends board is unchanged
     assert "chebet" in [r["username"] for r in hidden.get("/api/leaderboard", params={"scope": "everyone"}).json()["board"]]
     assert [r["username"] for r in amina.get("/api/leaderboard").json()["board"]] == ["amina"]
