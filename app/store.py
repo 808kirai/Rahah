@@ -533,6 +533,25 @@ class store:
         with self._connect() as db:
             db.execute("update payments set status = ? where reference = ? and status = 'pending'", (status, reference))
 
+    def revenue_summary(self, week_start: float) -> dict:
+        """money in for the admin: shillings paid this week and in all, students on a paid pass now, and how many
+        who tried pro went on to pay"""
+        now = time.time()
+        with self._connect() as db:
+            week = db.execute("select coalesce(sum(amount), 0), count(*) from payments where status = 'paid' and paid >= ?", (week_start,)).fetchone()
+            ever = db.execute("select coalesce(sum(amount), 0), count(*) from payments where status = 'paid'").fetchone()
+            # a paid pass running now or lined up to start, a pass bought during a trial waits for it to end
+            paying = db.execute(
+                "select count(distinct user_id) from passes where ends > ? and plan not in ('trial', 'gift')", (now,),
+            ).fetchone()[0]
+            tried = db.execute("select count(distinct user_id) from passes where plan = 'trial'").fetchone()[0]
+            converted = db.execute(
+                "select count(distinct t.user_id) from passes t join payments p on p.user_id = t.user_id "
+                "and p.status = 'paid' and p.paid >= t.created where t.plan = 'trial'",
+            ).fetchone()[0]
+        return {"week_kes": week[0], "week_sales": week[1], "all_kes": ever[0], "all_sales": ever[1],
+                "paying": paying, "tried": tried, "converted": converted}
+
     def active_pass(self, user_id: str, now: float | None = None) -> dict | None:
         now = now or time.time()
         with self._connect() as db:

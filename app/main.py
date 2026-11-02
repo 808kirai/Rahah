@@ -1211,6 +1211,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "users": rows, "default_cap": cfg.daily_cap, "total": {k: round(sum(v.values()), 4) for k, v in costs.items()},
             "budget": cfg.daily_budget, "budget_used": round(db.student_cost_since(day_start(time.time())), 4),
             "summary": admin_summary(rows),
+            "revenue": {**db.revenue_summary(time.time() - 7 * 86400), "kes_per_usd": billing.kes_per_usd,
+                        "students": sum(1 for r in rows if not r["is_admin"])},
         }
 
     def other_user_or_404(user_id: str) -> dict:

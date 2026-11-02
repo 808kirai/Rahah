@@ -430,6 +430,20 @@ function admin_summary_html(s) {
     </div>`;
 }
 
+// money in: what students paid, what's left after claude's bill this week, who's paying and how many trials turned into sales
+function revenue_html(r, total) {
+    const usd = (kes) => kes / r.kes_per_usd;
+    const kes = (n) => `KES ${Math.round(n).toLocaleString()}`;
+    const left = usd(r.week_kes) - (total?.week || 0);
+    const rate = r.tried ? Math.round((100 * r.converted) / r.tried) : 0;
+    return `<div class="kpis">
+        ${stat_card("Revenue, 7 days", dollars(usd(r.week_kes)), `${kes(r.week_kes)} from ${plural(r.week_sales, "pass", "passes")}. ${dollars(usd(r.all_kes))} in all`)}
+        ${stat_card("After Claude, 7 days", left < 0 ? `-${dollars(-left)}` : dollars(left), "Revenue minus what Claude cost this week, before Paystack's fee")}
+        ${stat_card("Paying students", r.paying, `Of ${plural(r.students, "student")}, with a paid pass running or lined up`)}
+        ${stat_card("Trial to paid", r.tried ? `${rate}%` : "–", r.tried ? `${r.converted} of ${r.tried} who tried Pro went on to pay` : "Nobody has tried Pro yet")}
+    </div>`;
+}
+
 function render_admin() {
     const page = el("admin");
     const a = state.admin;
@@ -446,6 +460,7 @@ function render_admin() {
             ${stat_card("All time", dollars(a.total.all), `Default daily limit ${`$${a.default_cap.toFixed(2)}`} each`)}
         </div>
         ${a.summary ? admin_summary_html(a.summary) : ""}
+        ${a.revenue ? revenue_html(a.revenue, a.total) : ""}
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Every student</h3>

@@ -361,6 +361,22 @@ def test_pro_reads_bigger_files_than_free(tmp_path):
     amina.post("/api/pro/trial")
     assert "Read it all." in amina.post(f"/api/conversations/{chat}/messages", json={"text": big}).text
 
+
+def test_the_admin_sees_revenue_paying_students_and_trial_to_paid(tmp_path):
+    app, pay = pro_app(tmp_path)
+    admin = signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    brian = signed_in(TestClient(app), "brian")
+    # amina tries pro then pays, brian only tries
+    amina.post("/api/pro/trial")
+    brian.post("/api/pro/trial")
+    buy(amina, pay, "pro_month", 515)
+    revenue = admin.get("/api/admin/users").json()["revenue"]
+    assert revenue["week_kes"] == 515 and revenue["week_sales"] == 1 and revenue["all_kes"] == 515
+    assert revenue["paying"] == 1 and revenue["students"] == 2
+    assert revenue["tried"] == 2 and revenue["converted"] == 1
+
+
 def test_a_big_question_goes_to_acolyte_even_when_mage_was_picked(tmp_path):
     claude = fake_client([message([text_block("Read it.")]), message([text_block("Short one.")])])
     sizes = iter([150_000, 10])
