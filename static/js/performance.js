@@ -490,6 +490,7 @@ function render_admin() {
                     <td class="num">${dollars(u.all)}</td>
                     <td>${limit(u)}</td>
                     <td class="admin-actions">${u.id === state.me.id ? "" : `
+                        <button class="btn btn-ghost btn-small" type="button" data-admin-give="${u.id}">Give Pro</button>
                         <button class="btn btn-ghost btn-small" type="button" data-admin-password="${u.id}">New password</button>
                         <button class="btn btn-ghost btn-small" type="button" data-admin-toggle="${u.id}">${u.disabled ? "Turn on" : "Turn off"}</button>`}
                     </td>
@@ -527,6 +528,36 @@ thread.addEventListener("click", async (event) => {
         const off = !user.disabled;
         if (off && !confirm(`Turn off ${user.username}? They'll be signed out and can't sign in until you turn them back on.`)) return;
         admin_update(user.id, { disabled: off });
+    }
+    // giving pro or max: the buttons swap for a small choice of plan and days
+    const give = event.target.closest("[data-admin-give]");
+    if (give) {
+        give.closest(".admin-actions").innerHTML = `<span class="admin-give">
+            <select class="text-input" data-give-tier aria-label="Plan"><option value="pro">Pro</option><option value="max">Max</option></select>
+            <select class="text-input" data-give-days aria-label="How long"><option value="1">1 day</option><option value="7" selected>1 week</option><option value="30">1 month</option></select>
+            <button class="btn btn-accent btn-small" type="button" data-give-go="${give.dataset.adminGive}">Give</button>
+            <button class="btn btn-ghost btn-small" type="button" data-give-cancel>Cancel</button>
+        </span>`;
+    }
+    if (event.target.closest("[data-give-cancel]")) render_admin();
+    const go = event.target.closest("[data-give-go]");
+    if (go) {
+        const box = go.closest(".admin-give");
+        const user = state.admin.users.find((u) => u.id === go.dataset.giveGo);
+        const tier = box.querySelector("[data-give-tier]").value;
+        const days = Number(box.querySelector("[data-give-days]").value);
+        go.disabled = true;
+        try {
+            const row = await (await api(`/api/admin/users/${user.id}/give`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tier, days }),
+            })).json();
+            state.admin.users = state.admin.users.map((u) => (u.id === user.id ? row : u));
+        } catch (error) {
+            alert(error.message);
+        }
+        render_admin();
     }
     const reset = event.target.closest("[data-admin-password]");
     if (reset) {

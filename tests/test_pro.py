@@ -410,3 +410,17 @@ def test_the_apple_pay_domain_file_is_served_when_its_there(tmp_path):
     assert response.status_code == (200 if found.is_file() else 404)
     # paystack's checkout may ask for payment inside its popup, nothing else can
     assert 'payment=(self "https://checkout.paystack.com")' in web.get("/").headers["permissions-policy"]
+
+
+def test_the_admin_can_give_pro_or_max_without_it_counting_as_revenue(tmp_path):
+    app, pay = pro_app(tmp_path)
+    admin = signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    amina_id = amina.get("/api/me").json()["id"]
+    assert amina.post(f"/api/admin/users/{amina_id}/give", json={"tier": "max", "days": 7}).status_code == 403
+    row = admin.post(f"/api/admin/users/{amina_id}/give", json={"tier": "max", "days": 7}).json()
+    assert row["tier"] == "max" and row["pass_name"] == "Max from Rahah" and row["pass_percent"] == 0
+    assert amina.get("/api/me").json()["tier"] == "max"
+    revenue = admin.get("/api/admin/users").json()["revenue"]
+    assert revenue["week_kes"] == 0 and revenue["paying"] == 0
+    assert admin.post(f"/api/admin/users/{amina_id}/give", json={"tier": "gold", "days": 7}).status_code == 422

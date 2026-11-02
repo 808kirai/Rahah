@@ -547,7 +547,7 @@ class store:
             ever = db.execute("select coalesce(sum(amount), 0), count(*) from payments where status = 'paid'").fetchone()
             # a paid pass running now or lined up to start, a pass bought during a trial waits for it to end
             paying = db.execute(
-                "select count(distinct user_id) from passes where ends > ? and plan not in ('trial', 'gift')", (now,),
+                "select count(distinct user_id) from passes where ends > ? and plan not in ('trial', 'gift', 'given_pro', 'given_max')", (now,),
             ).fetchone()[0]
             tried = db.execute("select count(distinct user_id) from passes where plan = 'trial'").fetchone()[0]
             converted = db.execute(

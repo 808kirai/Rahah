@@ -246,6 +246,11 @@ class verify_in(BaseModel):
     code: str = Field(min_length=1, max_length=12)
 
 
+class give_in(BaseModel):
+    tier: str = Field(pattern="^(pro|max)$")
+    days: int = Field(ge=1, le=91)
+
+
 class two_step_in(BaseModel):
     ticket: str = Field(min_length=10, max_length=100)
     code: str = Field(min_length=1, max_length=12)
@@ -1291,6 +1296,17 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         plan = billing.plan_info(a["pro"]["plan"])
         return {"tier": plan["tier"], "pass_percent": used_percent(a["pass_used"], a["pro"]["budget"]), "pass_name": plan["name"]}
 
+    @app.post("/api/admin/users/{user_id}/give")
+    def admin_give(user_id: str, body: give_in, user: dict = Depends(admin_only)):
+        """gives a student pro or max for some days, free, it isn't counted as revenue"""
+        target = other_user_or_404(user_id)
+        if target["is_admin"]:
+            raise HTTPException(400, "The admin already has everything.")
+        plan = f"given_{body.tier}"
+        per_day = billing.free_passes[plan]["budget"] / billing.free_passes[plan]["days"]
+        db.grant_free_pass(target["id"], plan, body.days, round(per_day * body.days, 2))
+        log.info("the admin gave %s %s days of %s", target["username"], body.days, body.tier)
+        return admin_row(db.get_user(target["id"]), all_costs())
 
     def all_costs() -> dict:
         now = time.time()
