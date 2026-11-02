@@ -1,5 +1,6 @@
 """everything that talks to claude, the prompt, request building and streaming"""
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import AsyncIterator
@@ -347,6 +348,68 @@ class reply:
     container: str | None = None
     container_expires: datetime | None = None
     usage: dict | None = None
+
+
+class prompt_too_big(Exception):
+    """the latest question on its own, with its files, is over the size cap"""
+
+
+def has_files(messages: list[dict]) -> bool:
+    return any(isinstance(m["content"], list) and any(b.get("type") in ("document", "image") for b in m["content"]) for m in messages)
+
+
+def rough_size(messages: list[dict]) -> int:
+    # about four characters a token, only to decide whether claude needs to count
+    return len(json.dumps([m["content"] for m in messages], ensure_ascii=False)) // 4
+
+
+def tail(messages: list[dict], keep: int) -> list[dict]:
+    """the last keep messages, starting on a student's question and never later than the latest one,
+    with the last subject note kept if it was cut"""
+    last_question = max(i for i, m in enumerate(messages) if m["role"] == "user")
+    start = min(max(0, len(messages) - keep), last_question)
+    while start < last_question and messages[start]["role"] != "user":
+        start += 1
+    kept = messages[start:]
+    notes = [m for m in messages[:start] if m["role"] == "system"]
+    if notes and not any(m["role"] == "system" for m in kept[:3]):
+        kept = kept[:1] + [notes[-1]] + kept[1:]
+    return kept
+
+
+async def prompt_size(client, model: str, messages: list[dict]) -> int | None:
+    """how many tokens a chat sends, from claude's count, which costs nothing. None when it can't say"""
+    try:
+        counted = await client.beta.messages.count_tokens(model=model, system=base_prompt, messages=messages)
+        return counted.input_tokens
+    except Exception:
+        return None
+
+
+async def fit_prompt(client, model: str, messages: list[dict], cap: int) -> list[dict]:
+    """keeps a question under the size cap, so no answer costs a lot or holds up everyone else.
+    a long chat or one with files is counted, and if it's over, the oldest messages go, keeping as many
+    of the latest as fit. if the latest question alone is over, the student is asked for a smaller part"""
+    if cap <= 0 or (not has_files(messages) and rough_size(messages) < cap // 2):
+        return messages
+    size = await prompt_size(client, model, messages)
+    if size is None or size <= cap:
+        return messages
+    # the longest ending that fits, found by halving, a few counts at most
+    best, low, high = None, 1, len(messages)
+    while low <= high:
+        middle = (low + high) // 2
+        candidate = tail(messages, middle)
+        size = await prompt_size(client, model, candidate)
+        if size is None:
+            return best or candidate
+        if size <= cap:
+            best, low = candidate, middle + 1
+        else:
+            high = middle - 1
+    if best is None:
+        raise prompt_too_big()
+    return best
 
 
 async def stream_reply(

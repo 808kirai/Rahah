@@ -223,6 +223,7 @@ Settings
 - `RAHAH_EFFORT` - How hard Claude thinks, one of low, medium, high, xhigh or max, defaults to `medium`
 - `RAHAH_DB` - Where everything is stored, defaults to `data/rahah.db`
 - `RAHAH_MAX_UPLOAD_MB` - The largest file a student can upload, defaults to `30`
+- `RAHAH_MAX_PROMPT_TOKENS` - The most one question can send to Claude, defaulting to 100,000 tokens, about 75,000 words or 30 to 60 PDF pages. A long chat or one with files is counted first with Claude's free token count, and the oldest messages are dropped until it fits, keeping the latest question and the subject. If the latest question alone is too big, the student is asked to send a smaller part. This keeps every answer cheap, since Acolyte costs five times as much past 100,000 tokens, and stops one huge chat holding up everyone else. 0 turns it off
 - `RAHAH_DAILY_CAP` - What each student on the free plan can spend a day in dollars, defaults to `0.15`. Pro gives 10 times this and Max 20. The admin can change it per student
 - `RAHAH_SUPPORT_EMAIL` - Where students write for help and password resets, defaults to `studywithrahah@gmail.com`
 - `RAHAH_ADMIN_EMAIL` - The admin's email, set it before going online so nobody else can become admin. Whenever Rahah starts, the account with this email is made admin, so a mistyped email can be fixed after the account exists

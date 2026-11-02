@@ -47,7 +47,8 @@ from .timetable import calendar_file as timetable_file, class_in
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
 from .tutor import (
-    answer_languages, display_from_content, history_blocks, language_note, low_data_note, search_off_note, stream_reply, trimmed_history, turn_note,
+    answer_languages, display_from_content, fit_prompt, history_blocks, language_note, low_data_note, prompt_too_big, search_off_note, stream_reply,
+    trimmed_history, turn_note,
     user_content, voice_note,
 )
 
@@ -264,6 +265,8 @@ def friendly_error(error: Exception) -> str:
         return "Rahah couldn't find an attached file. Try attaching it again."
     if isinstance(error, anthropic.RateLimitError):
         return "Rahah is busy right now. Wait a moment and try again."
+    if isinstance(error, prompt_too_big):
+        return "That's too much to read in one question. Send a smaller part of the file, or start a new chat."
     if prompt_too_long(error):
         return "This chat, with its files, has grown too long for Rahah to read. Start a new chat to keep going."
     if isinstance(error, anthropic.BadRequestError):
@@ -281,7 +284,7 @@ def prompt_too_long(error: Exception) -> bool:
 
 def is_claude_error(error: Exception) -> bool:
     # with no key at all the sdk raises a plain type error before any request is sent
-    if isinstance(error, anthropic.AnthropicError):
+    if isinstance(error, (anthropic.AnthropicError, prompt_too_big)):
         return True
     return isinstance(error, TypeError) and "authentication method" in str(error)
 
@@ -1544,17 +1547,19 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         answered = {"route": use}
 
         async def routed():
+            # a long chat or one with files is kept under the size cap first
+            fitted = await fit_prompt(claude(), use.model, messages, cfg.max_prompt_tokens)
             # a chat grown past what claude can read in one go is asked again with only its latest part
             started = False
             try:
-                async for event in attempt(messages):
+                async for event in attempt(fitted):
                     started = True
                     yield event
             except anthropic.BadRequestError as error:
                 if started or not prompt_too_long(error):
                     raise
                 log.info("a chat was too long for claude, asking again with only its latest messages")
-                async for event in attempt(trimmed_history(messages, keep=6, step=2)):
+                async for event in attempt(trimmed_history(fitted, keep=6, step=2)):
                     yield event
 
         async def attempt(messages: list[dict]):

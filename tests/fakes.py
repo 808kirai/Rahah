@@ -145,6 +145,13 @@ class fake_messages:
     def __init__(self, replies):
         self.replies = list(replies)
         self.calls = []
+        # a test can set this to count a prompt's tokens, otherwise counting isn't available
+        self.counter = None
+
+    async def count_tokens(self, **kwargs):
+        if self.counter is None:
+            raise RuntimeError("counting isn't set up in this test")
+        return SimpleNamespace(input_tokens=self.counter(kwargs["messages"]))
 
     def stream(self, **kwargs):
         self.calls.append(kwargs)

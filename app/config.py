@@ -26,6 +26,8 @@ class settings:
     max_tokens: int = 64000
     # what each student can spend in a day, in dollars, unless the admin sets their own amount
     daily_cap: float = 0.15
+    # the most tokens one question can send to claude, about 75,000 words or 30 to 60 pdf pages, 0 for no cap
+    max_prompt_tokens: int = 100_000
     # minutes without using rahah before a student is signed out, 0 never
     idle_minutes: int = 60
     # once rahah is served over https, cookies are only sent over it and browsers are told to stay on it
@@ -81,6 +83,7 @@ def load_settings() -> settings:
         db_path=Path(os.getenv("RAHAH_DB", str(project_root / "data" / "rahah.db"))),
         max_upload_mb=int(os.getenv("RAHAH_MAX_UPLOAD_MB", "30")),
         daily_cap=float(os.getenv("RAHAH_DAILY_CAP", "0.15")),
+        max_prompt_tokens=int(os.getenv("RAHAH_MAX_PROMPT_TOKENS", "100000")),
         idle_minutes=int(os.getenv("RAHAH_IDLE_MINUTES", "60")),
         https=os.getenv("RAHAH_HTTPS", "").strip().lower() in ("1", "true", "yes"),
         support_email=os.getenv("RAHAH_SUPPORT_EMAIL", "studywithrahah@gmail.com").strip() or "studywithrahah@gmail.com",

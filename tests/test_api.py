@@ -520,3 +520,34 @@ def test_a_failed_edit_keeps_the_chat_as_it_was(setup):
     web.post(f"/api/conversations/{chat}/edit", json={"index": 0, "text": "capital of italy"})
     shown = [(m["role"], m["text"]) for m in web.get(f"/api/conversations/{chat}").json()["messages"]]
     assert shown == [("user", "capital of france"), ("assistant", "Paris.")]
+
+
+def test_a_chat_over_the_size_cap_sends_only_its_latest_part(tmp_path):
+    from app.config import settings
+    from app.main import create_app
+    from .fakes import fake_client, signed_in
+    replies = [message([text_block(f"Answer {i}.")]) for i in range(4)]
+    claude = fake_client(replies)
+    # each message counts as 100 tokens here, and a question can send at most 250
+    claude.beta.messages.counter = lambda messages: 100 * len(messages)
+    app = create_app(settings(db_path=tmp_path / "cap.db", max_prompt_tokens=250), client=claude)
+    web = signed_in(TestClient(app))
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    long = "word " * 400
+    for i in range(4):
+        web.post(f"/api/conversations/{chat}/messages", json={"text": f"question {i} {long}"})
+    sent = claude.beta.messages.calls[-1]["messages"]
+    assert len(sent) <= 2 and "question 3" in str(sent[0]) and "question 0" not in str(sent)
+
+
+def test_a_question_too_big_on_its_own_asks_for_a_smaller_part(tmp_path):
+    from app.config import settings
+    from app.main import create_app
+    from .fakes import fake_client, signed_in
+    claude = fake_client([message([text_block("Never sent.")])])
+    claude.beta.messages.counter = lambda messages: 500_000
+    app = create_app(settings(db_path=tmp_path / "big.db", max_prompt_tokens=1000), client=claude)
+    web = signed_in(TestClient(app))
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    reply = web.post(f"/api/conversations/{chat}/messages", json={"text": "summarise " + "page " * 3000}).text
+    assert "too much to read in one question" in reply and claude.beta.messages.calls == []
