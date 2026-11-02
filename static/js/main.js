@@ -1170,7 +1170,7 @@ thread.addEventListener("click", (event) => {
     draw_plans();
 });
 
-// bringing friends: three free days of pro for each friend who joins with the link and buys a pass
+// bringing friends: 24 hours of pro free for each friend who joins with the link and buys a pass
 function render_invite_card() {
     const box = el("invite-card");
     if (!box || !state.pro) return;
@@ -1178,7 +1178,7 @@ function render_invite_card() {
     box.innerHTML = `
         <div class="perf-head">
             <h3>Invite friends</h3>
-            <p>Get 3 days of Pro free for each friend who joins with your link and buys a pass.</p>
+            <p>Get 24 hours of Pro free for each friend who joins with your link and buys a pass.</p>
         </div>
         <input class="text-input" readonly value="${escape_html(state.pro.invite)}" aria-label="Your invite link">
         <div class="account-actions">

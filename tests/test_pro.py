@@ -142,7 +142,7 @@ def test_the_exam_day_pass_gives_five_times_for_a_day(tmp_path):
     assert got["plan"] == "day" and round(got["ends"] - got["starts"]) == 86400
 
 
-def test_a_friend_who_brought_a_buyer_gets_three_free_days(tmp_path):
+def test_a_friend_who_brought_a_buyer_gets_a_free_day_of_pro(tmp_path):
     app, pay = pro_app(tmp_path)
     signed_in(TestClient(app), "runie")
     amina = signed_in(TestClient(app), "amina")
@@ -158,7 +158,7 @@ def test_a_friend_who_brought_a_buyer_gets_three_free_days(tmp_path):
         brian.get(f"/api/pro/verify/{ref}")
     # one reward per friend brought, however many passes they buy
     status = amina.get("/api/pro").json()
-    assert status["invite_days"] == 3 and status["pro"]["plan"] == "gift"
+    assert status["invite_days"] == 1 and status["pro"]["plan"] == "gift"
 
 
 def test_free_students_see_five_chats_and_pro_sees_them_all(tmp_path):

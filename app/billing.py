@@ -39,10 +39,10 @@ for p in passes.values():
         p["price"] = round(p["usd"] * kes_per_usd)
     else:
         p["usd"] = round(p["price"] / kes_per_usd, 2)
-# passes nobody pays for: a three day trial of pro once per account, and three days of pro for bringing a friend who buys
+# passes nobody pays for: a three day trial of pro once per account, and 24 hours of pro for bringing a friend who buys
 free_passes = {
     "trial": {"name": "Free trial", "tier": "pro", "days": 3, "budget": 0.30},
-    "gift": {"name": "Friend reward", "tier": "pro", "days": 3, "budget": 0.30},
+    "gift": {"name": "Friend reward", "tier": "pro", "days": 1, "budget": 0.20},
 }
 # passes bought before max existed were all pro
 old_passes = {"week": "pro_week", "month": "pro_month", "term": "pro_term"}
