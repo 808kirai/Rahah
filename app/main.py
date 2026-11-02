@@ -1058,10 +1058,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     @app.get("/api/photos/{username}")
     def show_photo(username: str, user: dict = Depends(signed_in)):
-        # the student's own photo, or a friend's, nobody else's
+        # the student's own photo, a friend's, or anyone's on the everyone leaderboard. a student who turned off
+        # being found shows only to friends
         owner = db.find_user_by("username", clean_username(username))
         path = photo_path(owner.get("avatar") or "") if owner and not owner["disabled"] else None
-        allowed = owner and (owner["id"] == user["id"] or link_status(db.link_between(user["id"], owner["id"]), user["id"]) == "friends")
+        allowed = owner and (owner["id"] == user["id"] or on_everyone_board(owner)
+                             or link_status(db.link_between(user["id"], owner["id"]), user["id"]) == "friends")
         if not path or not allowed or not path.exists():
             raise HTTPException(404, "There's no photo here.")
         return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
@@ -1909,14 +1911,24 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         minutes = db.add_study_minute(user["id"], board.local_day(now, board_zone), now.timestamp(), board.max_minutes_a_day)
         return {"minutes_today": minutes}
 
+    board_top = 10
+
+    def on_everyone_board(person: dict) -> bool:
         # every student who can be found, and the admin
         return not person["disabled"] and (person["is_admin"] or person["findable"])
 
     @app.get("/api/leaderboard")
-    def leaderboard(user: dict = Depends(signed_in)):
+    def leaderboard(scope: str = Query("friends", pattern="^(friends|everyone)$"), user: dict = Depends(signed_in)):
+        """this week's points, among the student's friends, or among every student who can be found and the admin.
+        anyone who turned off being found stays off the everyone board"""
         now = datetime.now(timezone.utc)
         start = board.week_start(now, board_zone)
-        people = {user["id"]: user, **{f: db.get_user(f) for f in db.friend_ids(user["id"])}}
+        friend_ids = set(db.friend_ids(user["id"]))
+        if scope == "everyone":
+            people = {u["id"]: u for u in db.list_users() if on_everyone_board(u)}
+            people[user["id"]] = user
+        else:
+            people = {user["id"]: user, **{f: db.get_user(f) for f in friend_ids}}
         day_of = lambda t: board.local_day(datetime.fromtimestamp(t, timezone.utc), board_zone)
         numbers = db.week_numbers(list(people), start.timestamp(), start.date().isoformat(), day_of)
         # last week, for how this week compares
@@ -1951,8 +1963,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "top_points": rows[0]["points"],
             "place": mine["place"], "total": len(rows),
         }
+        # the everyone board shows only the top ten, the student's own numbers come separately for their standing
+        shown = rows[:board_top] if scope == "everyone" else rows
         return {
-            "week_start": start.date().isoformat(), "board": rows, "standing": standing,
+            "scope": scope, "top": board_top, "week_start": start.date().isoformat(), "board": shown, "me": mine, "standing": standing,
             "above": sum(1 for r in rows if r["points"] > mine["points"]),
             "rules": {"mark": board.points_per_mark, "card": board.points_per_card, "minutes": board.minutes_per_point, "day": board.points_per_day},
         }

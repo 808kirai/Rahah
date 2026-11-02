@@ -2664,14 +2664,46 @@ body:not(.is-page) .me-face {
     --edge: rgba(255, 255, 255, 0.6);
 }
 
+/* bigger on the leaderboard, at the far right of each row */
+.board-tier {
+    flex-shrink: 0;
+    width: 2.6rem;
+    margin-left: -0.15rem;
+    text-align: left;
+}
+
+.board-tier .pro-badge {
+    margin-left: 0;
+    font-size: 0.95rem;
+}
+
 @media (max-width: 560px) {
     .board-row {
         gap: 0.5rem;
     }
 
+    .board-tier {
+        width: 2rem;
+        margin-left: 0;
+    }
+
     .board-medal {
         margin-right: 0;
     }
+
+    .board-tier .pro-badge {
+        font-size: 0.82rem;
+    }
+}
+
+/* the leaderboard's title with the friends or everyone switch beside it */
+.board-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
 
 /* max gets the blue to teal ring round the picture */
 

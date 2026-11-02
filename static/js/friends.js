@@ -68,7 +68,8 @@ function show_leaderboard() {
 
 async function load_leaderboard() {
     try {
-        const [board, friends] = await Promise.all([api("/api/leaderboard"), api("/api/friends")]);
+        const scope = state.board_scope || "friends";
+        const [board, friends] = await Promise.all([api(`/api/leaderboard?scope=${scope}`), api("/api/friends")]);
         state.board = await board.json();
         state.friends = await friends.json();
     } catch (error) {
@@ -83,7 +84,8 @@ function render_leaderboard() {
     if (!page || !state.board) return;
     const { board, above, rules, standing, scope } = state.board;
     const f = state.friends || { friends: [], asked: [], sent: [] };
-    const alone = board.length === 1;
+    const everyone = scope === "everyone";
+    const alone = standing.total === 1;
     // a search in progress stays put when the page redraws after adding someone
     const typed = el("people-search")?.value || "";
     const headline = everyone
@@ -101,12 +103,18 @@ function render_leaderboard() {
             <small>${study_time_text(r.minutes)} studied · ${plural(r.marks, "mark")} · ${plural(r.cards, "card")} · ${plural(r.days, "day")}</small></span>
         ${medal(r) ? `<span class="board-medal" title="${["First", "Second", "Third"][r.place - 1]} place">${trophy}</span>` : ""}
         <span class="board-points" title="${plural(r.points, "point")}"><strong>${r.points}</strong><small>pts</small></span>
+        ${badges ? `<span class="board-tier">${tier_badge(r.pro)}</span>` : ""}
     </li>`).join("");
     page.innerHTML = `
         <section class="perf-card board-card">
-            <div class="perf-head">
-                <h3>This week</h3>
-                <p>${headline} It starts again on Monday.</p>
+            <div class="board-head">
+                <div class="perf-head">
+                    <h3>This week</h3>
+                    <p>${headline} It starts again on Monday.</p>
+                </div>
+                <div class="plan-length" role="group" aria-label="Whose points">
+                    ${[["everyone", "Everyone"], ["friends", "Friends"]].map(([k, v]) => `<button type="button" class="${k === (scope || "friends") ? "on" : ""}" aria-pressed="${k === (scope || "friends")}" data-board-scope="${k}">${v}</button>`).join("")}
+                </div>
             </div>
             <ol class="board">${rows}</ol>
             <p class="field-hint board-rules">Points: ${rules.mark} for each test mark, ${rules.card} for each flashcard practised, 1 for every ${rules.minutes} minutes studying, and ${rules.day} for each day you study.</p>
@@ -134,9 +142,16 @@ function render_leaderboard() {
     }
 }
 
+thread.addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-board-scope]");
+    if (!pick || pick.dataset.boardScope === (state.board_scope || "friends")) return;
+    state.board_scope = pick.dataset.boardScope;
+    load_leaderboard();
+});
+
 // how the race looks from where the student is: who to catch, how far ahead, the trend and accuracy
 function standing_html(s, board) {
-    const mine = board.find((r) => r.you);
+    const mine = state.board.me || board.find((r) => r.you);
     const change = mine.points - s.last_week;
     const race = s.ahead
         ? `<strong>${s.ahead.gap}</strong><span>point${s.ahead.gap === 1 ? "" : "s"} to pass ${escape_html(s.ahead.name)}</span>`
@@ -145,7 +160,7 @@ function standing_html(s, board) {
             : `<strong>${mine.points}</strong><span>points so far this week</span>`;
     const share = s.top_points ? Math.round((mine.points / s.top_points) * 100) : 0;
     return `<section class="perf-card standing-card">
-        <div class="perf-head"><h3>Your standing</h3><p>${board.length > 1 ? `Number ${mine.place} of ${board.length}` : "Just you so far"}</p></div>
+        <div class="perf-head"><h3>Your standing</h3><p>${s.total <= 1 ? "Just you so far" : state.board.scope === "everyone" ? `Number ${mine.place}` : `Number ${mine.place} of ${s.total}`}</p></div>
         <div class="standing-race">${race}</div>
         <div class="standing-bar" aria-hidden="true"><span style="width: ${share}%"></span></div>
         <p class="standing-bar-note">${mine.place === 1 ? "You're setting the pace." : `${share}% of the leader's points`}</p>

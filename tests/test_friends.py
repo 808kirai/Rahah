@@ -100,6 +100,25 @@ def test_the_leaderboard_ranks_friends_by_this_weeks_points(tmp_path):
     assert theirs["standing"]["accuracy"] == 75 and theirs["standing"]["accuracy_place"] == 1
 
 
+
+def test_the_everyone_board_ranks_every_findable_student_and_the_admin(tmp_path):
+    app = made_app(tmp_path)
+    admin = signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    brian = signed_in(TestClient(app), "brian")
+    hidden = signed_in(TestClient(app), "chebet")
+    hidden.patch("/api/me", json={"findable": False})
+    brian.post("/api/study-time")
+    board = amina.get("/api/leaderboard", params={"scope": "everyone"}).json()
+    # amina isn't friends with anyone, but sees brian, the admin and herself, not chebet who hid
+    assert board["scope"] == "everyone" and sorted(r["username"] for r in board["board"]) == ["amina", "brian", "runie"]
+    assert board["standing"]["total"] == 3
+    # chebet still sees herself, and the friends board is unchanged
+    assert "chebet" in [r["username"] for r in hidden.get("/api/leaderboard", params={"scope": "everyone"}).json()["board"]]
+    assert [r["username"] for r in amina.get("/api/leaderboard").json()["board"]] == ["amina"]
+    assert amina.get("/api/leaderboard", params={"scope": "nobody"}).status_code == 422
+    assert admin.get("/api/leaderboard", params={"scope": "everyone"}).json()["board"][0]["you"]
+
 def photo_bytes(kind="PNG", size=(900, 600), exif=False):
     from io import BytesIO
     from PIL import Image
@@ -128,8 +147,11 @@ def test_a_profile_photo_is_squared_cleaned_and_shown_to_friends_and_the_everyon
     assert own.status_code == 200 and own.headers["content-type"] == "image/jpeg"
     picture = Image.open(BytesIO(own.content))
     assert picture.size == (256, 256) and not picture.getexif()
-    # a stranger, and someone with a request still waiting, can't see it, and search shows only the letter
-    assert me.get(url).status_code == 404
+    # anyone on the everyone board sees it there
+    brian = signed_in(TestClient(app), "brian")
+    assert brian.get(url).status_code == 200
+    everyone = {r["username"]: r for r in brian.get("/api/leaderboard", params={"scope": "everyone"}).json()["board"]}
+    assert everyone["amina"]["photo"] == url
     # search shows only the letter
     assert me.get("/api/people", params={"q": "ami"}).json()["people"][0]["photo"] == ""
     me.post("/api/friends", json={"username": "amina"})

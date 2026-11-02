@@ -898,7 +898,7 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Your picture</h3>
-                <p>Pick a photo from your gallery. Only friends you've accepted can see it, everyone else sees your first letter.</p>
+                <p>Choose a photo from your gallery. Friends and students on the leaderboard can see it.</p>
             </div>
             <div class="photo-row">
                 ${face_html(me.photo, shown, "large")}
