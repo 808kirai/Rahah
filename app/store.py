@@ -93,6 +93,11 @@ create table if not exists password_resets (
     expires real not null,
     used integer not null default 0
 );
+create table if not exists trusted_devices (
+    token text primary key,
+    user_id text not null references users(id) on delete cascade,
+    expires real not null
+);
 create table if not exists sessions (
     token text primary key,
     user_id text not null references users(id) on delete cascade,
@@ -850,9 +855,25 @@ class store:
         return row[0]
 
     def end_sessions(self, user_id: str, keep: str | None = None) -> None:
-        # signs the account out everywhere, except the session keep if given
+        # signs the account out everywhere, except the session keep if given, and forgets trusted devices
         with self._connect() as db:
             db.execute("delete from sessions where user_id = ? and token != ?", (user_id, token_hash(keep) if keep else ""))
+            db.execute("delete from trusted_devices where user_id = ?", (user_id,))
+
+    def trust_device(self, user_id: str, days: int) -> str:
+        """a token for a device that passed the emailed code, so it can skip the code for a while"""
+        token = new_token()
+        now = time.time()
+        with self._connect() as db:
+            db.execute("insert into trusted_devices (token, user_id, expires) values (?, ?, ?)", (token_hash(token), user_id, now + days * 86400))
+            db.execute("delete from trusted_devices where expires < ?", (now,))
+        return token
+
+    def is_trusted(self, user_id: str, token: str) -> bool:
+        with self._connect() as db:
+            row = db.execute("select 1 from trusted_devices where token = ? and user_id = ? and expires > ?",
+                             (token_hash(token), user_id, time.time())).fetchone()
+        return row is not None
 
     # conversations
 

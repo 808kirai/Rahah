@@ -2,6 +2,8 @@
 
 import asyncio
 import gzip
+import hashlib
+import hmac
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
@@ -237,6 +239,13 @@ class message_in(BaseModel):
 class edit_in(message_in):
     # which question, counting from the chat's first
     index: int = Field(ge=0, le=100000)
+
+
+
+class two_step_in(BaseModel):
+    ticket: str = Field(min_length=10, max_length=100)
+    code: str = Field(min_length=1, max_length=12)
+    trust: bool = False
 
 
 class retry_in(BaseModel):
@@ -639,6 +648,75 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             secure=cfg.https or request.url.scheme == "https", path="/",
         )
 
+    # two step sign in for the admin: after the password, or google or apple, a six digit code is emailed, unless
+    # this device was trusted after an earlier code. kept in memory, a restart just means asking for a new code
+    trusted_cookie = "rahah_trusted"
+    trust_days = 30
+    pending_codes: dict[str, dict] = {}
+    codes_sent = counter(5, 3600)
+
+    def masked(email: str) -> str:
+        name, _, domain = email.partition("@")
+        return f"{name[:1]}{'•' * max(2, len(name) - 1)}@{domain}"
+
+    def send_code(key: str, email: str, subject: str, line: str, pending: dict) -> str:
+        """emails a six digit code and keeps what it unlocks, under a ticket the page sends back with the code"""
+        if codes_sent.full(key):
+            raise HTTPException(429, "Too many codes sent. Wait an hour and try again.")
+        codes_sent.add(key)
+        now = time.time()
+        for old in [t for t, p in pending_codes.items() if p["expires"] < now or p["key"] == key]:
+            del pending_codes[old]
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        ticket = secrets.token_urlsafe(24)
+        pending_codes[ticket] = {**pending, "key": key, "code": hashlib.sha256(code.encode()).hexdigest(), "expires": now + 600, "tries": 0}
+        try:
+            mailer(email, f"{subject}: {code}", f"{line} {code}\n\nIt works for 10 minutes. If this wasn't you, you can ignore this email.\n\nRahah")
+        except Exception as error:
+            del pending_codes[ticket]
+            log.warning("couldn't send a code: %s", error)
+            raise HTTPException(502, "Couldn't email the code just now. Try again in a moment.")
+        return ticket
+
+    def check_code(ticket: str, code: str, kind: str, request: Request) -> dict:
+        """what a ticket unlocks once its code is right, used once. five wrong tries and it's gone"""
+        pending = pending_codes.get(ticket)
+        if not pending or pending.get("kind") != kind or pending["expires"] < time.time():
+            pending_codes.pop(ticket, None)
+            raise HTTPException(400, "That code has run out. Ask for a new one.")
+        pending["tries"] += 1
+        if not hmac.compare_digest(pending["code"], hashlib.sha256(code.strip().encode()).hexdigest()):
+            if pending["tries"] >= 5:
+                del pending_codes[ticket]
+                log.warning("a code was guessed wrong 5 times, from %s", client_address(request))
+                raise HTTPException(400, "Too many wrong codes. Ask for a new one.")
+            raise HTTPException(400, "That code isn't right. Check the email and try again.")
+        del pending_codes[ticket]
+        return pending
+
+    def finish_sign_in(request: Request, response: Response, user: dict) -> dict:
+        """signs in, or for the admin with email set up, emails a code first and says so"""
+        trusted = request.cookies.get(trusted_cookie, "")
+        if not (user["is_admin"] and reset_by_email and user["email"]) or (trusted and db.is_trusted(user["id"], trusted)):
+            start_session(request, response, user)
+            return user_out(user)
+        ticket = send_code(user["id"], user["email"], "Your Rahah sign in code", "Your Rahah sign in code is",
+                           {"kind": "sign_in", "user_id": user["id"]})
+        log.info("sent a sign in code to the admin")
+        return {"two_step": True, "ticket": ticket, "to": masked(user["email"])}
+
+    @app.post("/api/auth/two-step")
+    def two_step(body: two_step_in, request: Request, response: Response):
+        pending = check_code(body.ticket, body.code, "sign_in", request)
+        user = db.get_user(pending["user_id"])
+        if not user or user["disabled"]:
+            raise HTTPException(403, "This account can't sign in.")
+        start_session(request, response, user)
+        if body.trust:
+            response.set_cookie(trusted_cookie, db.trust_device(user["id"], trust_days), max_age=trust_days * 86400, httponly=True,
+                                samesite="lax", secure=cfg.https or request.url.scheme == "https", path="/")
+        return user_out(user)
+
     agree_first = "Tick the box to agree to the terms first."
 
     def admin_for(email: str | None) -> bool | None:
@@ -726,8 +804,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if user["disabled"]:
             raise HTTPException(403, f"This account has been turned off. Email {cfg.support_email} for help.")
         guard.cleared(login.lower())
-        start_session(request, response, user)
-        return user_out(user)
+        return finish_sign_in(request, response, user)
 
     @app.post("/api/auth/logout")
     def log_out(request: Request, response: Response):
@@ -813,8 +890,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if linked:
             if linked["disabled"]:
                 raise HTTPException(403, f"This account has been turned off. Email {cfg.support_email} for help.")
-            start_session(request, response, linked)
-            return user_out(linked)
+            return finish_sign_in(request, response, linked)
         email = clean_email(found_id.email) if found_id.email else None
         if email and db.taken("email", email):
             raise HTTPException(400, f"An account already uses {email}. Sign in with your password, then connect {label} on the Account tab.")

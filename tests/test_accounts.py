@@ -488,3 +488,29 @@ def test_the_daily_limit_starts_again_at_the_students_own_midnight(make):
     # a made up zone is turned away, and a second change within the week is ignored so a new day can't be made early
     assert student.patch("/api/me", json={"timezone": "Mars/Base"}).status_code == 400
     assert student.patch("/api/me", json={"timezone": "America/New_York"}).json()["timezone"] == "Pacific/Kiritimati"
+def test_the_admin_signs_in_with_an_emailed_code_and_can_trust_the_device(tmp_path):
+    from app.config import settings
+    from app.main import create_app
+    import re as regex
+    sent = []
+    cfg = settings(db_path=tmp_path / "two.db", smtp_user="studywithrahah@gmail.com", smtp_password="x")
+    app = create_app(cfg, client=fake_client(), mailer=lambda to, subject, text, attachment=None: sent.append((to, subject, text)))
+    sign_up(TestClient(app), "runie")
+    sign_up(TestClient(app), "brian")
+    # a student signs straight in
+    assert "two_step" not in TestClient(app).post("/api/auth/login", json={"login": "brian", "password": "correct horse!"}).json()
+    # the admin is asked for a code, and a wrong one doesn't sign in
+    web = TestClient(app)
+    first = web.post("/api/auth/login", json={"login": "runie", "password": "correct horse!"}).json()
+    assert first["two_step"] and first["to"].startswith("r") and "@example.com" in first["to"]
+    assert web.get("/api/me").status_code == 401
+    code = regex.search(r"\b(\d{6})\b", sent[-1][2]).group(1)
+    wrong = "000000" if code != "000000" else "111111"
+    assert web.post("/api/auth/two-step", json={"ticket": first["ticket"], "code": wrong}).status_code == 400
+    me = web.post("/api/auth/two-step", json={"ticket": first["ticket"], "code": code, "trust": True}).json()
+    assert me["username"] == "runie" and web.get("/api/me").status_code == 200
+    # the code works once, and this trusted browser skips the code next time
+    assert web.post("/api/auth/two-step", json={"ticket": first["ticket"], "code": code}).status_code == 400
+    web.post("/api/auth/logout")
+    assert "two_step" not in web.post("/api/auth/login", json={"login": "runie", "password": "correct horse!"}).json()
+

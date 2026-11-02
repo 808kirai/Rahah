@@ -6945,3 +6945,16 @@ body:not(.is-page) .me-face {
     font-size: 0.72rem;
     color: var(--accent-text);
 }
+
+/* the admin's code step replaces the sign in form */
+.auth-card.two-step #auth-form,
+.auth-card.two-step #auth-providers,
+.auth-card.two-step .auth-switch,
+.auth-card.two-step .auth-shared-note {
+    display: none !important;
+}
+
+.two-step-back {
+    margin-top: 0.8rem;
+    align-self: center;
+}
