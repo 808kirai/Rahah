@@ -300,6 +300,26 @@ def test_checkout_hands_back_paystacks_access_code_for_the_popup(tmp_path):
     assert "https://js.paystack.co" in policy and "https://checkout.paystack.com" in policy
 
 
+def test_a_session_left_alone_for_an_hour_signs_out(tmp_path):
+    import sqlite3
+    import time
+    app, pay = pro_app(tmp_path)
+    signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    me = amina.get("/api/me").json()
+    assert me["idle_minutes"] == 60
+    # used just now, still signed in
+    db = sqlite3.connect(tmp_path / "pro.db")
+    db.execute("update sessions set used = ? where user_id = ?", (time.time() - 50 * 60, me["id"]))
+    db.commit()
+    assert amina.get("/api/me").status_code == 200
+    # an hour and a bit without anything, signed out
+    db.execute("update sessions set used = ? where user_id = ?", (time.time() - 61 * 60, me["id"]))
+    db.commit()
+    assert amina.get("/api/me").status_code == 401
+    assert db.execute("select count(*) from sessions where user_id = ?", (me["id"],)).fetchone()[0] == 0
+
+
 def test_the_student_gets_one_receipt_email_for_a_purchase(tmp_path):
     import time
     sent = []

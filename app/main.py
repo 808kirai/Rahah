@@ -470,7 +470,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     def signed_in(request: Request) -> dict:
         # every api route but signing in needs a student, found from the session cookie
         token = request.cookies.get(session_cookie)
-        user = db.session_user(token) if token else None
+        user = db.session_user(token, idle=cfg.idle_minutes * 60) if token else None
         if not user or user["disabled"]:
             raise HTTPException(401, "Sign in to keep going.")
         return user
@@ -609,6 +609,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return {
             "id": user["id"], "username": user["username"], "email": user["email"], "name": user["name"],
             "is_admin": user["is_admin"], "settings": user["settings"], "has_password": bool(user["password"]),
+            "idle_minutes": cfg.idle_minutes,
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
             "findable": user["findable"], "photo": photo_url(user), "timezone": user.get("timezone") or "",
             "pro": is_pro(user), "parent_email": user.get("parent_email") or "",
@@ -786,7 +787,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         field = f"{provider}_sub"
         label = provider_names[provider]
         token = request.cookies.get(session_cookie)
-        current = db.session_user(token) if token else None
+        current = db.session_user(token, idle=cfg.idle_minutes * 60) if token else None
         linked = db.find_user_by(field, found_id.sub)
         if current:
             # connecting from settings

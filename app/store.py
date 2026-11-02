@@ -284,6 +284,10 @@ class store:
             if "parent_email" not in columns:
                 db.execute("alter table users add column parent_email text not null default ''")
                 db.execute("alter table users add column parent_sent text not null default ''")
+            # when each session was last used, so one left alone for an hour ends
+            session_columns = {r[1] for r in db.execute("pragma table_info(sessions)")}
+            if "used" not in session_columns:
+                db.execute("alter table sessions add column used real not null default 0")
             # the student's time zone, so their daily limit starts again at their own midnight
             if "timezone" not in columns:
                 db.execute("alter table users add column timezone text not null default ''")
@@ -589,15 +593,21 @@ class store:
             db.execute("delete from sessions where expires < ?", (now,))
         return token
 
-    def session_user(self, token: str) -> dict | None:
+    def session_user(self, token: str, idle: float = 0) -> dict | None:
+        """the student a session belongs to. one not used for idle seconds is ended, signing them out"""
         now = time.time()
         hashed = token_hash(token)
         with self._connect() as db:
             row = db.execute(
-                "select u.* from sessions s join users u on u.id = s.user_id where s.token = ? and s.expires > ?",
-                (token_hash(token), now),
+                "select u.*, s.used as session_used from sessions s join users u on u.id = s.user_id where s.token = ? and s.expires > ?",
+                (hashed, now),
             ).fetchone()
-            # last seen moves at most once a minute, so most requests don't write
+            if row and idle and row["session_used"] and row["session_used"] < now - idle:
+                db.execute("delete from sessions where token = ?", (hashed,))
+                return None
+            # last seen and the session's last use move at most once a minute, so most requests don't write
+            if row and (row["session_used"] or 0) < now - 60:
+                db.execute("update sessions set used = ? where token = ?", (now, hashed))
             if row and (row["last_seen"] or 0) < now - 60:
                 db.execute("update users set last_seen = ? where id = ?", (now, row["id"]))
         return self._user(row)

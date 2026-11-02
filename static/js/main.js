@@ -567,6 +567,10 @@ el("apple-button").addEventListener("click", () => apple_sign_in(show_provider_e
 async function finish_sign_in(me) {
     if (remember_me(me)) await forget_saved_data();
     remember_me(me);
+    // a fresh sign in starts the hour away again
+    try {
+        localStorage.setItem(active_key, String(Date.now()));
+    } catch (e) {}
     // a fresh start loads everything for this student, on the shared link they came from if there was one
     let next = "#/";
     try {
@@ -798,6 +802,7 @@ async function sign_out() {
     await forget_saved_data();
     try {
         localStorage.removeItem("rahah-user");
+        localStorage.removeItem(active_key);
     } catch (e) {}
     location.hash = "#/";
     location.reload();
@@ -1404,6 +1409,56 @@ function done_booting() {
     document.body.classList.remove("booting");
 }
 
+// signing out after an hour away. the last time the student did something is kept on the device, so it
+// counts across tabs and after the page was closed or the phone slept. reminders keep coming
+const active_key = "rahah-active";
+let marked_active = 0;
+
+function mark_active() {
+    const now = Date.now();
+    if (now - marked_active < 30 * 1000) return;
+    marked_active = now;
+    try {
+        localStorage.setItem(active_key, String(now));
+    } catch (e) {}
+}
+
+function away_too_long(me = state.me) {
+    const limit = (me?.idle_minutes || 0) * 60 * 1000;
+    let last = marked_active;
+    try {
+        last = Math.max(last, Number(localStorage.getItem(active_key)) || 0);
+    } catch (e) {}
+    return limit > 0 && last > 0 && Date.now() - last > limit;
+}
+
+async function sign_out_idle() {
+    if (sign_out_idle.going) return;
+    sign_out_idle.going = true;
+    try {
+        await fetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {}
+    await forget_saved_data();
+    try {
+        localStorage.removeItem("rahah-user");
+        localStorage.removeItem(active_key);
+        sessionStorage.setItem("rahah-idle", "1");
+    } catch (e) {}
+    location.hash = "#/";
+    location.reload();
+}
+
+function check_away() {
+    if (state.me && away_too_long()) sign_out_idle();
+}
+
+["pointerdown", "keydown", "wheel", "touchmove", "input"].forEach((name) =>
+    document.addEventListener(name, (event) => {
+        if (event.isTrusted && state.me && !away_too_long()) mark_active();
+    }, { passive: true, capture: true }));
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && check_away());
+setInterval(check_away, 60 * 1000);
+
 async function start() {
     // if anything goes wrong on the way, the page still shows
     setTimeout(done_booting, 5000);
@@ -1416,7 +1471,18 @@ async function start() {
         return;
     }
     const me = await load_me();
+    // back after more than an hour away, signed out first
+    if (me && away_too_long(me)) {
+        await sign_out_idle();
+        return;
+    }
     if (!me) {
+        try {
+            if (sessionStorage.getItem("rahah-idle")) {
+                sessionStorage.removeItem("rahah-idle");
+                el("auth-idle-note").hidden = false;
+            }
+        } catch (e) {}
         // a shared link waits until they've signed in or made an account
         if (location.hash.startsWith("#/shared/")) {
             try {
