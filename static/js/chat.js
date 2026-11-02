@@ -598,12 +598,49 @@ function stop_reading() {
     if (talk.on && talk.phase === "speaking") listen_turn();
 }
 
+// one voice, female or male as the student chose, the same every time. devices don't say which voices are female
+// or male, so they're told apart by their names, and the most natural sounding one for the language is kept
+const female_names = /\b(female|samantha|victoria|karen|moira|tessa|fiona|serena|susan|allison|ava|zoe|nicky|kate|stephanie|martha|catherine|zira|aria|jenny|sonia|libby|hazel|heera|michelle|emma|natasha|clara|sara|zuri|neerja|ana|asilia|maisie|emily|molly|rosa|luna|imani|leah|yan|ezinne|amala|nanami|sabela)\b|google us english/i;
+const male_names = /\b(male|daniel|alex|fred|oliver|arthur|aaron|gordon|rishi|tom|david|mark|guy|ryan|thomas|george|james|eric|christopher|brian|william|liam|rafiki|prabhat|chilemba|andrew|roger|steffan|connor|mitchell|wayne|elimu|luke|sam|abeo|rishi)\b/i;
+const voice_cache = {};
+
+function voice_kind(voice) {
+    const name = voice.name || "";
+    if (/female/i.test(name) || female_names.test(name)) return "female";
+    if (male_names.test(name)) return "male";
+    return "";
+}
+
+function pick_voice(lang, kind) {
+    const key = `${lang}|${kind}`;
+    const voices = speechSynthesis.getVoices();
+    if (voice_cache[key] && voices.includes(voice_cache[key])) return voice_cache[key];
+    const base = lang.toLowerCase().split("-")[0];
+    const fitting = voices.filter((v) => (v.lang || "").toLowerCase().split(/[-_]/)[0] === base);
+    if (!fitting.length) return null;
+    const score = (v) => (voice_kind(v) === kind ? 100 : voice_kind(v) ? 0 : 30)
+        + ((v.lang || "").toLowerCase().replace("_", "-") === lang.toLowerCase() ? 10 : 0)
+        + (/natural|neural|online|enhanced|premium/i.test(v.name) ? 5 : 0)
+        + (v.localService ? 1 : 0);
+    const best = [...fitting].sort((a, b) => score(b) - score(a))[0];
+    voice_cache[key] = best;
+    return best;
+}
+
+if (can_speak) speechSynthesis.addEventListener?.("voiceschanged", () => Object.keys(voice_cache).forEach((k) => delete voice_cache[k]));
+
 // long answers are read a sentence at a time, since some browsers stop a long single reading early
 function speak(text, on_done = () => {}) {
     const parts = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
+    const lang = state.answer_lang_code || navigator.language || "en-US";
+    const kind = state.settings?.voice === "male" ? "male" : "female";
+    const voice = pick_voice(lang, kind);
     parts.forEach((part, i) => {
         const line = new SpeechSynthesisUtterance(part.trim());
-        line.lang = state.answer_lang_code || navigator.language || "en-US";
+        line.lang = voice?.lang || lang;
+        if (voice) line.voice = voice;
+        // a device with no voice of the chosen kind still sounds different, a little lower or higher
+        if (!voice || voice_kind(voice) !== kind) line.pitch = kind === "male" ? 0.8 : 1.15;
         if (i === parts.length - 1) line.onend = on_done;
         speechSynthesis.speak(line);
     });
@@ -1009,7 +1046,13 @@ function open_model_menu() {
         <button type="button" class="input-option model-option lang-row" role="menuitem" data-lang-open>
             <span><strong>Answer in</strong><small>Answers, tests, decks and Listen</small></span>
             <span class="lang-now">${escape_html(state.settings.language || "Language")}${icons.next}</span>
-        </button>`;
+        </button>
+        ${can_speak ? `<div class="input-option model-option voice-row">
+            <span><strong>Voice</strong><small>For Listen and voice chat</small></span>
+            <span class="voice-pick" role="group" aria-label="Voice">
+                ${[["female", "Ava"], ["male", "Jake"]].map(([k, v]) => `<button type="button" class="${(state.settings.voice || "female") === k ? "on" : ""}" aria-pressed="${(state.settings.voice || "female") === k}" data-voice="${k}">${v}</button>`).join("")}
+            </span>
+        </div>` : ""}`;
     menu.hidden = false;
     el("model-pick").setAttribute("aria-expanded", "true");
     (menu.querySelector('[aria-checked="true"]') || menu.querySelector(".model-option"))?.focus();
@@ -1042,6 +1085,12 @@ el("model-pick").addEventListener("click", () => (el("model-menu").hidden ? open
 el("model-menu").addEventListener("click", (event) => {
     if (event.target.closest(".model-locked")) {
         close_model_menu();
+        return;
+    }
+    const voice = event.target.closest("[data-voice]");
+    if (voice) {
+        save_settings({ voice: voice.dataset.voice });
+        open_model_menu();
         return;
     }
     if (event.target.closest("[data-lang-open]")) {
@@ -1110,6 +1159,7 @@ function load_settings() {
         language: typeof saved.language === "string" ? saved.language : "",
         low_data: Boolean(saved.low_data),
         model: typeof saved.model === "string" ? saved.model : "auto",
+        voice: saved.voice === "male" ? "male" : "female",
     };
     try {
         localStorage.setItem("rahah-settings", JSON.stringify(state.settings));

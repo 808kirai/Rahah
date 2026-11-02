@@ -6975,3 +6975,33 @@ body:not(.is-page) .me-face {
     padding: 0.35rem 0.8rem;
     font-size: 0.8rem;
 }
+
+/* female or male, for reading answers aloud, in the model menu */
+.voice-row {
+    cursor: default;
+}
+
+.voice-pick {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 0.2rem;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--panel-line);
+}
+
+.voice-pick button {
+    padding: 0.3rem 0.75rem;
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-2);
+    background: none;
+    cursor: pointer;
+}
+
+.voice-pick button.on {
+    color: var(--on-accent);
+    background: var(--accent-fill);
+}
