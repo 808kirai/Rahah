@@ -530,8 +530,10 @@ def test_a_chat_over_the_size_cap_sends_only_its_latest_part(tmp_path):
     claude = fake_client(replies)
     # each message counts as 100 tokens here, and a question can send at most 250
     claude.beta.messages.counter = lambda messages: 100 * len(messages)
-    app = create_app(settings(db_path=tmp_path / "cap.db", max_prompt_tokens=250), client=claude)
-    web = signed_in(TestClient(app))
+    app = create_app(settings(db_path=tmp_path / "cap.db", max_prompt_tokens=250, daily_budget=0), client=claude)
+    # the first account is the admin, who has pro's bigger cap, so a student signs up after
+    signed_in(TestClient(app), "runie")
+    web = signed_in(TestClient(app), "amina")
     chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
     long = "word " * 400
     for i in range(4):
@@ -546,8 +548,9 @@ def test_a_question_too_big_on_its_own_asks_for_a_smaller_part(tmp_path):
     from .fakes import fake_client, signed_in
     claude = fake_client([message([text_block("Never sent.")])])
     claude.beta.messages.counter = lambda messages: 500_000
-    app = create_app(settings(db_path=tmp_path / "big.db", max_prompt_tokens=1000), client=claude)
-    web = signed_in(TestClient(app))
+    app = create_app(settings(db_path=tmp_path / "big.db", max_prompt_tokens=1000, daily_budget=0), client=claude)
+    signed_in(TestClient(app), "runie")
+    web = signed_in(TestClient(app), "amina")
     chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
     reply = web.post(f"/api/conversations/{chat}/messages", json={"text": "summarise " + "page " * 3000}).text
     assert "too much to read in one question" in reply and claude.beta.messages.calls == []
