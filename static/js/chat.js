@@ -1039,8 +1039,7 @@ function apply_settings() {
     render_model_pick();
     render_composer_chips();
     // the account tab's low-data switch follows along
-    el("low-data-choices")?.querySelectorAll("[data-low-data]").forEach((b) =>
-        b.setAttribute("aria-pressed", String((b.dataset.lowData === "1") === state.settings.low_data)));
+    document.querySelector("[data-low-data-toggle]")?.setAttribute("aria-checked", String(Boolean(state.settings.low_data)));
 }
 
 // voice typing, the browser turns speech into words in the message box and rahah reads the words

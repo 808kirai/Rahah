@@ -2679,6 +2679,63 @@ body:not(.is-page) .me-face {
     box-shadow: 0 0 0 2px #3b6cff, 0 0 0 4px color-mix(in srgb, #22c7b8 70%, transparent), 0 0 14px color-mix(in srgb, #22c7b8 50%, transparent);
 }
 
+/* the smaller account cards side by side as tall cards, the students card across the whole row */
+.account-rest {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+    align-items: stretch;
+}
+
+.account-rest > .perf-card,
+.account-rest > #account-end > .perf-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    margin: 0 !important;
+}
+
+.account-rest > #account-end {
+    display: flex;
+}
+
+.account-rest > #account-end > .perf-card {
+    flex: 1;
+}
+
+.account-rest .account-wide {
+    grid-column: 1 / -1;
+}
+
+/* in these cards the buttons sit straight under the words, the same in every card */
+.account-rest .account-actions {
+    margin-top: 0;
+    padding-top: 1rem;
+}
+
+.account-rest .delete-card .delete-go,
+.account-rest .delete-card .account-fields {
+    align-self: flex-start;
+    margin-top: 0.75rem;
+}
+
+.account-rest .text-input {
+    width: 100%;
+}
+
+@media (max-width: 1000px) {
+    .account-rest {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .account-rest {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 /* today's limit: the pass's own bar and how the pace looks */
 .pass-allowance {
     margin-top: 0.75rem;
@@ -2696,6 +2753,34 @@ body:not(.is-page) .me-face {
     font-size: 0.85rem;
     color: var(--text);
     background: var(--surface-2);
+}
+
+/* a switch, an oval with a knob that slides across when it's on */
+.switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1rem 0 0.25rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 16px;
+    background: var(--surface-2);
+}
+
+.switch-row > span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.switch-row strong {
+    font-size: 0.9rem;
+}
+
+.switch-row small {
+    font-size: 0.75rem;
+    color: var(--text-2);
 }
 
 .switch {
@@ -2970,6 +3055,7 @@ body:not(.is-page) .me-face {
 /* the account tab */
 .account-page .perf-card + .perf-card,
 .account-page .account-grid + .perf-card,
+.account-page #account-rest .perf-card,
 .account-page #usage-slot .perf-card {
     margin-top: 1rem;
 }

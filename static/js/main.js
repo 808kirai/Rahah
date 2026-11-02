@@ -790,7 +790,7 @@ async function sign_out() {
 
 function show_account() {
     if (state.busy) return;
-    enter_page("#/account", "Account", '<div class="performance account-page" id="account"><div id="account-box"></div><div id="usage-slot"></div><div id="account-end"></div></div>');
+    enter_page("#/account", "Account", '<div class="performance account-page" id="account"><div id="account-box"></div><div id="pro-slot"></div><div id="usage-slot"></div><div class="account-rest" id="account-rest"></div></div>');
     render_account();
     render_usage();
     sync_view();
@@ -856,6 +856,10 @@ function render_account() {
                 <span class="account-text"><strong>${escape_html(shown)}</strong><small>@${escape_html(me.username)}${me.is_admin ? " · Admin" : ""}</small></span>
                 <button class="btn btn-ghost btn-small" type="button" data-sign-out>Sign out</button>
             </div>
+            <div class="switch-row">
+                <span><strong>Low-data mode</strong><small>Shorter answers, smaller photos, no web search</small></span>
+                <button class="switch" type="button" role="switch" aria-checked="${Boolean(state.settings?.low_data)}" aria-label="Low-data mode" data-low-data-toggle><span></span></button>
+            </div>
             <div class="account-fields">
                 <label class="field">
                     <span class="field-label">Name</span>
@@ -889,6 +893,8 @@ function render_account() {
             </div>
         </section>
         </div>`;
+    // friends, the parent report, invites, help and deleting the account sit below as cards side by side
+    el("account-rest").innerHTML = `
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Your picture</h3>
@@ -934,7 +940,8 @@ function render_account() {
             <div class="help-choices">${Object.entries(help_messages).filter(([, m]) => m.chip).map(([kind, m]) =>
                 `<a class="btn btn-soft btn-small" href="mailto:${escape_html(support_email())}" data-help="${kind}">${escape_html(m.chip)}</a>`).join("")}</div>
         </section>
-        ${me.is_admin ? `<section class="perf-card">
+        <div id="account-end"></div>
+        ${me.is_admin ? `<section class="perf-card account-wide">
             <div class="perf-head">
                 <h3>Students</h3>
                 <p>Usage, daily limits, new passwords and turning accounts off</p>
@@ -1268,9 +1275,8 @@ function account_note(id, text) {
 }
 
 thread.addEventListener("click", async (event) => {
-    if (!event.target.closest("#account-box")) return;
-    const low = event.target.closest("[data-low-data]");
-    if (low) save_settings({ low_data: low.dataset.lowData === "1" });
+    if (!event.target.closest("#account-box, #account-rest")) return;
+    if (event.target.closest("[data-low-data-toggle]")) save_settings({ low_data: !state.settings.low_data });
     if (event.target.closest("[data-photo-remove]")) {
         try {
             state.me = await (await api("/api/me/photo", { method: "DELETE" })).json();
