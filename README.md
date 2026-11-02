@@ -138,7 +138,9 @@ You need Python 3.12 and an API key from platform.claude.com.
 
 2. Install the packages
 
-    C:\Users\altru\venvs\rahah\Scripts\python -m pip install -r requirements.txt
+    C:\Users\altru\venvs\rahah\Scripts\python -m pip install -r requirements-dev.txt
+
+    requirements.txt holds exactly the versions that were tested, which is all the server installs. requirements-dev.txt adds pytest for running the tests. To update a package, change its version there, run the tests, and check it at osv.dev for known problems
 
 3. Copy .env.example to .env and paste your key after ANTHROPIC_API_KEY=
 
