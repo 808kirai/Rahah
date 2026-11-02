@@ -1564,6 +1564,7 @@ async function start() {
     place_composer();
     done_booting();
     start_study_clock();
+    setTimeout(offer_install, 4000);
     focus_input();
 }
 
@@ -1573,3 +1574,67 @@ start();
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
+
+// a small card offering to install rahah as an app: a button where the browser can install it, the steps on
+// an iphone, where safari can't. never once it's installed, and closing it keeps it away for two weeks
+let install_event = null;
+const install_later_key = "rahah-install-later";
+
+function installed_app() {
+    return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+function install_put_off() {
+    try {
+        return Date.now() - (Number(localStorage.getItem(install_later_key)) || 0) < 14 * 86400 * 1000;
+    } catch (e) {
+        return false;
+    }
+}
+
+function offer_install() {
+    if (!state.me || installed_app() || install_put_off() || document.querySelector(".install-toast")) return;
+    if (!install_event && !iphone_browser) return;
+    const toast = document.createElement("div");
+    toast.className = "toast install-toast";
+    toast.innerHTML = `<img class="toast-logo" src="/static/img/icon-192.png" alt="" aria-hidden="true">
+        <div class="toast-text"><strong>Install Rahah</strong><span>${install_event
+            ? "Open it like an app."
+            : "Tap Share, then Add to Home Screen."}</span></div>
+        <div class="toast-actions">
+            ${install_event ? '<button class="btn btn-accent btn-small" type="button" data-install>Install</button>' : ""}
+            <button class="icon-btn" type="button" data-install-later aria-label="Not now">${icons.close}</button>
+        </div>`;
+    el("toasts").appendChild(toast);
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    install_event = event;
+    offer_install();
+});
+
+window.addEventListener("appinstalled", () => {
+    install_event = null;
+    document.querySelector(".install-toast")?.remove();
+});
+
+el("toasts").addEventListener("click", async (event) => {
+    if (event.target.closest("[data-install-later]")) {
+        try {
+            localStorage.setItem(install_later_key, String(Date.now()));
+        } catch (e) {}
+        document.querySelector(".install-toast")?.remove();
+    }
+    if (event.target.closest("[data-install]") && install_event) {
+        const prompt = install_event;
+        install_event = null;
+        document.querySelector(".install-toast")?.remove();
+        prompt.prompt();
+        try {
+            const { outcome } = await prompt.userChoice;
+            if (outcome !== "accepted") localStorage.setItem(install_later_key, String(Date.now()));
+        } catch (e) {}
+    }
+});
+

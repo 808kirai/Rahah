@@ -6812,3 +6812,17 @@ body:not(.is-page) .me-face {
     font-size: 0.9rem;
     vertical-align: 0.15em;
 }
+
+/* the rahah logo on the install card */
+.toast-logo {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+}
+
+/* the install steps can take two lines on a phone */
+.install-toast .toast-text span {
+    white-space: normal;
+}
+
