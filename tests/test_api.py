@@ -570,3 +570,6 @@ def test_a_file_too_big_on_its_own_says_file_too_large():
     with pytest.raises(prompt_too_big) as found:
         asyncio.run(fit_prompt(claude, "claude-haiku-5-5", question, 100_000, "Pro and Max read about 100 pages."))
     assert str(found.value) == "File too large. Rahah reads about 40 pages at a time. Send a smaller part of it. Pro and Max read about 100 pages."
+    from app import billing
+    from app.tutor import pages_for
+    assert pages_for(billing.paid_prompt_tokens["pro"]) == 100 and pages_for(billing.paid_prompt_tokens["max"]) == 200

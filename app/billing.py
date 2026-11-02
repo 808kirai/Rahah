@@ -55,9 +55,9 @@ free_searches_a_day = 5
 free_photo_marks_a_day = 5
 free_mage_a_day = 10
 free_notes = 25
-# the most one question can send on pro and max, about 100 pdf pages. free uses the server's cap, about 40.
-# their pass's own total keeps a big file from costing more than they paid
-paid_prompt_tokens = 250_000
+# the most one question can send on pro, about 100 pdf pages, and on max, about 200. free uses the server's cap,
+# about 40. their pass's own total keeps a big file from costing more than they paid
+paid_prompt_tokens = {"pro": 250_000, "max": 500_000}
 pro_notes = 200
 max_notes = 500
 trials_per_address = 2

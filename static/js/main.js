@@ -1068,7 +1068,7 @@ const plan_details = {
     pro: { name: "Pro", tag: "For steady study", steps: 2, popular: true, plus: "Everything in Free, plus:",
         features: ["10x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 100 pages", "200 notes, double uploads"] },
     max: { name: "Max", tag: "For intense study", steps: 3, plus: "Everything in Free, plus:",
-        features: ["20x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 100 pages", "500 notes, double uploads", "A Max badge on the leaderboard"] },
+        features: ["20x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 200 pages", "500 notes, double uploads", "A Max badge on the leaderboard"] },
 };
 const plan_lengths = { week: "Week", month: "Month", term: "Term" };
 

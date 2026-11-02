@@ -1540,9 +1540,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if use.tier == "mage" and choice != "mage" and not free_mage_left(user):
             use = chat_route(cfg, "acolyte", mode, sandbox is not None)
         search = is_pro(user) or db.searches_since(user["id"], my_day_start(user)) < billing.free_searches_a_day
-        # pro and max can send bigger files in one question, about 100 pages to free's 40
-        paid = is_pro(user)
-        prompt_cap = max(cfg.max_prompt_tokens, billing.paid_prompt_tokens) if paid and cfg.max_prompt_tokens > 0 else cfg.max_prompt_tokens
+        # pro and max can send bigger files in one question, about 100 and 200 pages to free's 40
+        tier = tier_of(user)
+        paid = tier is not None
+        prompt_cap = max(cfg.max_prompt_tokens, billing.paid_prompt_tokens[tier]) if paid and cfg.max_prompt_tokens > 0 else cfg.max_prompt_tokens
+        pages = {t: pages_for(n) for t, n in billing.paid_prompt_tokens.items()}
+        upgrade_note = {None: f"Pro reads about {pages['pro']} pages, Max about {pages['max']}.", "pro": f"Max reads about {pages['max']} pages."}.get(tier, "")
         messages = trimmed_history(messages)
         if not search:
             messages = messages + [{"role": "system", "content": search_off_note}]
@@ -1551,8 +1554,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
         async def routed():
             # a long chat or one with files is kept under the size cap first
-            fitted, answered["trimmed"] = await fit_prompt(claude(), use.model, messages, prompt_cap,
-                                                           "" if paid else f"Pro and Max read about {pages_for(billing.paid_prompt_tokens)} pages.")
+            fitted, answered["trimmed"], size = await fit_prompt(claude(), use.model, messages, prompt_cap, upgrade_note, cfg.max_prompt_tokens)
             # a chat grown past what claude can read in one go is asked again with only its latest part
             started = False
             try:
