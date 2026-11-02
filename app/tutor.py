@@ -391,25 +391,27 @@ def pages_for(cap: int) -> int:
     return max(10, round(cap / 2500 / 10) * 10)
 
 
-async def fit_prompt(client, model: str, messages: list[dict], cap: int, upgrade_note: str = "") -> tuple[list[dict], bool]:
+async def fit_prompt(client, model: str, messages: list[dict], cap: int, upgrade_note: str = "", big_at: int = 0) -> tuple[list[dict], bool, int | None]:
     """keeps a question under the size cap, so no answer costs a lot or holds up everyone else.
     a long chat or one with files is counted, and if it's over, the oldest messages go, keeping as many
-    of the latest as fit, and says so. if the latest question alone is over, the student is told why"""
-    if cap <= 0 or (not has_files(messages) and rough_size(messages) < cap // 2):
-        return messages, False
+    of the latest as fit, and says so. if the latest question alone is over, the student is told why.
+    also gives the size of what's kept in tokens, or None when it wasn't counted because it's small. big_at, when given,
+    is a smaller size worth knowing about, so a question near it is counted too"""
+    if cap <= 0 or (not has_files(messages) and rough_size(messages) < min(cap, big_at or cap) // 2):
+        return messages, False, None
     size = await prompt_size(client, model, messages)
     if size is None or size <= cap:
-        return messages, False
+        return messages, False, size
     # the longest ending that fits, found by halving, a few counts at most
-    best, low, high = None, 1, len(messages)
+    best, best_size, low, high = None, None, 1, len(messages)
     while low <= high:
         middle = (low + high) // 2
         candidate = tail(messages, middle)
         size = await prompt_size(client, model, candidate)
         if size is None:
-            return best or candidate, True
+            return best or candidate, True, best_size
         if size <= cap:
-            best, low = candidate, middle + 1
+            best, best_size, low = candidate, size, middle + 1
         else:
             high = middle - 1
     if best is None:
@@ -417,7 +419,7 @@ async def fit_prompt(client, model: str, messages: list[dict], cap: int, upgrade
         if has_files(latest):
             raise prompt_too_big(f"File too large. Rahah reads about {pages_for(cap)} pages at a time. Send a smaller part of it. {upgrade_note}".strip())
         raise prompt_too_big("Message too long. Send it in smaller parts.")
-    return best, True
+    return best, True, best_size
 
 
 # shown under an answer when only the latest part of a long chat was read

@@ -1555,6 +1555,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         async def routed():
             # a long chat or one with files is kept under the size cap first
             fitted, answered["trimmed"], size = await fit_prompt(claude(), use.model, messages, prompt_cap, upgrade_note, cfg.max_prompt_tokens)
+            # a question bigger than free's cap, like a long pdf, is read by acolyte whatever was picked: it reads long
+            # documents well, and on mage a few of these would use up a student's whole pass
+            if size and size > cfg.max_prompt_tokens > 0:
+                answered["big"] = True
+                if answered["route"].tier != "acolyte":
+                    answered["route"] = chat_route(cfg, "acolyte", mode, sandbox is not None)
             # a chat grown past what claude can read in one go is asked again with only its latest part
             started = False
             try:
@@ -1569,8 +1575,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                     yield event
 
         async def attempt(messages: list[dict]):
+            use = answered["route"]
             stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort, search=search)
-            backup = stall_backup(cfg, use)
+            # a big question waits for acolyte rather than handing such a long read to mage
+            backup = None if answered.get("big") else stall_backup(cfg, use)
             if backup:
                 try:
                     first = await asyncio.wait_for(anext(stream), cfg.stall_seconds)

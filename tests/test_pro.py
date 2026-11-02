@@ -360,3 +360,20 @@ def test_pro_reads_bigger_files_than_free(tmp_path):
     assert "Message too long" in refused
     amina.post("/api/pro/trial")
     assert "Read it all." in amina.post(f"/api/conversations/{chat}/messages", json={"text": big}).text
+
+def test_a_big_question_goes_to_acolyte_even_when_mage_was_picked(tmp_path):
+    claude = fake_client([message([text_block("Read it.")]), message([text_block("Short one.")])])
+    sizes = iter([150_000, 10])
+    claude.beta.messages.counter = lambda messages: next(sizes)
+    cfg = settings(db_path=tmp_path / "bigread.db", paystack_secret="sk_test_secret", daily_budget=0, max_prompt_tokens=1000)
+    app = create_app(cfg, client=claude, payments=fake_paystack())
+    signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    amina.post("/api/pro/trial")
+    chat = amina.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    big = amina.post(f"/api/conversations/{chat}/messages", json={"text": "summarise " + "page " * 3000, "model": "mage"}).text
+    assert claude.beta.messages.calls[-1]["model"] == cfg.light_model
+    assert '"tier": "acolyte"' in big
+    # a normal sized question still goes to mage
+    amina.post(f"/api/conversations/{chat}/messages", json={"text": "and briefly?", "model": "mage"})
+    assert claude.beta.messages.calls[-1]["model"] == cfg.deep_model
