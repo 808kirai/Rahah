@@ -180,6 +180,20 @@ def test_fixing_a_mistyped_admin_email_makes_that_account_admin_on_the_next_star
     amina.post("/api/auth/login", json={"login": "amina", "password": "correct horse!", "agreed": True})
     assert amina.get("/api/me").json()["is_admin"] is False
 
+
+def test_one_address_making_too_many_requests_is_slowed_down(tmp_path):
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import create_app
+    from .fakes import fake_client
+    app = create_app(settings(db_path=tmp_path / "busy.db", requests_per_minute=2), client=fake_client())
+    web = TestClient(app)
+    # two a minute over five minutes is ten requests, the eleventh waits
+    codes = [web.get("/api/auth/config").status_code for _ in range(11)]
+    assert codes[:10] == [200] * 10 and codes[10] == 429
+    assert web.get("/api/auth/config").headers["retry-after"] == "60"
+
+
 def test_a_locked_sign_in_and_a_forged_payment_message_are_logged(tmp_path, caplog):
     import logging
     from fastapi.testclient import TestClient

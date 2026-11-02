@@ -108,6 +108,7 @@ Security
 - Answers from Claude are cleaned before they're shown, maths is drawn without running anything, diagrams go in as images, files from code runs download instead of opening on Rahah's address, and links in answers open in a new tab that can't reach back into Rahah
 - Sign in says whether the name or the password is wrong, chosen for students over hiding which accounts exist. The wait after 5 wrong tries still stops guessing, and the record of wrong tries can't be grown without end
 - The automatic API pages (/docs, /openapi.json) are switched off
+- Every address gets a ceiling on api requests (RAHAH_REQUESTS_PER_MINUTE), on top of the limits for signing in, signing up, resets and claude. A sign in that gets locked after 5 wrong tries, and a payment message with a wrong Paystack signature, are logged as warnings, so they reach the admin in the alert email
 - Once Rahah is on https, set RAHAH_HTTPS=1, so the session cookie is only sent over https and browsers are told to stay on it
 - Online, the sign up and sign in limits count each visitor by the address their host's proxy puts in its own header (RAHAH_CLIENT_IP_HEADER), not x-forwarded-for, which visitors can write into themselves. The admin can check which address headers arrive at /api/admin/address
 - Still to come with deployment: email checks and password reset by email, and keeping the per connection limits in a shared store if Rahah ever runs on more than one server
@@ -228,6 +229,7 @@ Settings
 - `RAHAH_SIGNUPS_PER_IP` - Accounts one connection can make a day, defaults to `20`
 - `RAHAH_MAX_RUNNING` - Answers one student can have running at once, defaults to `2`
 - `RAHAH_HTTPS` - Set to `1` once Rahah is served over https
+- `RAHAH_REQUESTS_PER_MINUTE` - How many api requests one address can make a minute, averaged over five minutes, defaulting to 120. Paystack's payment messages aren't counted. 0 turns it off
 - `RAHAH_SMTP_USER`, `RAHAH_SMTP_PASSWORD` - The Gmail address and app password that send password reset emails. Leave them out and Forgot password points to the help email instead. `RAHAH_SMTP_HOST` and `RAHAH_SMTP_PORT` change the provider, defaulting to Gmail on 587, and `RAHAH_PUBLIC_URL` sets the address in links if Render's own isn't there
 - `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY` - Turn on Rahah Pro and Max. Test keys take pretend payments, live keys take real ones. Set the webhook in Paystack's dashboard to `https://<your address>/api/paystack/webhook`
 - `RAHAH_LEADERBOARD_ZONE` - The time zone the leaderboard's week and study days follow, defaulting to `Africa/Nairobi`

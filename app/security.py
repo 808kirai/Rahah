@@ -64,9 +64,23 @@ def install(app, cfg, max_body_mb: int) -> None:
     policy = content_policy()
     max_body = max_body_mb * 1024 * 1024
     unsafe = {"POST", "PUT", "PATCH", "DELETE"}
+    # a busy student makes a few requests a minute, so this only stops a script hammering the server.
+    # paystack's payment messages aren't counted, they come from paystack's own servers
+    per_address = counter(cfg.requests_per_minute * 5, 300)
+
+    def address_of(request: Request) -> str:
+        given = request.headers.get(cfg.client_ip_header, "").split(",")[0].strip() if cfg.client_ip_header else ""
+        return given or (request.client.host if request.client else "")
 
     @app.middleware("http")
     async def guard_requests(request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api/") and path != "/api/paystack/webhook" and cfg.requests_per_minute > 0:
+            address = address_of(request)
+            if per_address.full(address):
+                return JSONResponse({"detail": "That's a lot of requests. Wait a minute and try again."}, status_code=429,
+                                    headers={"Retry-After": "60"})
+            per_address.add(address)
         # a change has to come from rahah's own pages, so another site can't make a signed in student's
         # browser send one, the cookie's samesite setting already blocks this and this is a second lock
         if request.method in unsafe and request.url.path.startswith("/api/"):

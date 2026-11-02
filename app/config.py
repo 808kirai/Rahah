@@ -41,6 +41,8 @@ class settings:
     # behind a host's proxy, the header the host fills with the visitor's own address, one visitors can't fake.
     # left blank the address comes straight from the connection, right when nothing sits in front
     client_ip_header: str = ""
+    # requests one address can make to the api a minute, on average over five minutes, 0 for no limit
+    requests_per_minute: int = 120
     # password reset by email, through gmail by default, off until the user and an app password are set
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
@@ -87,6 +89,7 @@ def load_settings() -> settings:
         signups_per_ip=int(os.getenv("RAHAH_SIGNUPS_PER_IP", "20")),
         max_running=int(os.getenv("RAHAH_MAX_RUNNING", "2")),
         client_ip_header=os.getenv("RAHAH_CLIENT_IP_HEADER", "").strip().lower(),
+        requests_per_minute=int(os.getenv("RAHAH_REQUESTS_PER_MINUTE", "120")),
         smtp_host=os.getenv("RAHAH_SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com",
         smtp_port=int(os.getenv("RAHAH_SMTP_PORT", "587")),
         smtp_user=os.getenv("RAHAH_SMTP_USER", "").strip(),
