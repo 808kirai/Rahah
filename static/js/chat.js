@@ -87,8 +87,8 @@ function add_notice(message_el, text) {
     const note = document.createElement("p");
     note.className = "notice";
     note.textContent = text;
-    if (text.includes("Rahah Pro gives you")) {
-        note.insertAdjacentHTML("beforeend", ' <a class="support-link" href="#/account">Get Rahah Pro</a>');
+    if (is_limit_message(text)) {
+        note.insertAdjacentHTML("beforeend", ' <button class="btn btn-accent btn-small" type="button" data-upgrade>Upgrade</button>');
     }
     message_el.appendChild(note);
 }
@@ -295,10 +295,13 @@ async function run_answer(reply, request, on_fail, again) {
         note.innerHTML = `<span>${escape_html(text)}</span>`;
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "btn btn-ghost btn-small";
-        button.innerHTML = `${icons.retry}Try again`;
+        // out of today's limit, trying again won't help, so the button opens the plans instead
+        const limit = is_limit_message(text);
+        button.className = limit ? "btn btn-accent btn-small" : "btn btn-ghost btn-small";
+        button.innerHTML = limit ? "Upgrade" : `${icons.retry}Try again`;
         button.addEventListener("click", () => {
-            if (!state.busy) again();
+            if (limit) go_to_plans();
+            else if (!state.busy) again();
         });
         note.appendChild(button);
         reply.appendChild(note);
@@ -408,6 +411,7 @@ async function send_message(text) {
         saved = await run_answer(reply, async (signal) => {
             const conversation_id = await ensure_conversation();
             return api(`/api/conversations/${conversation_id}/messages`, {
+                in_chat: true,
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -699,6 +703,7 @@ async function retry_answer() {
     const conversation_id = state.conversation_id;
     try {
         await run_answer(reply, (signal) => api(`/api/conversations/${conversation_id}/retry`, {
+            in_chat: true,
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ mode: mode_select.value, hints: Boolean(state.hints), ...settings_body() }),

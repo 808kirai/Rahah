@@ -160,9 +160,28 @@ async function api(path, options = {}) {
             // a form the server turned down lists what was wrong with each field
             else if (Array.isArray(body.detail)) detail = body.detail.map((d) => String(d.msg || "").replace(/^Value error, /, "")).join(" ");
         } catch (e) {}
+        // out of today's study limit: outside a chat, a card at the top offers the plans
+        if (response.status === 429 && is_limit_message(detail) && !options.in_chat && typeof offer_upgrade === "function") offer_upgrade();
         throw new Error(detail);
     }
     return response;
+}
+
+function is_limit_message(text) {
+    return /today's study limit/.test(text || "");
+}
+
+// the account tab, scrolled to the plans
+function go_to_plans() {
+    location.hash = "#/account";
+    let tries = 0;
+    const find = setInterval(() => {
+        const plans = document.querySelector("#pro-slot .plans");
+        if (plans || ++tries > 30) {
+            clearInterval(find);
+            plans?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }, 100);
 }
 
 // markdown, maths and citations

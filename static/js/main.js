@@ -1638,3 +1638,22 @@ el("toasts").addEventListener("click", async (event) => {
     }
 });
 
+// out of today's study limit somewhere outside a chat, like making a test: a card at the top with the way to the plans
+function offer_upgrade() {
+    if (!state.me || state.me.is_admin || document.querySelector(".upgrade-toast")) return;
+    const toast = document.createElement("div");
+    toast.className = "toast upgrade-toast";
+    toast.innerHTML = `<img class="toast-logo" src="/static/img/icon-192.png" alt="" aria-hidden="true">
+        <div class="toast-text"><strong>You've used today's study limit</strong><span>Upgrade for 10 times more each day.</span></div>
+        <div class="toast-actions">
+            <button class="btn btn-accent btn-small" type="button" data-upgrade>Upgrade</button>
+            <button class="icon-btn" type="button" data-toast-close aria-label="Dismiss">${icons.close}</button>
+        </div>`;
+    el("toasts").appendChild(toast);
+}
+
+document.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-upgrade]")) return;
+    event.target.closest(".upgrade-toast")?.remove();
+    go_to_plans();
+});

@@ -6826,3 +6826,7 @@ body:not(.is-page) .me-face {
     white-space: normal;
 }
 
+.upgrade-toast .toast-text span {
+    white-space: normal;
+}
+
