@@ -357,6 +357,6 @@ def test_pro_reads_bigger_files_than_free(tmp_path):
     chat = amina.post("/api/conversations", json={"mode": "general"}).json()["id"]
     big = "summarise " + "page " * 3000
     refused = amina.post(f"/api/conversations/{chat}/messages", json={"text": big}).text
-    assert "too much to read" in refused and "Pro and Max read about 100 pages" in refused
+    assert "Message too long" in refused
     amina.post("/api/pro/trial")
     assert "Read it all." in amina.post(f"/api/conversations/{chat}/messages", json={"text": big}).text

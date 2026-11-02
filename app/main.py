@@ -47,8 +47,8 @@ from .timetable import calendar_file as timetable_file, class_in
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
 from .tutor import (
-    answer_languages, display_from_content, fit_prompt, history_blocks, language_note, low_data_note, prompt_too_big, search_off_note, stream_reply,
-    trimmed_history, turn_note,
+    answer_languages, chat_trimmed_note, display_from_content, fit_prompt, history_blocks, language_note, low_data_note, pages_for, prompt_too_big,
+    search_off_note, stream_reply, trimmed_history, turn_note,
     user_content, voice_note,
 )
 
@@ -266,7 +266,7 @@ def friendly_error(error: Exception) -> str:
     if isinstance(error, anthropic.RateLimitError):
         return "Rahah is busy right now. Wait a moment and try again."
     if isinstance(error, prompt_too_big):
-        return "That's too much to read in one question. Send a smaller part of the file, or start a new chat." + (f" {error}" if str(error) else "")
+        return str(error) or "Message too long. Send it in smaller parts."
     if prompt_too_long(error):
         return "This chat, with its files, has grown too long for Rahah to read. Start a new chat to keep going."
     if isinstance(error, anthropic.BadRequestError):
@@ -1551,7 +1551,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
         async def routed():
             # a long chat or one with files is kept under the size cap first
-            fitted = await fit_prompt(claude(), use.model, messages, prompt_cap, "" if paid else "Pro and Max read about 100 pages at once.")
+            fitted, answered["trimmed"] = await fit_prompt(claude(), use.model, messages, prompt_cap,
+                                                           "" if paid else f"Pro and Max read about {pages_for(billing.paid_prompt_tokens)} pages.")
             # a chat grown past what claude can read in one go is asked again with only its latest part
             started = False
             try:
@@ -1650,7 +1651,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             if final.container:
                 db.set_container(conversation_id, final.container, final.container_expires.timestamp())
             truncated = final.stop_reason in ("max_tokens", "pause_turn")
-            yield sse({"t": "done", "v": {**display, "truncated": truncated, "id": message_id}})
+            notice = chat_trimmed_note if answered.get("trimmed") else ""
+            yield sse({"t": "done", "v": {**display, "truncated": truncated, "id": message_id, "notice": notice}})
 
         return StreamingResponse(
             events(),

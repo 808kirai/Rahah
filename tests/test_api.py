@@ -526,7 +526,7 @@ def test_a_chat_over_the_size_cap_sends_only_its_latest_part(tmp_path):
     from app.config import settings
     from app.main import create_app
     from .fakes import fake_client, signed_in
-    replies = [message([text_block(f"Answer {i}.")]) for i in range(4)]
+    replies = [message([text_block(f"Answer {i}.")]) for i in range(5)]
     claude = fake_client(replies)
     # each message counts as 100 tokens here, and a question can send at most 250
     claude.beta.messages.counter = lambda messages: 100 * len(messages)
@@ -540,6 +540,9 @@ def test_a_chat_over_the_size_cap_sends_only_its_latest_part(tmp_path):
         web.post(f"/api/conversations/{chat}/messages", json={"text": f"question {i} {long}"})
     sent = claude.beta.messages.calls[-1]["messages"]
     assert len(sent) <= 2 and "question 3" in str(sent[0]) and "question 0" not in str(sent)
+    # the student is told only the latest part was read
+    last = web.post(f"/api/conversations/{chat}/messages", json={"text": f"question 4 {long}"}).text
+    assert "This chat is long, so Rahah read only the latest part" in last
 
 
 def test_a_question_too_big_on_its_own_asks_for_a_smaller_part(tmp_path):
@@ -553,4 +556,17 @@ def test_a_question_too_big_on_its_own_asks_for_a_smaller_part(tmp_path):
     web = signed_in(TestClient(app), "amina")
     chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
     reply = web.post(f"/api/conversations/{chat}/messages", json={"text": "summarise " + "page " * 3000}).text
-    assert "too much to read in one question" in reply and claude.beta.messages.calls == []
+    assert "Message too long" in reply and claude.beta.messages.calls == []
+
+
+def test_a_file_too_big_on_its_own_says_file_too_large():
+    import asyncio
+    import pytest
+    from app.tutor import fit_prompt, prompt_too_big
+    from .fakes import fake_client
+    claude = fake_client([])
+    claude.beta.messages.counter = lambda messages: 300_000
+    question = [{"role": "user", "content": [{"type": "document", "source": {"type": "file", "file_id": "file_1"}}, {"type": "text", "text": "summarise"}]}]
+    with pytest.raises(prompt_too_big) as found:
+        asyncio.run(fit_prompt(claude, "claude-haiku-5-5", question, 100_000, "Pro and Max read about 100 pages."))
+    assert str(found.value) == "File too large. Rahah reads about 40 pages at a time. Send a smaller part of it. Pro and Max read about 100 pages."

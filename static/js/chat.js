@@ -442,6 +442,7 @@ async function run_answer(reply, request, on_fail, again) {
                 if (frame) cancelAnimationFrame(frame);
                 paint();
                 if (event.v.truncated) add_notice(reply, "This answer got cut off. Ask Rahah to continue.");
+                if (event.v.notice) add_notice(reply, event.v.notice);
             } else if (event.t === "refusal" || event.t === "error") {
                 // partial text from a failed turn is dropped, it was never saved
                 fail(event.v);
