@@ -114,7 +114,7 @@ def photo_bytes(kind="PNG", size=(900, 600), exif=False):
     return out.getvalue()
 
 
-def test_a_profile_photo_is_squared_cleaned_and_only_friends_see_it(tmp_path):
+def test_a_profile_photo_is_squared_cleaned_and_shown_to_friends_and_the_everyone_board(tmp_path):
     from io import BytesIO
     from PIL import Image
     app = made_app(tmp_path)
@@ -130,9 +130,12 @@ def test_a_profile_photo_is_squared_cleaned_and_only_friends_see_it(tmp_path):
     assert picture.size == (256, 256) and not picture.getexif()
     # a stranger, and someone with a request still waiting, can't see it, and search shows only the letter
     assert me.get(url).status_code == 404
+    # search shows only the letter
     assert me.get("/api/people", params={"q": "ami"}).json()["people"][0]["photo"] == ""
     me.post("/api/friends", json={"username": "amina"})
-    assert me.get(url).status_code == 404
+    # once she turns off being found, a stranger, and someone with a request still waiting, can't see it
+    amina.patch("/api/me", json={"findable": False})
+    assert brian.get(url).status_code == 404 and me.get(url).status_code == 404
     amina.post("/api/friends/runie/accept")
     assert me.get(url).status_code == 200
     rows = {r["username"]: r for r in me.get("/api/leaderboard").json()["board"]}

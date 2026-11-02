@@ -113,6 +113,29 @@ low_data_note = (
 )
 
 
+# sent when web search is left out for the rest of the day on the free plan
+search_off_note = (
+    "Web search isn't available for the rest of today on the student's free plan. Answer from what you know. "
+    "If the question really needs current information, say so briefly and mention that Rahah Pro includes more searches."
+)
+
+
+def trimmed_history(messages: list[dict], keep: int = 40, step: int = 20) -> list[dict]:
+    """a very long chat sends only its later part, so each question doesn't pay to resend the whole thing.
+    older messages go in blocks of twenty, so the start stays the same for a while and claude's cache keeps working.
+    it always starts on a student's message, and keeps the last subject note if one was dropped"""
+    if len(messages) <= keep:
+        return messages
+    cut = ((len(messages) - keep) // step + 1) * step
+    while cut < len(messages) - 1 and messages[cut]["role"] != "user":
+        cut += 1
+    kept = messages[cut:]
+    notes = [m for m in messages[:cut] if m["role"] == "system"]
+    if notes and not any(m["role"] == "system" for m in kept[:3]):
+        kept = kept[:1] + [notes[-1]] + kept[1:]
+    return kept
+
+
 voice_note = (
     "The student is talking to you by voice and will hear this answer read aloud. Answer in a few short "
     "spoken sentences, like a tutor talking, with no headings, lists, tables, code or diagrams, and say maths "
@@ -328,7 +351,7 @@ class reply:
 
 async def stream_reply(
     client, cfg: settings, messages: list[dict], code: bool = False, container: str | None = None,
-    model: str = "", effort: str = "",
+    model: str = "", effort: str = "", search: bool = True,
 ) -> AsyncIterator[dict]:
     """streams one answer as small events for the page, then a final event with the whole reply
 
@@ -340,7 +363,10 @@ async def stream_reply(
     model = model or model_for(cfg, "acolyte")
     effort = effort or cfg.effort
     options = fallback_options(model)
-    options["tools"] = [web_tool, code_tool] if code else [web_tool]
+    # web search is left out once a free student has used today's searches
+    tools = ([web_tool] if search else []) + ([code_tool] if code else [])
+    if tools:
+        options["tools"] = tools
     content, sent = [], messages
     reported, expires = None, None
     used = []

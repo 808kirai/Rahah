@@ -21,7 +21,7 @@ from .modes import modes, runs_code
 # subjects where answers are worked problems, where a stronger model makes fewer slips
 deep_subjects = {"maths", "science", "coding"}
 
-# what the picker shows, in order, archmage only for the admin
+# what the picker shows, in order, archmage only for the admin. free students get mage a few times a day
 choices = [
     {"id": "auto", "name": "Auto", "word": "Rahah picks", "hint": "Picks Acolyte or Mage for each question"},
     {"id": "acolyte", "name": "Acolyte", "word": "Quick", "hint": "Quick answers for everyday questions"},

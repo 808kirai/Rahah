@@ -23,12 +23,13 @@ async function delete_conversation(c) {
 async function load_history() {
     try {
         const response = await api("/api/conversations");
-        const { conversations } = await response.json();
+        const { conversations, hidden } = await response.json();
         state.conversations = conversations;
+        state.hidden_chats = hidden || 0;
     } catch (error) {
         return;
     }
-    if (!changed("conversations", state.conversations)) return;
+    if (!changed("conversations", [state.conversations, state.hidden_chats])) return;
     render_continue();
     render_chats();
 }
@@ -424,7 +425,7 @@ function set_up_google(client_id) {
             google.accounts.id.initialize({
                 client_id,
                 ux_mode: "popup",
-                callback: (reply) => send_provider_token("/api/auth/google", { credential: reply.credential, agreed: !!el("auth-agree")?.checked }, state.me ? (text) => alert(text) : show_provider_error),
+                callback: (reply) => send_provider_token("/api/auth/google", { credential: reply.credential, agreed: !!el("auth-agree")?.checked, ref: invited_by() }, state.me ? (text) => alert(text) : show_provider_error),
             });
         });
     }
@@ -454,7 +455,7 @@ async function apple_sign_in(on_error) {
         AppleID.auth.init({ clientId: config.apple_client_id, scope: "name email", redirectURI: `${location.origin}/`, usePopup: true });
         const reply = await AppleID.auth.signIn();
         const name = reply.user?.name ? `${reply.user.name.firstName || ""} ${reply.user.name.lastName || ""}`.trim() : "";
-        await send_provider_token("/api/auth/apple", { id_token: reply.authorization.id_token, name, agreed: !!el("auth-agree")?.checked }, on_error);
+        await send_provider_token("/api/auth/apple", { id_token: reply.authorization.id_token, name, agreed: !!el("auth-agree")?.checked, ref: invited_by() }, on_error);
     } catch (error) {
         // closing apple's window isn't an error worth showing
         if (error?.error !== "popup_closed_by_user") on_error("Sign in with Apple didn't finish. Try again.");
@@ -711,7 +712,7 @@ el("auth-form").addEventListener("submit", async (event) => {
     const signup = auth.mode === "signup";
     const password = el("auth-password").value;
     const body = signup
-        ? { username: el("auth-username").value.trim(), email: el("auth-email").value.trim(), password, agreed: el("auth-agree").checked }
+        ? { username: el("auth-username").value.trim(), email: el("auth-email").value.trim(), password, agreed: el("auth-agree").checked, ref: invited_by() }
         : { login: el("auth-login").value.trim(), password };
     if (signup ? !body.username || !body.email || !password : !body.login || !password) {
         show_auth_error(signup ? "Fill in a username, email and password." : "Fill in your username or email and password.");
@@ -833,6 +834,11 @@ function render_me_face() {
     slot.hidden = !state.me;
     // signed in, the student's picture takes the logo's place beside rahah's name
     document.body.classList.toggle("has-face", Boolean(state.me));
+    slot.classList.toggle("pro", Boolean(state.me?.pro && !state.me?.is_admin));
+    slot.classList.toggle("max", state.me?.tier === "max" && !state.me?.is_admin);
+    // pro or max beside rahah's name
+    const tier = el("nav-tier");
+    if (tier) tier.innerHTML = state.me && !state.me.is_admin ? tier_badge(state.me.tier) : "";
     if (state.me) slot.innerHTML = face_html(state.me.photo, state.me.name || state.me.username, "tiny");
 }
 
@@ -882,7 +888,7 @@ function render_account() {
                 <p class="field-hint" id="password-note" hidden></p>
             </div>
         </section>
-        </div>
+        </div>`;
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Your picture</h3>
@@ -900,23 +906,26 @@ function render_account() {
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Friend search</h3>
-                <p>Let other students find you by your username or name to send a friend request. They only see your username and first name.</p>
+                <p>Let others find you by username or name. They only see your username and first name.</p>
             </div>
             <div class="choices" role="group" aria-label="Friend search">
                 <button class="choice" type="button" data-findable="0" aria-pressed="${!me.findable}">Off</button>
                 <button class="choice" type="button" data-findable="1" aria-pressed="${Boolean(me.findable)}">On</button>
             </div>
         </section>
-        <section class="perf-card">
+        ${me.is_admin ? "" : `<section class="perf-card">
             <div class="perf-head">
-                <h3>Low-data mode</h3>
-                <p>For slow or expensive data: shorter answers, smaller photos, and no web searches or diagrams.</p>
+                <h3>Weekly report for a parent ${me.pro ? "" : '<span class="pro-badge">Pro</span>'}</h3>
+                <p>${me.pro ? "Every Sunday evening, a short email on how your week went." : "A short email every Sunday on how your week went. Starts once you're on Pro."}</p>
             </div>
-            <div class="choices" id="low-data-choices" role="group" aria-label="Low-data mode">
-                <button class="choice" type="button" data-low-data="0" aria-pressed="${!state.settings?.low_data}">Off</button>
-                <button class="choice" type="button" data-low-data="1" aria-pressed="${Boolean(state.settings?.low_data)}">On</button>
+            <input class="text-input" id="parent-email" type="email" maxlength="200" autocomplete="off" placeholder="Parent or guardian's email" value="${escape_html(me.parent_email || "")}">
+            <div class="account-actions">
+                <button class="btn btn-soft btn-small" type="button" data-save-parent>Save</button>
+                ${me.parent_email ? '<button class="btn btn-ghost btn-small" type="button" data-remove-parent>Remove</button>' : ""}
+                <p class="field-hint" id="parent-note" hidden></p>
             </div>
         </section>
+        <section class="perf-card" id="invite-card" hidden></section>`}
         <section class="perf-card">
             <div class="perf-head">
                 <h3>Help</h3>
@@ -934,6 +943,250 @@ function render_account() {
         </section>` : ""}`;
     render_account_links();
     render_delete_card();
+    render_pro_card();
+}
+
+// rahah pro and max on the account tab: free, pro and max as cards side by side, with a switch for how long.
+// the icons are rahah's own chevrons, one more for each step up
+const plan_details = {
+    free: { name: "Free", tag: "Try Rahah", note: "Free for every student", steps: 1,
+        features: ["Ask anything, any subject", "Tests, flashcards and summaries", "Mage, 10 answers a day", "5 web searches a day", "5 photo markings a day", "Your 5 newest chats", "Friends and leaderboard"] },
+    pro: { name: "Pro", tag: "For steady study", steps: 2, popular: true, plus: "Everything in Free, plus:",
+        features: ["10x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "200 notes, double uploads"] },
+    max: { name: "Max", tag: "For intense study", steps: 3, plus: "Everything in Free, plus:",
+        features: ["20x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "500 notes, double uploads", "A Max badge on the leaderboard"] },
+};
+const plan_lengths = { week: "Week", month: "Month", term: "Term" };
+
+// a small pro or max badge
+function tier_badge(tier) {
+    return tier ? `<span class="pro-badge${tier === "max" ? " max" : ""}">${tier === "max" ? "Max" : "Pro"}</span>` : "";
+}
+
+function plan_icon(steps) {
+    const rows = Array.from({ length: steps }, (_, i) => `<path d="M8 ${30 - i * 7}l12-8 12 8" opacity="${1 - i * 0.18}"/>`).join("");
+    return `<svg class="plan-icon" viewBox="0 0 40 40" aria-hidden="true">${rows}</svg>`;
+}
+
+async function render_pro_card() {
+    const slot = el("pro-slot");
+    if (!slot || !state.me || state.me.is_admin) return;
+    try {
+        state.pro = await (await api("/api/pro")).json();
+    } catch (error) {
+        return;
+    }
+    draw_plans();
+}
+
+function draw_plans() {
+    if (!el("pro-slot") || !state.pro?.enabled) return;
+    const pro = state.pro.pro;
+    const now_tier = pro?.active ? pro.tier : null;
+    const length = state.plan_length || "month";
+    const day = (seconds) => new Date(seconds * 1000).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    const tick = '<svg class="plan-tick" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9"/><path d="M6 10.2l2.7 2.6L14 7.6"/></svg>';
+    const usd = (n) => `$${n % 1 ? n.toFixed(2) : n}`;
+    const card = (id, price, note, button, dollars = 0) => {
+        const d = plan_details[id];
+        return `<article class="plan-card${d.popular ? " popular" : ""}">
+            ${d.popular ? '<span class="plan-flag">Most popular</span>' : ""}
+            ${plan_icon(d.steps)}
+            <h3 class="plan-name">${d.name}</h3>
+            <p class="plan-tag">${d.tag}</p>
+            <p class="plan-price">${usd(dollars)}${id === "free" ? "" : `<small> / ${length}</small>`}</p>
+            <p class="plan-note">${note}</p>
+            ${button}
+            <div class="plan-line"></div>
+            ${d.plus ? `<p class="plan-plus">${d.plus}</p>` : ""}
+            <ul class="plan-features">${d.features.map((f) => `<li>${tick}<span>${escape_html(f)}</span></li>`).join("")}</ul>
+        </article>`;
+    };
+    const free = card("free", 0, plan_details.free.note, state.pro.trial
+        ? '<button class="btn btn-soft plan-btn" type="button" data-pro-trial>Try Pro free for 3 days</button>'
+        : `<button class="btn btn-soft plan-btn" type="button" disabled>${now_tier ? "Free plan" : "Your plan"}</button>`);
+    const paid = ["pro", "max"].map((tier) => {
+        const p = state.pro.plans.find((x) => x.id === `${tier}_${length}`);
+        if (!p) return "";
+        const span = { week: "A week", month: "A month", term: "A term of 3 months" }[length];
+        const label = now_tier === "pro" && tier === "max" ? "Upgrade to Max"
+            : now_tier ? `Add a ${plan_details[tier].name} ${length}` : `Get ${plan_details[tier].name}`;
+        return card(tier, p.price, `${span} · about $${(p.usd / p.days).toFixed(2)} a day`,
+            `<button class="btn ${tier === "pro" ? "btn-accent" : "btn-soft"} plan-btn" type="button" data-pro-plan="${p.id}">${label}</button>`, p.usd);
+    }).join("");
+    // the exam day pass, a quick top up for the day before an exam
+    const day_pass = state.pro.plans.find((p) => p.id === "day");
+    const day_strip = day_pass ? `<div class="day-pass">
+        ${plan_icon(1)}
+        <span><strong>Exam tomorrow?</strong><small>24 hours of 5x study for ${usd(day_pass.usd)}.</small></span>
+        <button class="btn btn-soft btn-small" type="button" data-pro-plan="day">Get exam day</button>
+    </div>` : "";
+    const name = now_tier === "max" ? "Max" : "Pro";
+    const sub_line = !pro ? "Need more study time? Pay once with M-Pesa or card. Nothing renews."
+        : !pro.active ? `Your pass is used up. You're on the free limit until ${day(pro.until)}.`
+        : now_tier === "max" && pro.until > pro.max_until + 60 ? `You're on Max until ${day(pro.max_until)}, then Pro until ${day(pro.until)}.`
+        : `You're on ${name} until ${day(pro.until)}.` + (now_tier === "pro" ? " Max starts right away, and your Pro days carry on after it." : " New passes start after this one.");
+    el("pro-slot").innerHTML = `<section class="plans">
+        <div class="plans-head">
+            <div>
+                <h2 class="plans-title">Plans ${tier_badge(now_tier)}</h2>
+                <p class="plans-sub">${sub_line}</p>
+            </div>
+            <div class="plan-length" role="group" aria-label="How long">
+                ${Object.entries(plan_lengths).map(([k, v]) => `<button type="button" class="${k === length ? "on" : ""}" aria-pressed="${k === length}" data-plan-length="${k}">${v}</button>`).join("")}
+            </div>
+        </div>
+        <div class="plan-grid">${free}${paid}</div>
+        ${day_strip}
+        <p class="field-hint plans-note" id="pro-note">Paid through Paystack in shillings, at about KES ${state.pro.kes_per_usd} to $1. We never see your card or M-Pesa PIN.</p>
+    </section>`;
+    // where the plans are a swipe row, it opens on pro
+    const grid = el("pro-slot").querySelector(".plan-grid");
+    const pro_card = grid.querySelector(".plan-card.popular");
+    if (pro_card && grid.scrollWidth > grid.clientWidth) {
+        grid.scrollLeft += pro_card.getBoundingClientRect().left - grid.getBoundingClientRect().left - (grid.clientWidth - pro_card.offsetWidth) / 2;
+    }
+    render_invite_card();
+}
+
+thread.addEventListener("click", (event) => {
+    const pick = event.target.closest("[data-plan-length]");
+    if (!pick) return;
+    state.plan_length = pick.dataset.planLength;
+    draw_plans();
+});
+
+// bringing friends: three free days of pro for each friend who joins with the link and buys a pass
+function render_invite_card() {
+    const box = el("invite-card");
+    if (!box || !state.pro) return;
+    box.hidden = false;
+    box.innerHTML = `
+        <div class="perf-head">
+            <h3>Invite friends</h3>
+            <p>Get 3 days of Pro free for each friend who joins with your link and buys a pass.</p>
+        </div>
+        <input class="text-input" readonly value="${escape_html(state.pro.invite)}" aria-label="Your invite link">
+        <div class="account-actions">
+            ${navigator.share ? '<button class="btn btn-soft btn-small" type="button" data-invite-share>Share</button>' : ""}
+            <button class="btn btn-soft btn-small" type="button" data-invite-copy>Copy link</button>
+            <p class="field-hint" id="invite-note">${state.pro.invite_days ? `You've earned ${plural(state.pro.invite_days, "free day")} so far.` : ""}</p>
+        </div>`;
+}
+
+thread.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-invite-share]")) {
+        try {
+            await navigator.share({ title: "Rahah", text: "Study with me on Rahah, it's free:", url: state.pro.invite });
+        } catch (e) {}
+    }
+    if (event.target.closest("[data-invite-copy]")) {
+        try {
+            await navigator.clipboard.writeText(state.pro.invite);
+            account_note("invite-note", "Copied. Send it to a friend.");
+        } catch (e) {
+            account_note("invite-note", state.pro.invite);
+        }
+    }
+    const trial = event.target.closest("[data-pro-trial]");
+    if (trial) {
+        trial.disabled = true;
+        try {
+            await api("/api/pro/trial", { method: "POST" });
+            state.me = (await load_me()) || state.me;
+            remember_me(state.me);
+            render_account();
+            render_me_face();
+            load_usage();
+            load_history();
+        } catch (error) {
+            trial.disabled = false;
+            account_note("pro-note", error.message);
+        }
+    }
+});
+
+thread.addEventListener("click", async (event) => {
+    const plan = event.target.closest("[data-pro-plan]");
+    if (!plan) return;
+    plan.disabled = true;
+    account_note("pro-note", "Opening Paystack…");
+    try {
+        const { url, access_code, reference } = await (await api("/api/pro/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plan: plan.dataset.proPlan }),
+        })).json();
+        // paystack's checkout opens on top of rahah. if its script can't load, paystack's own page takes the
+        // payment instead and sends the student back here
+        const Pop = access_code ? await paystack_popup() : null;
+        if (!Pop) {
+            location.href = url;
+            return;
+        }
+        new Pop().resumeTransaction(access_code, {
+            onSuccess: () => verify_payment(reference),
+            onCancel: () => {
+                plan.disabled = false;
+                account_note("pro-note", "Payment closed. You weren't charged.");
+            },
+            onError: () => {
+                location.href = url;
+            },
+        });
+        account_note("pro-note", "Paid through Paystack. We never see your card or M-Pesa PIN.");
+    } catch (error) {
+        plan.disabled = false;
+        account_note("pro-note", error.message);
+    }
+});
+
+// paystack's popup script, loaded only when a student goes to pay, so nobody else downloads it
+function paystack_popup() {
+    const ready = () => window.PaystackPop || window.Paystack || null;
+    if (ready()) return Promise.resolve(ready());
+    return new Promise((resolve) => {
+        const script = document.createElement("script");
+        script.src = "https://js.paystack.co/v2/inline.js";
+        script.onload = () => resolve(ready());
+        script.onerror = () => resolve(null);
+        setTimeout(() => resolve(ready()), 15000);
+        document.head.appendChild(script);
+    });
+}
+
+// a payment is checked with the server before anything changes
+async function verify_payment(reference) {
+    try {
+        const result = await (await api(`/api/pro/verify/${encodeURIComponent(reference)}`)).json();
+        state.me = await load_me() || state.me;
+        remember_me(state.me);
+        render_me_face();
+        if (result.status === "paid" && result.pro) {
+            const p = result.pro;
+            const date = (t) => new Date(t * 1000).toLocaleDateString();
+            alert(p.tier === "max" && p.until > p.max_until + 60
+                ? `You're on Max until ${date(p.max_until)}, then Pro until ${date(p.until)}. Enjoy!`
+                : `You're on ${p.tier === "max" ? "Max" : "Pro"} until ${date(p.until)}. Enjoy!`);
+        } else {
+            alert("That payment didn't go through, so you weren't charged. Try again any time.");
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+    if (el("pro-slot")) {
+        render_account();
+        load_usage();
+    }
+}
+
+// back from paystack, the payment is checked with the server before anything changes
+async function finish_pro_payment() {
+    const params = new URLSearchParams(location.search);
+    const reference = params.get("reference") || params.get("trxref");
+    if (!params.get("paid") || !reference) return;
+    history.replaceState(null, "", "/#/account");
+    await verify_payment(reference);
 }
 
 // deleting the account sits last on the page, behind a second step, and the admin can't delete theirs here
@@ -1028,6 +1281,22 @@ thread.addEventListener("click", async (event) => {
             alert(error.message);
         }
     }
+    const parent_save = event.target.closest("[data-save-parent]");
+    const parent_remove = event.target.closest("[data-remove-parent]");
+    if (parent_save || parent_remove) {
+        try {
+            state.me = await (await api("/api/me/parent", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: parent_remove ? "" : el("parent-email").value }),
+            })).json();
+            remember_me(state.me);
+            render_account();
+            account_note("parent-note", parent_remove ? "Removed." : state.me.pro ? "Saved. The first report comes on Sunday." : "Saved. Reports start once you're on Pro.");
+        } catch (error) {
+            account_note("parent-note", error.message);
+        }
+    }
     const findable = event.target.closest("[data-findable]");
     if (findable) {
         try {
@@ -1090,6 +1359,24 @@ thread.addEventListener("click", async (event) => {
     }
 });
 
+// someone opening a friend's invite link, remembered until they sign up
+function remember_invite() {
+    const ref = new URLSearchParams(location.search).get("ref");
+    if (!ref) return;
+    try {
+        localStorage.setItem("rahah-ref", ref.slice(0, 40));
+    } catch (e) {}
+    history.replaceState(null, "", location.pathname + location.hash);
+}
+
+function invited_by() {
+    try {
+        return localStorage.getItem("rahah-ref") || "";
+    } catch (e) {
+        return "";
+    }
+}
+
 function done_booting() {
     document.body.classList.remove("booting");
 }
@@ -1097,6 +1384,7 @@ function done_booting() {
 async function start() {
     // if anything goes wrong on the way, the page still shows
     setTimeout(done_booting, 5000);
+    remember_invite();
     const reset = location.hash.match(/^#\/reset\/([\w-]{20,200})$/);
     if (reset) {
         await auth_config();

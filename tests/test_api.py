@@ -179,11 +179,13 @@ def test_unknown_conversations_and_modes_are_rejected(setup):
     assert bad.status_code == 400
 
 
-def test_only_the_ten_newest_chats_are_listed(setup):
+def test_the_admin_sees_every_chat(setup):
+    # the first account is the admin, who has everything pro has, so no chat is hidden
     web, _ = setup([message([text_block("hi")]) for _ in range(12)])
     for n in range(12):
         ask(web, new_chat(web), f"question {n}")
-    assert len(web.get("/api/conversations").json()["conversations"]) == 10
+    listed = web.get("/api/conversations").json()
+    assert len(listed["conversations"]) == 12 and listed["hidden"] == 0
 
 
 def test_deleting_a_conversation_removes_it(setup):
@@ -466,3 +468,8 @@ def test_a_voice_chat_turn_asks_for_a_spoken_answer(setup):
     web.post(f"/api/conversations/{conversation_id}/messages", json={"text": "what is osmosis?", "voice": True})
     notes = [m["content"] for m in claude.beta.messages.calls[0]["messages"] if m["role"] == "system"]
     assert any("talking to you by voice" in n for n in notes)
+
+
+    # the second try sent only the latest few messages
+    assert len(claude.beta.messages.calls[-1]["messages"]) < len(claude.beta.messages.calls[-2]["messages"])
+

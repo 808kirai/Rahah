@@ -150,7 +150,7 @@ function render_week() {
 
 // what rahah has cost on this api key, today, this week and in all, with what caching saved
 
-const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", suggestions: "Suggestions", plan: "Revision plans", stall: "Acolyte too slow, Mage answered" };
+const usage_kinds = { chat: "Chat", retry: "Try again", quiz: "Making tests", flashcards: "Making flashcards", marking: "Marking answers", marking_photo: "Marking photos", suggestions: "Suggestions", plan: "Revision plans", stall: "Acolyte too slow, Mage answered" };
 
 // money is always shown to the cent
 function dollars(value) {
@@ -186,17 +186,45 @@ function usage_bar(percent) {
 }
 
 // a student's own box, how much of today's limit is used and when it starts again, never what it costs
+// how the student's pace compares: on track, or when the pass or today's limit would run out at this rate
+function pace_text(a) {
+    const now = Date.now() / 1000;
+    const pro = a.pro;
+    const day = (seconds) => new Date(seconds * 1000).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    if (pro && !pro.active) return `This pass is used up. You're on the free limit until ${day(pro.until)}.`;
+    if (pro) {
+        const length = pro.ends - pro.starts;
+        const gone = Math.max(0, now - pro.starts);
+        const used = pro.pass_percent / 100;
+        if (gone < 6 * 3600 || gone / length < 0.03) return "Your pass just started. Check back tomorrow to see your pace.";
+        if (used <= gone / length + 0.05) return `You're on track. This pass will last until ${day(pro.ends)}.`;
+        const runs_out = pro.starts + gone / used;
+        const early = Math.max(1, Math.round((pro.ends - runs_out) / 86400));
+        return `At this pace, it runs out around ${day(runs_out)}, ${plural(early, "day")} early.`;
+    }
+    if (a.percent >= 100) return "";
+    const day_gone = 1 - a.resets_in / 86400;
+    if (a.percent / 100 > day_gone + 0.15 && a.percent >= 30) return "You're going fast today. You might run out before it resets.";
+    return "You're on track for today.";
+}
+
 function allowance_html(a) {
     if (!a?.limited) return "";
+    const pro = a.pro;
     return `<section class="perf-card usage-card">
         <div class="perf-head">
-            <h3>Today's limit</h3>
-            <p>How much of today's study limit you've used</p>
+            <h3>Today's limit${pro?.active ? ` ${tier_badge(pro.tier)}` : ""}</h3>
+            <p>${pro?.active ? (pro.tier === "max" ? "20x your usual limit with Max" : "10x your usual limit with Pro") : "How much of today's limit you've used"}</p>
         </div>
         <div class="allowance">
             ${usage_bar(a.percent)}
             <small>${a.percent >= 100 ? "Used up for today. Saved flashcards and tests still work." : `${100 - a.percent}% left.`} It starts again in ${hours_text(a.resets_in)}.</small>
         </div>
+        ${pro ? `<div class="allowance pass-allowance">
+            <span class="allowance-label">This pass</span>
+            ${usage_bar(pro.pass_percent)}
+        </div>` : ""}
+        ${pace_text(a) ? `<p class="pace-note">${pace_text(a)}</p>` : ""}
     </section>`;
 }
 
@@ -426,7 +454,7 @@ function render_admin() {
             <div class="table-wrap"><table class="admin-table">
                 <thead><tr><th>Student</th><th>Last seen</th><th class="num">Today</th><th class="num">Left today</th><th>Limit used</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>
                 <tbody>${a.users.map((u) => `<tr class="${u.disabled ? "is-off" : ""}">
-                    <td><strong>${escape_html(u.name || u.username)}</strong><small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small></td>
+                    <td><strong>${escape_html(u.name || u.username)}</strong>${u.pro_until ? ` <span class="pro-badge" title="Pro until ${short_date(u.pro_until)}">Pro</span>` : ""}<small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small></td>
                     <td>${seen(u)}<small>Joined ${short_date(u.created)}</small></td>
                     <td class="num">${dollars(u.today)}</td>
                     <td class="num">${u.cap === null ? "–" : dollars(u.left)}</td>

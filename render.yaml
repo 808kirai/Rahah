@@ -36,3 +36,8 @@ services:
         sync: false
       - key: RAHAH_SMTP_PASSWORD
         sync: false
+      # rahah pro, paystack's keys, test ones first and live ones when it's time to take real payments
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false

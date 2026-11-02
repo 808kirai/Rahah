@@ -266,6 +266,10 @@ function render_chats() {
             <h3 class="group-title">${name}</h3>
             <div class="card-grid">${items.map(chat_card).join("")}</div>`).join("");
     }
+    // the free plan lists the newest chats, the rest wait for pro
+    if (state.hidden_chats && !words) {
+        chats_html += `<a class="locked-note" href="#/account"><span class="pro-badge">Pro</span><span>${plural(state.hidden_chats, "older chat")} saved. Get Pro to see your whole history.</span></a>`;
+    }
     // while searching, the found list covers chats, titles included
     const searching = words.length >= 2;
     const people = searching ? `<h2 class="section-title">People</h2>${people_html(people_search.found, people_search.words)}` : "";

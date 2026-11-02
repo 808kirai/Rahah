@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 import re
 import secrets
+import threading
 import time
 from pathlib import Path
 
@@ -25,8 +26,10 @@ from .accounts import (
 from .alerts import alert_box, alert_handler
 from .mailer import send_email
 from .photos import square_photo
+from . import billing
 from .push import allowed_endpoint, due_today, feed_file, message_for, new_keys, send_push, zone
 from . import friends as board
+from . import receipt
 from .providers import identity, provider_error, verify_apple, verify_google
 from .modes import (
     allowed_mode, custom_prefix, default_mode, find_mode, groups, menu_groups, modes, public_modes, runs_code, sync_custom,
@@ -34,7 +37,7 @@ from .modes import (
 from .performance import summarise
 from .report import weekly_report
 from .security import counter, in_flight, install as install_security
-from .routing import chat_route, choice_ids, choices_for, stall_backup
+from .routing import chat_route, choice_ids, choices_for, model_for, stall_backup
 from .plans import make_plan, plan_calendar
 from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
@@ -43,7 +46,7 @@ from .timetable import calendar_file as timetable_file, class_in
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
 from .tutor import (
-    answer_languages, display_from_content, history_blocks, language_note, low_data_note, stream_reply, turn_note,
+    answer_languages, display_from_content, history_blocks, language_note, low_data_note, search_off_note, stream_reply, trimmed_history, turn_note,
     user_content, voice_note,
 )
 
@@ -88,6 +91,8 @@ class signup_in(BaseModel):
     name: str = Field(default="", max_length=60)
     # the box for the terms and privacy, with a parent or guardian's ok for anyone under 18
     agreed: bool = False
+    # the username of a friend whose invite link brought them here
+    ref: str = Field(default="", max_length=40)
 
 
 class forgot_in(BaseModel):
@@ -104,6 +109,10 @@ class push_in(BaseModel):
     p256dh: str = Field(default="", max_length=200)
     auth: str = Field(default="", max_length=100)
     zone: str = Field(default="", max_length=64)
+
+
+class checkout_in(BaseModel):
+    plan: str = Field(min_length=1, max_length=20)
 
 
 class delete_me_in(BaseModel):
@@ -124,6 +133,9 @@ class profile_in(BaseModel):
     # whether other students can find this account in friend search
     findable: bool | None = None
 
+class parent_in(BaseModel):
+    email: str = Field(default="", max_length=200)
+
 
 class friend_in(BaseModel):
     username: str = Field(min_length=1, max_length=40)
@@ -132,12 +144,14 @@ class friend_in(BaseModel):
 class google_in(BaseModel):
     credential: str = Field(min_length=1, max_length=5000)
     agreed: bool = False
+    ref: str = Field(default="", max_length=40)
 
 
 class apple_in(BaseModel):
     id_token: str = Field(min_length=1, max_length=5000)
     name: str = Field(default="", max_length=60)
     agreed: bool = False
+    ref: str = Field(default="", max_length=40)
 
 
 class password_in(BaseModel):
@@ -248,6 +262,8 @@ def friendly_error(error: Exception) -> str:
     return "Rahah isn't set up yet. Add ANTHROPIC_API_KEY to the .env file and restart the server."
 
 
+
+
 def is_claude_error(error: Exception) -> bool:
     # with no key at all the sdk raises a plain type error before any request is sent
     if isinstance(error, anthropic.AnthropicError):
@@ -288,7 +304,8 @@ def safe_filename(name: str) -> str:
     return re.sub(r"[^\w.\- ]", "_", Path(name).name)[:120] or "file"
 
 
-def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None, mailer=None, pusher=None) -> FastAPI:
+def create_app(cfg: settings | None = None, client=None, verifiers: dict | None = None, mailer=None, pusher=None,
+               payments=None) -> FastAPI:
     cfg = cfg or load_settings()
     # how google and apple tokens are checked, tests swap in their own
     verifiers = verifiers or {
@@ -296,6 +313,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         "apple": lambda token, name="": verify_apple(token, cfg.apple_client_id, name),
     }
     db = store(cfg.db_path)
+    # how pro is paid for, tests swap in their own. off until paystack's secret key is set
+    payments = payments or (billing.paystack(cfg.paystack_secret) if cfg.paystack_secret else None)
     # how emails go out, tests swap in their own
     mailer = mailer or (lambda to, subject, text, attachment=None: send_email(cfg, to, subject, text, attachment))
     reset_by_email = bool(cfg.smtp_user and cfg.smtp_password)
@@ -374,12 +393,15 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                     await asyncio.to_thread(alerts.flush)
 
         async def keep_notifying():
-            # reminders due today go out as phone notifications, checked every few minutes
+            # reminders due today go out as phone notifications, checked every few minutes,
+            # and on sunday evenings parents get the week's report
             while True:
                 try:
                     await asyncio.to_thread(send_due_pushes)
+                    if reset_by_email:
+                        await asyncio.to_thread(send_parent_reports)
                 except Exception as error:
-                    log.warning("sending reminder notifications failed: %s", error)
+                    log.warning("sending notifications or parent reports failed: %s", error)
                 await asyncio.sleep(300)
 
         handler = alert_handler(alerts) if alert_to else None
@@ -413,9 +435,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     # the automatic api pages are left off, nobody outside needs a map of the routes
     app = FastAPI(title="Rahah", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-    # tests run the notification check themselves
+    # tests run the notification check and the parent reports themselves
     app.state.send_due_pushes = send_due_pushes
-    install_security(app, cfg, max(cfg.max_upload_mb, max_set_mb) + 5)
+    app.state.send_parent_reports = lambda now=None: send_parent_reports(now)
+    install_security(app, cfg, max(cfg.max_upload_mb * 2, max_set_mb) + 5)
 
     @app.middleware("http")
     async def note_crashes(request: Request, call_next):
@@ -453,8 +476,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(403, "Only the admin can do that.")
         return user
 
+    def zone_of(user: dict):
     def day_start(now: float) -> float:
-        # allowances reset at midnight utc, the same moment for every student
+        # the shared free budget resets at midnight utc, the same moment for everyone
         return now - now % 86400
 
     def allowance(user: dict) -> dict:
@@ -462,6 +486,25 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         used = db.user_cost_since(user["id"], day_start(now))
         cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
         return {"cap": cap, "used": round(used, 4), "resets_in": int(day_start(now) + 86400 - now)}
+    def pro_active(a: dict) -> bool:
+        return bool(a["pro"]) and a["pass_used"] < a["pro"]["budget"]
+
+    def tier_of(user: dict) -> str | None:
+        """max, pro, or none on the free plan. the admin has everything max has"""
+        if user["is_admin"]:
+            return "max"
+        a = allowance(user)
+        return billing.plan_info(a["pro"]["plan"])["tier"] if pro_active(a) else None
+
+    def is_pro(user: dict) -> bool:
+        # pro or max
+        return tier_of(user) is not None
+
+    def is_max(user: dict) -> bool:
+        return tier_of(user) == "max"
+
+    def free_mage_left(user: dict) -> bool:
+        return is_pro(user) or mage_used_today(user) < billing.free_mage_a_day
 
     def check_allowance(user: dict) -> None:
         # asked before anything that calls claude, the admin has no limit
@@ -469,9 +512,14 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if a["cap"] is not None and a["used"] >= a["cap"]:
             hours, minutes = divmod(a["resets_in"] // 60, 60)
             wait = f"{hours} hours" if hours >= 2 else f"{hours * 60 + minutes} minutes"
-            raise HTTPException(429, f"You've used today's study limit. It resets in about {wait}. Saved flashcards and tests still work.")
-        # a ceiling for everyone together, so many accounts can't run up the bill
-        if not user["is_admin"] and cfg.daily_budget > 0 and db.student_cost_since(day_start(time.time())) >= cfg.daily_budget:
+            extra = ""
+            if a["pro"] and not pro_active(a):
+                extra = " This Pro pass's allowance is used up, so you're on the free limit until it ends."
+            elif payments and not a["pro"]:
+                extra = " Rahah Pro gives you 10 times more each day."
+            raise HTTPException(429, f"You've used today's study limit. It resets in about {wait}. Saved flashcards and tests still work.{extra}")
+        # a ceiling for everyone on the free plan together, so many accounts can't run up the bill. pro doesn't count
+        if not user["is_admin"] and not pro_active(a) and cfg.daily_budget > 0 and db.free_student_cost_since(day_start(time.time())) >= cfg.daily_budget:
             hours = max(1, a["resets_in"] // 3600)
             raise HTTPException(429, f"Rahah has hit today's limit for everyone. It's back in about {hours} hours. Saved flashcards and tests still work.")
 
@@ -483,13 +531,26 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         a = allowance(user)
         if a["cap"] is None:
             return {"limited": False}
-        return {"limited": True, "percent": used_percent(a["used"], a["cap"]), "resets_in": a["resets_in"]}
+        out = {"limited": True, "percent": used_percent(a["used"], a["cap"]), "resets_in": a["resets_in"]}
+        if a["pro"]:
+            out["pro"] = {
+                "plan": a["pro"]["plan"], "until": db.pro_until(user["id"]),
+                # this pass's own start and end, for how the student's pace compares with its length
+                "starts": a["pro"]["starts"], "ends": a["pro"]["ends"],
+                "pass_percent": used_percent(a["pass_used"], a["pro"]["budget"]), "active": pro_active(a),
+                "tier": billing.plan_info(a["pro"]["plan"])["tier"],
+                # when max runs out, if pro days are waiting after it
+                "max_until": max((p["ends"] for p in db.passes_ahead(user["id"]) if billing.plan_info(p["plan"])["tier"] == "max"), default=None),
+            }
+        return out
 
     def check_choice(user: dict, choice: str) -> None:
         if choice not in choice_ids:
             raise HTTPException(400, "Pick a model from the list.")
         if choice == "archmage" and not user["is_admin"]:
-            raise HTTPException(403, "Archmage isn't available on student accounts. Pick Mage instead.")
+            raise HTTPException(403, "Archmage isn't available. Pick Mage for careful thinking.")
+        if choice == "mage" and not free_mage_left(user):
+            raise HTTPException(429, f"You've had today's {billing.free_mage_a_day} Mage answers. Acolyte is still here, or get Pro for unlimited Mage.")
 
     def own_subjects(user: dict) -> set[str]:
         return {s["id"] for s in db.list_subjects(user["id"])}
@@ -522,7 +583,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "google": bool(user["google_sub"]), "apple": bool(user["apple_sub"]),
             "findable": user["findable"], "photo": photo_url(user),
             "allowance": allowance_out(user),
-            "models": choices_for(user["is_admin"]),
+            # archmage is the admin's alone
+            "models": choices_for(user["is_admin"]), "tier": tier_of(user),
         }
 
     def start_session(request: Request, response: Response, user: dict) -> None:
@@ -589,6 +651,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if signups.full(address):
             raise HTTPException(429, "Too many accounts were made from this connection today. Try again tomorrow.")
         user = db.create_user(username, email, hash_password(body.password), " ".join(body.name.split()), admin=admin_for(email), agreed=True)
+        remember_referrer(user, body.ref)
         signups.add(address)
         start_session(request, response, user)
         return user_out(user)
@@ -682,7 +745,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     provider_names = {"google": "Google", "apple": "Apple"}
 
-    def provider_sign_in(request: Request, response: Response, provider: str, found_id: identity, agreed: bool = False) -> dict:
+    def remember_referrer(user: dict, ref: str) -> None:
+        friend = db.find_user_by("username", clean_username(ref)) if ref else None
+        if friend and friend["id"] != user["id"]:
+            db.update_user(user["id"], referred_by=friend["id"])
+
+    def provider_sign_in(request: Request, response: Response, provider: str, found_id: identity, agreed: bool = False, ref: str = "") -> dict:
         """signs in the account linked to this google or apple id, links it to the student signed in now,
         or makes a new account, but never joins an existing account just because the email matches"""
         field = f"{provider}_sub"
@@ -713,6 +781,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         while db.taken("username", username):
             username, n = f"{base}{n}", n + 1
         user = db.create_user(username, email, None, " ".join(found_id.name.split())[:60], admin=admin_for(email), agreed=True, **{field: found_id.sub})
+        remember_referrer(user, ref)
         signups.add(address)
         start_session(request, response, user)
         return user_out(user)
@@ -725,7 +794,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             found_id = verifiers["google"](body.credential)
         except provider_error as error:
             raise HTTPException(401, str(error))
-        return provider_sign_in(request, response, "google", found_id, body.agreed)
+        return provider_sign_in(request, response, "google", found_id, body.agreed, body.ref)
 
     @app.post("/api/auth/apple")
     def apple_sign_in(body: apple_in, request: Request, response: Response):
@@ -735,7 +804,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             found_id = verifiers["apple"](body.id_token, body.name)
         except provider_error as error:
             raise HTTPException(401, str(error))
-        return provider_sign_in(request, response, "apple", found_id, body.agreed)
+        return provider_sign_in(request, response, "apple", found_id, body.agreed, body.ref)
 
     @app.get("/api/me")
     def who_am_i(user: dict = Depends(signed_in)):
@@ -762,6 +831,210 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         if body.findable is not None:
             change["findable"] = body.findable
         return user_out(db.update_user(user["id"], **change))
+
+    # rahah pro, passes bought with m-pesa or card through paystack
+
+    def plan_out(key: str) -> dict:
+        p = billing.passes[key]
+        return {"id": key, "name": p["name"], "tier": p["tier"], "price": p["price"], "days": p["days"], "currency": billing.currency,
+                "usd": p["usd"]}
+
+    trials = counter(billing.trials_per_address, 86400)
+
+    def invite_url(request: Request, user: dict) -> str:
+        base = cfg.public_url or str(request.base_url).rstrip("/")
+        return f"{base}/?ref={user['username']}"
+
+    @app.get("/api/pro")
+    def pro_status(request: Request, user: dict = Depends(signed_in)):
+        return {
+            "enabled": bool(payments), "plans": [plan_out(k) for k in billing.passes], "kes_per_usd": billing.kes_per_usd,
+            "tiers": {k: t["multiplier"] for k, t in billing.tiers.items()},
+            "pro": allowance_out(user).get("pro"),
+            "trial": not user["is_admin"] and not db.ever_had_pass(user["id"]),
+            "invite": invite_url(request, user), "invite_days": db.count_passes(user["id"], "gift") * billing.free_passes["gift"]["days"],
+            "limits": {"chats": billing.free_recent_chats, "searches": billing.free_searches_a_day, "photos": billing.free_photo_marks_a_day,
+                       "mage": billing.free_mage_a_day, "notes": billing.free_notes, "pro_notes": billing.pro_notes, "max_notes": billing.max_notes},
+        }
+
+    @app.post("/api/pro/trial")
+    def start_trial(request: Request, user: dict = Depends(signed_in)):
+        # three days of pro, once per account, and only a couple from one connection a day so it can't be farmed
+        if user["is_admin"] or db.ever_had_pass(user["id"]):
+            raise HTTPException(400, "The free trial is for accounts that haven't had Pro yet.")
+        address = client_address(request)
+        if trials.full(address):
+            raise HTTPException(429, "Too many trials from this connection today. Try again tomorrow.")
+        trials.add(address)
+        trial = billing.free_passes["trial"]
+        db.grant_free_pass(user["id"], "trial", trial["days"], trial["budget"])
+        return {"pro": allowance_out(db.get_user(user["id"])).get("pro")}
+
+    def parent_report(user: dict, now: datetime) -> tuple[str, str]:
+        """the week's report for a parent, short and plain"""
+        first = (user["name"] or user["username"]).split(" ")[0]
+        offset = int(now.astimezone(board_zone).utcoffset().total_seconds() // 60)
+        stamp = now.timestamp()
+        week = weekly_report(db.quiz_attempts(user["id"]), db.card_activity(user["id"], stamp - 16 * 86400),
+                             db.question_times(user["id"], stamp - 16 * 86400), stamp, offset)
+        start = board.week_start(now, board_zone)
+        minutes = db.week_numbers([user["id"]], start.timestamp(), start.date().isoformat(),
+                                  lambda t: board.local_day(datetime.fromtimestamp(t, timezone.utc), board_zone))[user["id"]]["minutes"]
+        t = week["this"]
+        lines = [
+            f"Study time: {minutes // 60}h {minutes % 60}m" if minutes >= 60 else f"Study time: {minutes} minutes",
+            f"Days studied: {t['days']} of 7",
+            f"Tests: {t['tests']}" + (f", averaging {t['average']}%" if t["average"] is not None else ""),
+            f"Flashcards practised: {t['cards']}",
+            f"Questions asked: {t['questions']}",
+        ]
+        if week["best"]:
+            lines.append(f"Strongest subject: {week['best']['name']} ({week['best']['average']}%)")
+        if week["weakest"]:
+            lines.append(f"Worth more practice: {week['weakest']['name']} ({week['weakest']['average']}%)")
+        text = (
+            f"Hi,\n\nHere's how {first} did on Rahah this week:\n\n" + "\n".join(f"- {line}" for line in lines)
+            + f"\n\n{first} added you as their parent or guardian on Rahah. To stop these emails, reply to this one, "
+            f"or {first} can remove your email on their Account tab.\n\nRahah"
+        )
+        return f"{first} on Rahah this week", text
+
+    def send_parent_reports(now: datetime | None = None) -> int:
+        """on sunday from six in the evening, one report a week to each parent of a student on pro"""
+        now = now or datetime.now(timezone.utc)
+        local = now.astimezone(board_zone)
+        if local.weekday() != 6 or local.hour < 18:
+            return 0
+        week = local.date().isoformat()
+        sent = 0
+        for user in db.users_with_parent_email():
+            if user.get("parent_sent") == week or not is_pro(user):
+                continue
+            db.update_user(user["id"], parent_sent=week)
+            subject, text = parent_report(user, now)
+            try:
+                mailer(user["parent_email"], subject, text)
+                sent += 1
+            except Exception as error:
+                log.warning("couldn't send a parent report: %s", error)
+        return sent
+
+    @app.put("/api/me/parent")
+    def set_parent(body: parent_in, user: dict = Depends(signed_in)):
+        # a parent or guardian who gets a short report each week while the student is on pro
+        email = clean_email(body.email) if body.email.strip() else ""
+        if email:
+            problem = email_problem(email)
+            if problem:
+                raise HTTPException(400, problem)
+            if email == user["email"]:
+                raise HTTPException(400, "That's your own email. Add a parent or guardian's.")
+        return user_out(db.update_user(user["id"], parent_email=email, parent_sent=""))
+
+    @app.post("/api/pro/checkout")
+    async def pro_checkout(body: checkout_in, request: Request, user: dict = Depends(signed_in)):
+        if not payments:
+            raise HTTPException(404, "Rahah Pro isn't open yet.")
+        plan = billing.passes.get(body.plan)
+        if not plan:
+            raise HTTPException(400, "Pick Pro or Max, for a week, a month or a term.")
+        if not user["email"]:
+            raise HTTPException(400, "Add your email on the Account tab first, Paystack sends the receipt there.")
+        reference = billing.new_reference()
+        db.add_payment(reference, user["id"], body.plan, plan["price"])
+        base = cfg.public_url or str(request.base_url).rstrip("/")
+        try:
+            started = await asyncio.to_thread(payments.start, user["email"], plan["price"], reference, f"{base}/?paid=1", body.plan)
+        except Exception as error:
+            log.warning("paystack checkout failed: %s", error)
+            db.mark_payment(reference, "failed")
+            raise HTTPException(502, "Paystack didn't open the payment just now. Try again in a moment.")
+        if isinstance(started, str):
+            started = {"url": started}
+        return {"url": started["url"], "access_code": started.get("access_code", ""), "reference": reference}
+
+    def settle(reference: str, found: dict) -> dict | None:
+        """checks what paystack says against what was asked for, then gives the pass, once"""
+        pay = db.get_payment(reference)
+        if not pay:
+            return None
+        plan = billing.passes.get(billing.old_passes.get(pay["plan"], pay["plan"]))
+        if found.get("status") != "success":
+            if found.get("status") in ("failed", "abandoned", "reversed"):
+                db.mark_payment(reference, found["status"])
+            return None
+        if not plan or found.get("amount") != pay["amount"] * 100 or (found.get("currency") or "").upper() != billing.currency:
+            log.warning("a paystack payment didn't match what was asked for: %s", reference)
+            return None
+        made = db.grant_pass(reference, plan["days"], plan["budget"], lower=billing.plans_below(plan["tier"]))
+        if made:
+            reward_referrer(made["user_id"])
+            if made.get("new") and reset_by_email:
+                # sent beside the request, so a slow mail server doesn't hold up the payment
+                threading.Thread(target=send_receipt, args=(made, plan, pay), daemon=True).start()
+        return made
+
+    def send_receipt(made: dict, plan: dict, pay: dict) -> None:
+        """a short email to the student with what they bought, when it runs, and the terms"""
+        buyer = db.get_user(made["user_id"])
+        if not buyer or not buyer["email"]:
+            return
+        tz = zone_of(buyer)
+        day = lambda t: datetime.fromtimestamp(t, tz).strftime("%a %d %b %Y")
+        first = (buyer["name"] or buyer["username"]).split(" ")[0]
+        tier = billing.tiers[plan["tier"]]
+        tier_name, multiplier = tier["name"], plan.get("multiplier", tier["multiplier"])
+        runs = f"{day(made['starts'])} to {day(made['ends'])}" + ("" if made["starts"] <= time.time() + 60 else ", after your current pass")
+        text = receipt.receipt_text(first, tier_name, plan["name"], multiplier, pay["amount"], plan["usd"], runs, made["reference"],
+                                    cfg.public_url or "https://rahah.onrender.com", cfg.support_email)
+        try:
+            picture = receipt.receipt_image(first, plan["tier"], tier_name, plan["name"], multiplier, pay["amount"], plan["usd"], runs,
+                                            day(time.time()), made["reference"], cfg.support_email)
+            mailer(buyer["email"], f"Your Rahah {plan['name']} is ready", text, ("rahah-receipt.png", picture, "image/png"))
+        except Exception as error:
+            log.warning("couldn't send a receipt email: %s", error)
+
+    def reward_referrer(buyer_id: str) -> None:
+        buyer = db.get_user(buyer_id)
+        if not buyer or not buyer.get("referred_by") or buyer.get("referral_rewarded"):
+            return
+        db.update_user(buyer_id, referral_rewarded=1)
+        friend = db.get_user(buyer["referred_by"])
+        if friend and not friend["disabled"]:
+            gift = billing.free_passes["gift"]
+            db.grant_free_pass(friend["id"], "gift", gift["days"], gift["budget"])
+
+    @app.get("/api/pro/verify/{reference}")
+    async def pro_verify(reference: str, user: dict = Depends(signed_in)):
+        pay = db.get_payment(reference)
+        if not pay or pay["user_id"] != user["id"]:
+            raise HTTPException(404, "That payment isn't on your account.")
+        if pay["status"] != "paid":
+            if not payments:
+                raise HTTPException(404, "Rahah Pro isn't open yet.")
+            try:
+                found = await asyncio.to_thread(payments.check, reference)
+            except Exception as error:
+                log.warning("paystack verify failed: %s", error)
+                raise HTTPException(502, "Couldn't check the payment with Paystack just now. Refresh in a moment.")
+            settle(reference, found)
+        pay = db.get_payment(reference)
+        return {"status": pay["status"], "pro": allowance_out(db.get_user(user["id"])).get("pro")}
+
+    @app.post("/api/paystack/webhook")
+    async def paystack_webhook(request: Request):
+        # paystack tells rahah about payments here too, so a pass is given even if the student closed the page
+        body = await request.body()
+        if not billing.signature_ok(cfg.paystack_secret, body, request.headers.get("x-paystack-signature")):
+            raise HTTPException(401, "Not from Paystack.")
+        try:
+            event = json.loads(body)
+        except ValueError:
+            raise HTTPException(400, "That wasn't readable.")
+        data = event.get("data") or {}
+        if event.get("event") == "charge.success" and data.get("reference"):
+            settle(data["reference"], data)
+        return {"ok": True}
 
     @app.post("/api/me/photo")
     async def set_photo(file: UploadFile = File(...), user: dict = Depends(signed_in)):
@@ -1028,7 +1301,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     @app.get("/api/conversations")
     def list_conversations(user: dict = Depends(signed_in)):
-        return {"conversations": db.list_conversations(user["id"])}
+        if is_pro(user):
+            return {"conversations": db.list_conversations(user["id"], limit=200), "hidden": 0}
+        shown = db.list_conversations(user["id"], limit=billing.free_recent_chats)
+        return {"conversations": shown, "hidden": max(0, db.count_conversations(user["id"]) - len(shown))}
 
     @app.post("/api/conversations")
     def new_conversation(body: new_conversation_in, user: dict = Depends(signed_in)):
@@ -1041,7 +1317,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         words = " ".join(q.split())[:100]
         if len(words) < 2:
             return {"results": []}
-        return {"results": db.search_chats(user["id"], words)}
+        return {"results": db.search_chats(user["id"], words, newest=None if is_pro(user) else billing.free_recent_chats)}
 
     @app.get("/api/conversations/{conversation_id}")
     def get_conversation(conversation_id: str, user: dict = Depends(signed_in)):
@@ -1057,10 +1333,11 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     @app.post("/api/files")
     async def upload_file(conversation_id: str = Form(...), file: UploadFile = File(...), user: dict = Depends(signed_in)):
         conversation_or_404(user, conversation_id)
-        limit = cfg.max_upload_mb * 1024 * 1024
+        upload_mb = cfg.max_upload_mb * (2 if is_pro(user) else 1)
+        limit = upload_mb * 1024 * 1024
         data = await file.read(limit + 1)
         if len(data) > limit:
-            raise HTTPException(413, f"Files can be up to {cfg.max_upload_mb} MB.")
+            raise HTTPException(413, f"Files can be up to {upload_mb} MB." + ("" if is_pro(user) else " Pro doubles that."))
         if not data:
             raise HTTPException(400, "That file is empty.")
         name = Path(file.filename or "file").name[:120]
@@ -1083,12 +1360,14 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     async def add_note(mode: str = Form(default_mode), file: UploadFile = File(...), user: dict = Depends(signed_in)):
         # a file kept in the notes library under a subject, uploaded to claude once
         check_mode(user, mode)
-        if db.count_notes(user["id"]) >= max_notes:
-            raise HTTPException(400, f"Your notes can hold up to {max_notes} files. Remove some first.")
-        limit = cfg.max_upload_mb * 1024 * 1024
+        room = billing.max_notes if is_max(user) else billing.pro_notes if is_pro(user) else billing.free_notes
+        if db.count_notes(user["id"]) >= room:
+            raise HTTPException(400, f"Your notes can hold up to {room} files. Remove some first." + ("" if is_max(user) else f" Max holds {billing.max_notes}." if is_pro(user) else f" Pro holds {billing.pro_notes}."))
+        upload_mb = cfg.max_upload_mb * (2 if is_pro(user) else 1)
+        limit = upload_mb * 1024 * 1024
         data = await file.read(limit + 1)
         if len(data) > limit:
-            raise HTTPException(413, f"Files can be up to {cfg.max_upload_mb} MB.")
+            raise HTTPException(413, f"Files can be up to {upload_mb} MB." + ("" if is_pro(user) else " Pro doubles that."))
         if not data:
             raise HTTPException(400, "That file is empty.")
         name = Path(file.filename or "file").name[:120]
@@ -1178,6 +1457,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
         async def routed():
             stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort)
+        async def attempt(messages: list[dict]):
+            stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=use.model, effort=use.effort, search=search)
             backup = stall_backup(cfg, use)
             if backup:
                 try:
@@ -1189,7 +1470,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                     db.add_usage(user["id"], "stall", {"model": use.model, "input_tokens": 0, "output_tokens": 0,
                                                         "cache_read": 0, "cache_write": 0, "searches": 0}, 0.0)
                     answered["route"] = backup
-                    stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=backup.model, effort=backup.effort)
+                    stream = stream_reply(claude(), cfg, messages, code=code, container=container, model=backup.model, effort=backup.effort, search=search)
                 except StopAsyncIteration:
                     return
                 else:
@@ -1447,7 +1728,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         try:
             job = running.start(user["id"])
             try:
-                return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage(user, "marking"))
+                return await mark_answer(claude(), cfg, items[index], study_set["mode"], answer, shot, on_usage=log_usage(user, "marking_photo" if shot else "marking"))
             finally:
                 running.finish(user["id"], job)
         except study_error as error:
@@ -1628,6 +1909,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         minutes = db.add_study_minute(user["id"], board.local_day(now, board_zone), now.timestamp(), board.max_minutes_a_day)
         return {"minutes_today": minutes}
 
+        # every student who can be found, and the admin
+        return not person["disabled"] and (person["is_admin"] or person["findable"])
+
     @app.get("/api/leaderboard")
     def leaderboard(user: dict = Depends(signed_in)):
         now = datetime.now(timezone.utc)
@@ -1643,16 +1927,17 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         for uid, person in people.items():
             n = numbers[uid]
             rows.append({
-                "username": person["username"], "name": board.first_name(person["name"], person["username"]), "photo": photo_url(person),
+                "username": person["username"], "name": board.first_name(person["name"], person["username"]),
+                "photo": photo_url(person),
                 "points": board.points_for(n["marks"], n["cards"], n["minutes"], n["days"]),
                 "minutes": n["minutes"], "marks": n["marks"], "cards": n["cards"], "days": n["days"],
-                "accuracy": n["accuracy"], "you": uid == user["id"],
+                "accuracy": n["accuracy"], "you": uid == user["id"], "pro": None if person["is_admin"] else tier_of(person),
             })
         rows.sort(key=lambda r: (-r["points"], not r["you"], r["username"].lower()))
         for place, row in enumerate(rows, 1):
             row["place"] = place
         mine = next(r for r in rows if r["you"])
-        # the race: the friend just ahead and the one just behind, and test accuracy among those who took tests
+        # the race: the student just ahead and the one just behind, and test accuracy among those who took tests
         ahead = next((r for r in reversed(rows) if r["points"] > mine["points"]), None)
         behind = next((r for r in rows if r["points"] < mine["points"]), None)
         tested = sorted((r for r in rows if r["accuracy"] is not None), key=lambda r: -r["accuracy"])
@@ -1664,6 +1949,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "accuracy_place": next((i for i, r in enumerate(tested, 1) if r["you"]), None),
             "tested": len(tested),
             "top_points": rows[0]["points"],
+            "place": mine["place"], "total": len(rows),
         }
         return {
             "week_start": start.date().isoformat(), "board": rows, "standing": standing,

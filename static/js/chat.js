@@ -87,6 +87,9 @@ function add_notice(message_el, text) {
     const note = document.createElement("p");
     note.className = "notice";
     note.textContent = text;
+    if (text.includes("Rahah Pro gives you")) {
+        note.insertAdjacentHTML("beforeend", ' <a class="support-link" href="#/account">Get Rahah Pro</a>');
+    }
     message_el.appendChild(note);
 }
 
@@ -933,6 +936,10 @@ function close_model_menu(refocus = false) {
 
 el("model-pick").addEventListener("click", () => (el("model-menu").hidden ? open_model_menu() : close_model_menu()));
 el("model-menu").addEventListener("click", (event) => {
+    if (event.target.closest(".model-locked")) {
+        close_model_menu();
+        return;
+    }
     if (event.target.closest("[data-lang-open]")) {
         open_language_list();
         return;

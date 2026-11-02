@@ -57,7 +57,7 @@ function find_people(words, done) {
     }, 250);
 }
 
-// the leaderboard page, this week's points for the student and their friends
+// the leaderboard page, this week's points for the student and their friends, or for everyone
 
 function show_leaderboard() {
     if (state.busy) return;
@@ -81,12 +81,16 @@ async function load_leaderboard() {
 function render_leaderboard() {
     const page = el("leaderboard");
     if (!page || !state.board) return;
-    const { board, above, rules, standing } = state.board;
+    const { board, above, rules, standing, scope } = state.board;
     const f = state.friends || { friends: [], asked: [], sent: [] };
     const alone = board.length === 1;
     // a search in progress stays put when the page redraws after adding someone
     const typed = el("people-search")?.value || "";
-    const headline = alone ? "Add friends to see how you compare." : above === 0 ? "You're top of your friends this week." : `${above} friend${above === 1 ? " is" : "s are"} above you.`;
+    const headline = everyone
+        ? (alone ? "Just you so far." : above === 0 ? "You're top of Rahah this week." : `You're number ${standing.place} this week.`)
+        : (alone ? "Add friends to see how you compare." : above === 0 ? "You're top of your friends this week." : `${above} friend${above === 1 ? " is" : "s are"} above you.`);
+    // the pro or max badge sits at the far right, in a slot every row keeps so the points line up
+    const badges = board.some((r) => r.pro);
     // the top three get gold, silver and bronze, once they've scored something
     const medal = (r) => (r.place <= 3 && r.points > 0 ? ["gold", "silver", "bronze"][r.place - 1] : "");
     const trophy = '<svg class="board-trophy" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h10v5.5a5 5 0 0 1-10 0z"/><path d="M7 5.5H4.5a3 3 0 0 0 3 4.3M17 5.5h2.5a3 3 0 0 1-3 4.3"/><path d="M12 14v3.5"/><path d="M8.5 21h7l-1-3.5h-5z"/></svg>';

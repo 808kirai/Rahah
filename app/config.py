@@ -25,7 +25,7 @@ class settings:
     max_upload_mb: int = 30
     max_tokens: int = 64000
     # what each student can spend in a day, in dollars, unless the admin sets their own amount
-    daily_cap: float = 0.50
+    daily_cap: float = 0.15
     # once rahah is served over https, cookies are only sent over it and browsers are told to stay on it
     https: bool = False
     # the account with this email is the admin, left blank the first account made is, fine on your own computer
@@ -52,6 +52,9 @@ class settings:
     alert_email: str = ""
     # the leaderboard's week starts on monday at midnight here, and study days are counted here
     leaderboard_zone: str = "Africa/Nairobi"
+    # rahah pro, paid through paystack, hidden until the secret key is set
+    paystack_secret: str = ""
+    paystack_public: str = ""
     # where students write for help, password resets and other requests
     support_email: str = "studywithrahah@gmail.com"
     # sign in with google and apple stay hidden until these are set
@@ -90,6 +93,8 @@ def load_settings() -> settings:
         backup_email=os.getenv("RAHAH_BACKUP_EMAIL", "").strip(),
         alert_email=os.getenv("RAHAH_ALERT_EMAIL", "").strip(),
         leaderboard_zone=os.getenv("RAHAH_LEADERBOARD_ZONE", "Africa/Nairobi").strip() or "Africa/Nairobi",
+        paystack_secret=os.getenv("PAYSTACK_SECRET_KEY", "").strip(),
+        paystack_public=os.getenv("PAYSTACK_PUBLIC_KEY", "").strip(),
         google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
         apple_client_id=os.getenv("APPLE_CLIENT_ID", ""),
     )

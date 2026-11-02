@@ -20,11 +20,12 @@ from fastapi.responses import JSONResponse
 static_dir = Path(__file__).resolve().parent.parent / "static"
 
 # sites the page loads code, styles, fonts and sign in from, nothing else may run
-script_hosts = "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://accounts.google.com https://appleid.cdn-apple.com"
+script_hosts = "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://accounts.google.com https://appleid.cdn-apple.com https://js.paystack.co"
 style_hosts = "https://fonts.googleapis.com https://cdnjs.cloudflare.com https://accounts.google.com"
 font_hosts = "https://fonts.gstatic.com https://cdnjs.cloudflare.com"
-frame_hosts = "https://accounts.google.com https://appleid.apple.com"
-fetch_hosts = "https://accounts.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com"
+# paystack's popup checkout opens in a frame from paystack
+frame_hosts = "https://accounts.google.com https://appleid.apple.com https://checkout.paystack.com https://*.paystack.co"
+fetch_hosts = "https://accounts.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.paystack.co"
 
 
 def inline_script_hashes() -> list[str]:

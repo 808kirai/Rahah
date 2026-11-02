@@ -36,6 +36,26 @@ create table if not exists users (
     created real not null,
     last_seen real
 );
+create table if not exists payments (
+    reference text primary key,
+    user_id text references users(id) on delete set null,
+    plan text not null,
+    amount integer not null,
+    status text not null default 'pending',
+    created real not null,
+    paid real
+);
+create table if not exists passes (
+    id integer primary key autoincrement,
+    user_id text not null references users(id) on delete cascade,
+    plan text not null,
+    starts real not null,
+    ends real not null,
+    budget real not null,
+    reference text unique,
+    created real not null
+);
+create index if not exists passes_by_user on passes(user_id, ends);
 create table if not exists friends (
     requester text not null references users(id) on delete cascade,
     addressee text not null references users(id) on delete cascade,
@@ -256,6 +276,14 @@ class store:
                 db.execute("alter table users add column avatar text not null default ''")
             # drawn faces came before photos, and are dropped
             db.execute("update users set avatar = '' where avatar != '' and avatar not like 'p!_%' escape '!'")
+            # who brought this student to rahah, and whether that friend got their reward yet
+            if "referred_by" not in columns:
+                db.execute("alter table users add column referred_by text")
+                db.execute("alter table users add column referral_rewarded integer not null default 0")
+            # a parent or guardian who gets a weekly report while the student is on pro, and the last week sent
+            if "parent_email" not in columns:
+                db.execute("alter table users add column parent_email text not null default ''")
+                db.execute("alter table users add column parent_sent text not null default ''")
             # whether other students can find this account in friend search
             if "findable" not in columns:
                 db.execute("alter table users add column findable integer not null default 1")
@@ -393,6 +421,137 @@ class store:
             row = db.execute("select coalesce(sum(cost), 0) from usage where user_id = ? and created >= ?", (user_id, start)).fetchone()
         return row[0]
 
+    # rahah pro, payments started through paystack and the passes they bought
+
+    def add_payment(self, reference: str, user_id: str, plan: str, amount: int) -> None:
+        with self._connect() as db:
+            db.execute(
+                "insert into payments (reference, user_id, plan, amount, created) values (?, ?, ?, ?, ?)",
+                (reference, user_id, plan, amount, time.time()),
+            )
+
+    def get_payment(self, reference: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("select * from payments where reference = ?", (reference,)).fetchone()
+        return dict(row) if row else None
+
+    def grant_pass(self, reference: str, days: int, budget: float, lower: set[str] = frozenset()) -> dict | None:
+        """turns a paid payment into a pass, once. a pass bought while another is running starts when that one ends,
+        unless the running one is a lower tier, named in lower: then the new one starts now and the lower passes
+        pick up after it, with what was left of them"""
+        now = time.time()
+        with self._connect() as db:
+            pay = db.execute("select * from payments where reference = ?", (reference,)).fetchone()
+            if not pay or not pay["user_id"]:
+                return None
+            if pay["status"] != "paid":
+                db.execute("update payments set status = 'paid', paid = ? where reference = ? and status != 'paid'", (now, reference))
+            made = db.execute("select * from passes where reference = ?", (reference,)).fetchone()
+            if made:
+                return dict(made)
+            waiting = [dict(r) for r in db.execute(
+                "select * from passes where user_id = ? and ends > ? order by starts", (pay["user_id"], now))]
+            moved = [w for w in waiting if w["plan"] in lower]
+            latest = max((w["ends"] for w in waiting if w["plan"] not in lower), default=now)
+            starts = max(now, latest)
+            db.execute(
+                "insert into passes (user_id, plan, starts, ends, budget, reference, created) values (?, ?, ?, ?, ?, ?, ?)",
+                (pay["user_id"], pay["plan"], starts, starts + days * 86400, budget, reference, now),
+            )
+            cursor = starts + days * 86400
+            for w in moved:
+                if w["starts"] <= now:
+                    # the running one keeps the time and allowance it had left
+                    length = w["ends"] - now
+                    spent = db.execute("select coalesce(sum(cost), 0) from usage where user_id = ? and created >= ?",
+                                       (w["user_id"], w["starts"])).fetchone()[0]
+                    left = max(0.0, w["budget"] - spent)
+                else:
+                    length, left = w["ends"] - w["starts"], w["budget"]
+                db.execute("update passes set starts = ?, ends = ?, budget = ? where id = ?", (cursor, cursor + length, left, w["id"]))
+                cursor += length
+            # marked new, so the receipt email goes out only the first time
+            return {**dict(db.execute("select * from passes where reference = ?", (reference,)).fetchone()), "new": True}
+
+    def grant_free_pass(self, user_id: str, plan: str, days: int, budget: float) -> dict:
+        """a pass nobody paid for, like the trial or a friend reward, lined up after any running pass"""
+        now = time.time()
+        with self._connect() as db:
+            latest = db.execute("select max(ends) from passes where user_id = ? and ends > ?", (user_id, now)).fetchone()[0]
+            starts = max(now, latest or now)
+            cursor = db.execute(
+                "insert into passes (user_id, plan, starts, ends, budget, created) values (?, ?, ?, ?, ?, ?)",
+                (user_id, plan, starts, starts + days * 86400, budget, now),
+            )
+            return dict(db.execute("select * from passes where id = ?", (cursor.lastrowid,)).fetchone())
+
+    def ever_had_pass(self, user_id: str) -> bool:
+        with self._connect() as db:
+            return db.execute("select 1 from passes where user_id = ? limit 1", (user_id,)).fetchone() is not None
+
+    def count_passes(self, user_id: str, plan: str) -> int:
+        with self._connect() as db:
+            return db.execute("select count(*) from passes where user_id = ? and plan = ?", (user_id, plan)).fetchone()[0]
+
+    def usage_count_since(self, user_id: str, start: float, kind: str | None = None, model: str | None = None) -> int:
+        # how many requests of a kind, or to a model, the student made since start
+        sql, args = "select count(*) from usage where user_id = ? and created >= ?", [user_id, start]
+        if kind:
+            sql, args = sql + " and kind = ?", args + [kind]
+        if model:
+            sql, args = sql + " and model = ?", args + [model]
+        with self._connect() as db:
+            return db.execute(sql, args).fetchone()[0]
+
+    def searches_since(self, user_id: str, start: float) -> int:
+        with self._connect() as db:
+            return db.execute("select coalesce(sum(searches), 0) from usage where user_id = ? and created >= ?", (user_id, start)).fetchone()[0]
+
+    def count_conversations(self, user_id: str) -> int:
+        with self._connect() as db:
+            return db.execute("select count(*) from conversations where user_id = ? and title != ''", (user_id,)).fetchone()[0]
+
+    def users_with_parent_email(self) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute("select * from users where parent_email != '' and disabled = 0").fetchall()
+        return [self._user(r) for r in rows]
+
+    def mark_payment(self, reference: str, status: str) -> None:
+        with self._connect() as db:
+            db.execute("update payments set status = ? where reference = ? and status = 'pending'", (status, reference))
+
+    def active_pass(self, user_id: str, now: float | None = None) -> dict | None:
+        now = now or time.time()
+        with self._connect() as db:
+            row = db.execute(
+                "select * from passes where user_id = ? and starts <= ? and ends > ? order by starts desc limit 1",
+                (user_id, now, now),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def passes_ahead(self, user_id: str) -> list[dict]:
+        # the running pass and any lined up after it, in order
+        with self._connect() as db:
+            rows = db.execute("select * from passes where user_id = ? and ends > ? order by starts", (user_id, time.time())).fetchall()
+        return [dict(r) for r in rows]
+
+    def pro_until(self, user_id: str) -> float | None:
+        # when the last pass bought runs out, counting ones lined up after the current one
+        with self._connect() as db:
+            return db.execute("select max(ends) from passes where user_id = ? and ends > ?", (user_id, time.time())).fetchone()[0]
+
+    def free_student_cost_since(self, start: float) -> float:
+        # what students without a pass spent, so paying students don't use up the free budget
+        now = time.time()
+        with self._connect() as db:
+            row = db.execute(
+                "select coalesce(sum(u.cost), 0) from usage u join users s on s.id = u.user_id "
+                "where u.created >= ? and s.is_admin = 0 and not exists "
+                "(select 1 from passes p where p.user_id = u.user_id and p.starts <= ? and p.ends > ?)",
+                (start, now, now),
+            ).fetchone()
+        return row[0]
+
     def student_cost_since(self, start: float) -> float:
         # what every student together has spent, the admin's own use isn't counted
         with self._connect() as db:
@@ -427,6 +586,7 @@ class store:
 
     def session_user(self, token: str) -> dict | None:
         now = time.time()
+        hashed = token_hash(token)
         with self._connect() as db:
             row = db.execute(
                 "select u.* from sessions s join users u on u.id = s.user_id where s.token = ? and s.expires > ?",
@@ -683,7 +843,7 @@ class store:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def search_chats(self, uid: str, words: str, limit: int = 20) -> list[dict]:
+    def search_chats(self, uid: str, words: str, limit: int = 20, newest: int | None = None) -> list[dict]:
         """chats whose title or messages contain the words, newest first, each with a snippet around the match"""
         # ! marks a percent or underscore the student typed, so they're searched for as themselves
         like = "%" + words.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
@@ -694,8 +854,10 @@ class store:
                 "order by m.id limit 1) as hit "
                 "from conversations c where c.user_id = ? and c.title != '' and (c.title like ? escape '!' or exists ("
                 "select 1 from messages m where m.conversation_id = c.id and m.display like ? escape '!')) "
-                "order by c.updated desc limit ?",
-                (like, uid, like, like, limit),
+                # on the free plan only the newest chats are searched
+                + ("and c.id in (select id from conversations where user_id = ? and title != '' order by updated desc limit ?) " if newest else "")
+                + "order by c.updated desc limit ?",
+                (like, uid, like, like, *((uid, newest) if newest else ()), limit),
             ).fetchall()
         found = []
         for r in rows:
