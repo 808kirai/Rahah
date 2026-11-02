@@ -4109,6 +4109,13 @@ body:not(.is-page) .me-face {
     object-fit: contain;
 }
 
+/* the live picture fills the box, which takes the camera's shape, kept short enough to leave room for the buttons */
+.camera-stage {
+    max-height: 62vh;
+}
+
+.camera-stage video {
+    object-fit: cover;
 }
 
 .camera-stage video[hidden],

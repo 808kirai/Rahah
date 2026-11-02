@@ -1233,6 +1233,9 @@ async function start_camera() {
         camera_video.srcObject = camera.stream;
         camera_video.classList.toggle("mirror", camera.facing === "user");
         await camera_video.play();
+        // the box takes the camera's own shape, so the picture fills it with no black bars and the photo
+        // is exactly what was shown
+        if (camera_video.videoWidth) el("camera-video").parentElement.style.aspectRatio = `${camera_video.videoWidth} / ${camera_video.videoHeight}`;
         const devices = await navigator.mediaDevices.enumerateDevices();
         el("camera-flip").hidden = devices.filter((d) => d.kind === "videoinput").length < 2;
     } catch (error) {
