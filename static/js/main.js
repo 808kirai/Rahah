@@ -1207,7 +1207,7 @@ function draw_plans() {
         </div>
         <div class="plan-grid">${free}${paid}</div>
         ${day_strip}
-        <p class="field-hint plans-note" id="pro-note">Paid through Paystack in shillings, at about KES ${state.pro.kes_per_usd} to $1. We never see your card or M-Pesa PIN.</p>
+        <p class="field-hint plans-note" id="pro-note" hidden></p>
     </section>`;
     // where the plans are a swipe row, it opens on pro
     const grid = el("pro-slot").querySelector(".plan-grid");
@@ -1303,7 +1303,7 @@ thread.addEventListener("click", async (event) => {
                 location.href = url;
             },
         });
-        account_note("pro-note", "Paid through Paystack. We never see your card or M-Pesa PIN.");
+        el("pro-note").hidden = true;
     } catch (error) {
         plan.disabled = false;
         account_note("pro-note", error.message);
