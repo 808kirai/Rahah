@@ -819,28 +819,20 @@ function show_account() {
     load_usage();
 }
 
-// a photo from the gallery, cut to its middle square and made smaller here first so it uploads quickly
-// on a slow connection. the server squares and cleans it again, so this only saves data
-async function square_profile_photo(file) {
-    try {
-        const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-        const side = Math.min(bitmap.width, bitmap.height);
-        const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = Math.min(512, side);
-        canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, canvas.width, canvas.height);
-        return await new Promise((done) => canvas.toBlob((blob) => done(blob || file), "image/jpeg", 0.9));
-    } catch (e) {
-        return file;
-    }
-}
-
 thread.addEventListener("change", async (event) => {
-    // from the pen on the picture at the top, or the button on the picture card
+    // from the pen on the picture at the top, or the button on the picture card, the student crops it first
     if (!event.target.matches("[data-photo-input]") || !event.target.files[0]) return;
+    const file = event.target.files[0];
+    event.target.value = "";
+    const cropped = await crop_photo(file);
+    if (cropped) upload_profile_photo(cropped);
+});
+
+async function upload_profile_photo(blob) {
     account_note("photo-note", "Uploading your photo…");
     try {
         const form = new FormData();
-        form.append("file", await square_profile_photo(event.target.files[0]), "photo.jpg");
+        form.append("file", blob, "photo.jpg");
         state.me = await (await api("/api/me/photo", { method: "POST", body: form })).json();
         remember_me(state.me);
         render_account();
@@ -848,7 +840,91 @@ thread.addEventListener("change", async (event) => {
     } catch (error) {
         account_note("photo-note", error.message);
     }
+}
+
+// cropping: the photo fills a square, the student drags it and zooms until the part they want sits in the
+// circle, and that square is cut out at 512 pixels. gives null if they cancel
+const crop = { k: 1, base: 1, x: 0, y: 0, w: 0, h: 0, size: 0, done: null, drag: null };
+
+function crop_place() {
+    const shown_w = crop.w * crop.k, shown_h = crop.h * crop.k;
+    crop.x = Math.min(0, Math.max(crop.size - shown_w, crop.x));
+    crop.y = Math.min(0, Math.max(crop.size - shown_h, crop.y));
+    const image = el("crop-image");
+    image.style.width = `${shown_w}px`;
+    image.style.height = `${shown_h}px`;
+    image.style.transform = `translate(${crop.x}px, ${crop.y}px)`;
+}
+
+function crop_zoom_to(zoom) {
+    // zooming keeps the middle of the circle on the same spot of the photo
+    const middle_x = (crop.size / 2 - crop.x) / crop.k, middle_y = (crop.size / 2 - crop.y) / crop.k;
+    crop.k = crop.base * zoom;
+    crop.x = crop.size / 2 - middle_x * crop.k;
+    crop.y = crop.size / 2 - middle_y * crop.k;
+    crop_place();
+}
+
+function crop_photo(file) {
+    return new Promise((resolve) => {
+        const image = el("crop-image");
+        const url = URL.createObjectURL(file);
+        crop.done = (result) => {
+            crop.done = null;
+            URL.revokeObjectURL(url);
+            if (el("crop-sheet").open) el("crop-sheet").close();
+            resolve(result);
+        };
+        image.onload = () => {
+            el("crop-sheet").showModal();
+            crop.size = el("crop-stage").clientWidth;
+            crop.w = image.naturalWidth;
+            crop.h = image.naturalHeight;
+            crop.base = crop.size / Math.min(crop.w, crop.h);
+            crop.k = crop.base;
+            crop.x = (crop.size - crop.w * crop.k) / 2;
+            crop.y = (crop.size - crop.h * crop.k) / 2;
+            el("crop-zoom").value = 1;
+            crop_place();
+        };
+        image.onerror = () => {
+            account_note("photo-note", "That file isn't a photo Rahah can open.");
+            crop.done(null);
+        };
+        image.src = url;
+    });
+}
+
+async function crop_result() {
+    const image = el("crop-image");
+    const side = crop.size / crop.k;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = Math.round(Math.min(512, side));
+    canvas.getContext("2d").drawImage(image, -crop.x / crop.k, -crop.y / crop.k, side, side, 0, 0, canvas.width, canvas.height);
+    return await new Promise((done) => canvas.toBlob(done, "image/jpeg", 0.9));
+}
+
+el("crop-zoom").addEventListener("input", (event) => crop_zoom_to(Number(event.target.value)));
+el("crop-stage").addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const zoom = Math.min(4, Math.max(1, Number(el("crop-zoom").value) - event.deltaY * 0.002));
+    el("crop-zoom").value = zoom;
+    crop_zoom_to(zoom);
+}, { passive: false });
+el("crop-stage").addEventListener("pointerdown", (event) => {
+    crop.drag = { id: event.pointerId, x: event.clientX - crop.x, y: event.clientY - crop.y };
+    el("crop-stage").setPointerCapture(event.pointerId);
 });
+el("crop-stage").addEventListener("pointermove", (event) => {
+    if (!crop.drag || crop.drag.id !== event.pointerId) return;
+    crop.x = event.clientX - crop.drag.x;
+    crop.y = event.clientY - crop.drag.y;
+    crop_place();
+});
+["pointerup", "pointercancel"].forEach((name) => el("crop-stage").addEventListener(name, () => (crop.drag = null)));
+el("crop-use").addEventListener("click", async () => crop.done?.(await crop_result()));
+["crop-cancel", "crop-close"].forEach((id) => el(id).addEventListener("click", () => crop.done?.(null)));
+el("crop-sheet").addEventListener("close", () => crop.done?.(null));
 
 // the student's picture beside rahah's name at the top, a way to the account tab
 function render_me_face() {

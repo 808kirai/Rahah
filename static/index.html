@@ -311,6 +311,28 @@
         </div>
     </dialog>
 
+    <dialog class="sheet crop-sheet" id="crop-sheet" aria-labelledby="crop-title">
+        <div class="sheet-form">
+            <div class="sheet-top">
+                <h2 id="crop-title">Crop your photo</h2>
+                <button class="icon-btn" type="button" id="crop-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <div class="crop-stage" id="crop-stage">
+                <img id="crop-image" alt="Your photo" draggable="false">
+                <div class="crop-ring" aria-hidden="true"></div>
+            </div>
+            <p class="field-hint crop-hint">Drag to move it. Zoom to fit.</p>
+            <input class="crop-zoom" id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom">
+            <div class="camera-actions">
+                <span class="spacer"></span>
+                <button class="btn btn-ghost" type="button" id="crop-cancel">Cancel</button>
+                <button class="btn btn-accent" type="button" id="crop-use">Use photo</button>
+            </div>
+        </div>
+    </dialog>
+
     <dialog class="sheet" id="reminder-sheet" aria-labelledby="reminder-title">
         <form class="sheet-form" id="reminder-form" novalidate>
             <div class="sheet-top">

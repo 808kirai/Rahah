@@ -6830,3 +6830,49 @@ body:not(.is-page) .me-face {
     white-space: normal;
 }
 
+/* cropping a profile photo: the photo in a square, a circle showing what will be kept */
+.crop-stage {
+    position: relative;
+    width: min(100%, 340px);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: var(--card);
+    background: #0e1014;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+}
+
+.crop-stage:active {
+    cursor: grabbing;
+}
+
+.crop-stage img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: none;
+    transform-origin: 0 0;
+    pointer-events: none;
+}
+
+.crop-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 999px rgba(5, 8, 14, 0.55), inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+    pointer-events: none;
+}
+
+.crop-hint {
+    margin: 0.7rem 0 0.3rem;
+    text-align: center;
+}
+
+.crop-zoom {
+    display: block;
+    width: min(100%, 340px);
+    margin: 0 auto 0.4rem;
+    accent-color: var(--accent-text);
+}
