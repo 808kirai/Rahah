@@ -6938,3 +6938,10 @@ body:not(.is-page) .me-face {
     gap: 0.4rem;
     margin-top: 0.45rem;
 }
+
+/* how fast each model spends the daily limit, under its description */
+.model-option .model-use {
+    margin-top: 0.1rem;
+    font-size: 0.72rem;
+    color: var(--accent-text);
+}

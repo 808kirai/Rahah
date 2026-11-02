@@ -22,11 +22,12 @@ from .modes import modes, runs_code
 deep_subjects = {"maths", "science", "coding"}
 
 # what the picker shows, in order, archmage only for the admin. free students get mage a few times a day
+# use says how quickly each one spends the daily limit, so students can choose
 choices = [
-    {"id": "auto", "name": "Auto", "word": "Rahah picks", "hint": "Picks Acolyte or Mage for each question"},
-    {"id": "acolyte", "name": "Acolyte", "word": "Quick", "hint": "Quick answers for everyday questions"},
-    {"id": "mage", "name": "Mage", "word": "Careful", "hint": "Careful thinking for maths, code and essays"},
-    {"id": "archmage", "name": "Archmage", "word": "Deepest", "hint": "The deepest thinking for hard problems", "admin": True},
+    {"id": "auto", "name": "Auto", "word": "Rahah picks", "hint": "Picks Acolyte or Mage for each question", "use": "Saves your limit where it can"},
+    {"id": "acolyte", "name": "Acolyte", "word": "Quick", "hint": "Quick answers for everyday questions", "use": "Lightest on your limit"},
+    {"id": "mage", "name": "Mage", "word": "Careful", "hint": "Careful thinking for maths, code and essays", "use": "Uses your limit faster"},
+    {"id": "archmage", "name": "Archmage", "word": "Deepest", "hint": "The deepest thinking for hard problems", "use": "Uses your limit fastest", "admin": True},
 ]
 choice_ids = {c["id"] for c in choices}
 

@@ -1001,7 +1001,7 @@ function open_model_menu() {
     menu.classList.remove("lang-list");
     menu.innerHTML = model_choices().map((c) => `
         <button type="button" class="input-option model-option" role="menuitemradio" aria-checked="${c.id === model_choice()}" data-model="${escape_html(c.id)}">
-            <span><strong>${escape_html(c.name)}</strong><small>${escape_html(c.hint)}</small></span>
+            <span><strong>${escape_html(c.name)}</strong><small>${escape_html(c.hint)}</small>${c.use ? `<small class="model-use">${escape_html(c.use)}</small>` : ""}</span>
             ${c.id === model_choice() ? icons.check : ""}
         </button>`).join("") + `
         <div class="menu-line" role="separator"></div>
