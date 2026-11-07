@@ -284,3 +284,7 @@ Every question is billed to the API key. Rahah spreads the work across three mod
 Roadmap
 
 - Sign in with Apple once there is a custom domain, and a teacher view
+
+License
+
+All rights reserved. The code may not be used, copied, modified or distributed without written permission. See `LICENSE`.
