@@ -129,7 +129,7 @@ def test_haiku_is_not_sent_the_fallback_setting(tmp_path):
     ask(web, new_chat(web), "hello")
     call = claude.beta.messages.calls[0]
     assert call["model"] == "claude-haiku-5-5"
-    assert "fallbacks" not in call and "betas" not in call
+    assert "fallbacks" not in call and "server-side-fallback-2026-07-01" not in call.get("betas", [])
 
 
 def test_rahah_knows_who_created_her(setup):
@@ -584,3 +584,13 @@ def test_search_engines_get_robots_a_sitemap_and_a_share_card(setup):
     page = web.get("/").text
     assert "<title>Rahah · Study smarter with AI</title>" in page and 'property="og:image"' in page and "application/ld+json" in page
     assert web.get("/static/img/share.png").status_code == 200
+
+
+def test_chat_asks_claude_to_drop_old_reasoning_that_no_longer_fits(setup):
+    # a shortened chat changes what came before old answers, so their saved reasoning is dropped, not an error
+    web, claude = setup([message([text_block("Hi.")])])
+    chat = web.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    web.post(f"/api/conversations/{chat}/messages", json={"text": "hello"})
+    sent = claude.beta.messages.calls[-1]
+    assert sent["thinking"] == {"type": "adaptive", "block_binding": {"prefix_mismatch_behavior": "drop_block"}}
+    assert "thinking-binding-controls-2026-08-01" in sent["betas"]
