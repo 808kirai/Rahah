@@ -1,9 +1,11 @@
 """rahah pro and max: passes paid by m-pesa or card through paystack
 
-a pass lasts a week, a month or a term. pro gives ten times the daily limit with unlimited mage, max gives
-twenty times and adds archmage. on top of the bigger daily limit each pass has a cap on what it can use in
-total, about seventy percent of its price, so a student never costs more than they paid. once that's used up
-they're back on the free daily limit until the pass ends
+a pass lasts a day, a week, a month or a term. pro has unlimited mage, max adds archmage. each pass has an
+allowance on top of the free daily limit, about seventy percent of its price, so a student never costs more
+than they paid. the free amount each day stays free and doesn't use the pass. the pass's allowance is shared
+out fairly over its days, and what a student doesn't use carries on to later days, up to ten times the free
+limit on a day for pro and twenty for max. once the allowance is used up they're back on the free daily
+limit until the pass ends
 """
 
 import hashlib
@@ -17,6 +19,9 @@ tiers = {
     "pro": {"name": "Pro", "multiplier": 10, "rank": 1},
     "max": {"name": "Max", "multiplier": 20, "rank": 2},
 }
+
+# a day can use up to this many times its fair share of what's left of the pass, so it can't all go in one day
+fair_share = 2
 
 # shillings to a dollar. prices are set in dollars ending in .99 and charged in shillings at this rate,
 # since paystack charges kenyan students in shillings. change it if the shilling moves a lot

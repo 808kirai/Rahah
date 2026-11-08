@@ -424,3 +424,80 @@ def test_the_admin_can_give_pro_or_max_without_it_counting_as_revenue(tmp_path):
     revenue = admin.get("/api/admin/users").json()["revenue"]
     assert revenue["week_kes"] == 0 and revenue["paying"] == 0
     assert admin.post(f"/api/admin/users/{amina_id}/give", json={"tier": "gold", "days": 7}).status_code == 422
+
+
+def spend(db_path, uid, cost, when):
+    """records what a student's question cost, at a chosen time"""
+    import sqlite3
+    with sqlite3.connect(db_path) as db:
+        db.execute("insert into usage (kind, model, input_tokens, output_tokens, cache_read, cache_write, searches, cost, created, user_id) "
+                   "values ('chat', 'm', 0, 0, 0, 0, 0, ?, ?, ?)", (cost, when, uid))
+
+
+def move_pass(db_path, uid, started_days_ago, days):
+    import sqlite3
+    import time
+    starts = time.time() - started_days_ago * 86400
+    with sqlite3.connect(db_path) as db:
+        db.execute("update passes set starts = ?, ends = ? where user_id = ?", (starts, starts + days * 86400, uid))
+
+
+def buy_pass(student, pay, plan, amount):
+    ref = student.post("/api/pro/checkout", json={"plan": plan}).json()["reference"]
+    pay.outcome[ref] = {"status": "success", "amount": amount * 100, "currency": "KES"}
+    student.get(f"/api/pro/verify/{ref}")
+    return student.get("/api/me").json()["id"]
+
+
+def test_the_free_amount_each_day_doesnt_use_the_pass_and_a_day_gets_a_fair_share(tmp_path):
+    import time
+    app, pay = pro_app(tmp_path, daily_budget=0)
+    signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    uid = buy_pass(amina, pay, "pro_month", 515)
+    db_path = tmp_path / "pro.db"
+    spend(db_path, uid, 0.10, time.time())
+    assert amina.get("/api/me").json()["allowance"]["pro"]["pass_percent"] == 0
+    # only what goes past the free 0.15 uses the pass
+    spend(db_path, uid, 0.15, time.time())
+    assert amina.get("/api/me").json()["allowance"]["pro"]["pass_percent"] == round(100 * 0.10 / 2.80)
+    # a month pass shares its allowance over its days, so one day can't use it all
+    spend(db_path, uid, 0.15, time.time())
+    chat = amina.post("/api/conversations", json={"mode": "general"}).json()["id"]
+    blocked = amina.post(f"/api/conversations/{chat}/messages", json={"text": "more"})
+    assert blocked.status_code == 429 and "carries on" in blocked.json()["detail"]
+    assert amina.get("/api/me").json()["allowance"]["pro"]["active"]
+
+
+def test_saving_up_on_a_pass_gives_bigger_days_later_up_to_ten_times(tmp_path):
+    import time
+    app, pay = pro_app(tmp_path, daily_budget=0)
+    signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    uid = buy_pass(amina, pay, "pro_term", 1482)
+    db_path = tmp_path / "pro.db"
+    spend(db_path, uid, 0.30, time.time())
+    fresh = amina.get("/api/me").json()["allowance"]["percent"]
+    # the same term pass two months in, nothing used yet, has much more for today
+    move_pass(db_path, uid, 60, 91)
+    saved = amina.get("/api/me").json()["allowance"]["percent"]
+    assert fresh > 80 and saved < 60
+    # on its last day it can use up to ten times the free limit, not more
+    move_pass(db_path, uid, 90.5, 91)
+    spend(db_path, uid, 0.70, time.time())
+    assert amina.get("/api/me").json()["allowance"]["percent"] == round(100 * 1.00 / 1.50)
+
+
+def test_a_used_up_pass_goes_back_to_the_free_limit(tmp_path):
+    import time
+    app, pay = pro_app(tmp_path, daily_budget=0)
+    signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    uid = buy_pass(amina, pay, "pro_week", 257)
+    db_path = tmp_path / "pro.db"
+    move_pass(db_path, uid, 3, 7)
+    spend(db_path, uid, 1.60, time.time() - 3 * 86400 + 600)
+    spend(db_path, uid, 0.05, time.time())
+    allowance = amina.get("/api/me").json()["allowance"]
+    assert allowance["pro"]["pass_percent"] == 100 and not allowance["pro"]["active"]
+    assert allowance["percent"] == round(100 * 0.05 / 0.15)

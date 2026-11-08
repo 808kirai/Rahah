@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
 import logging
+import math
 from contextlib import asynccontextmanager
 import re
 import secrets
@@ -531,17 +532,44 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         # the shared free budget resets at midnight utc, the same moment for everyone
         return now - now % 86400
 
+    def pass_use(user: dict, pro: dict, free: float, now: float) -> tuple[float, float]:
+        """what a pass has paid for so far, and how much of that was before today. each day the free amount comes
+        first and only what goes past it uses the pass. free use earlier on the day the pass started still counts
+        toward that day's free amount"""
+        tz = zone_of(user)
+        days: dict = {}
+        for row in db.usage_since(my_day_start(user, pro["starts"]), user["id"]):
+            day = datetime.fromtimestamp(row["created"], tz).date()
+            before, after = days.get(day, (0.0, 0.0))
+            if row["created"] < pro["starts"]:
+                before += row["cost"] or 0
+            else:
+                after += row["cost"] or 0
+            days[day] = (before, after)
+        today = datetime.fromtimestamp(now, tz).date()
+        total = earlier = 0.0
+        for day, (before, after) in days.items():
+            extra = max(0.0, before + after - free) - max(0.0, before - free)
+            total += extra
+            if day != today:
+                earlier += extra
+        return total, earlier
+
     def allowance(user: dict) -> dict:
         now = time.time()
-        used = db.user_cost_since(user["id"], my_day_start(user, now))
+        today_start = my_day_start(user, now)
+        used = db.user_cost_since(user["id"], today_start)
         cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
-        # a pro pass gives ten times the daily limit, until the pass's own total is used up
         pro = None if user["is_admin"] else db.active_pass(user["id"], now)
         pass_used = None
         if pro:
-            pass_used = db.user_cost_since(user["id"], pro["starts"])
-            if pass_used < pro["budget"]:
-                cap = cap * billing.plan_info(pro["plan"])["multiplier"]
+            # today gets the free amount plus a fair share of what's left of the pass, so saving up gives bigger
+            # days later, never more than the plan's daily limit
+            pass_used, earlier = pass_use(user, pro, cap, now)
+            left = max(0.0, pro["budget"] - earlier)
+            days_left = max(1, math.ceil((pro["ends"] - today_start) / 86400))
+            extra = min(cap * (billing.plan_info(pro["plan"])["multiplier"] - 1), left, billing.fair_share * left / days_left)
+            cap = cap + extra
         return {"cap": cap, "used": round(used, 4), "resets_in": int(my_next_midnight(user, now) - now), "pro": pro, "pass_used": pass_used}
 
     def pro_active(a: dict) -> bool:
@@ -576,6 +604,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             extra = ""
             if a["pro"] and not pro_active(a):
                 extra = " This Pro pass's allowance is used up, so you're on the free limit until it ends."
+            elif a["pro"]:
+                extra = " What you don't use on your pass carries on, so days ahead get more."
             elif payments and not a["pro"]:
                 extra = " Upgrade to Rahah Pro for 10 times more each day."
             raise HTTPException(429, f"You've used today's study limit. It resets in about {wait}. Saved flashcards and tests still work.{extra}")
