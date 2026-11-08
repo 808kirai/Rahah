@@ -214,7 +214,7 @@ function allowance_html(a) {
     return `<section class="perf-card usage-card">
         <div class="perf-head">
             <h3>Today's limit${pro?.active ? ` ${tier_badge(pro.tier)}` : ""}</h3>
-            <p>${pro?.active ? (pro.tier === "max" ? "20x your usual limit with Max" : "10x your usual limit with Pro") : "How much of today's limit you've used"}</p>
+            <p>${pro?.active ? (pro.tier === "max" ? "Up to 20x your usual limit with Max" : "Up to 10x your usual limit with Pro") : "How much of today's limit you've used"}</p>
         </div>
         <div class="allowance">
             ${usage_bar(a.percent)}
