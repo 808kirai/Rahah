@@ -110,7 +110,7 @@ def test_pro_lifts_the_daily_limit_and_free_students_see_the_offer(tmp_path):
     owner.patch(f"/api/admin/users/{amina.get('/api/me').json()['id']}", json={"daily_cap": 0.0000001})
     assert amina.post(f"/api/conversations/{chat}/messages", json={"text": "one"}).status_code == 200
     blocked = amina.post(f"/api/conversations/{chat}/messages", json={"text": "two"})
-    assert blocked.status_code == 429 and "Upgrade to Rahah Pro for 10 times more" in blocked.json()["detail"]
+    assert blocked.status_code == 429 and "Upgrade to Rahah Pro for up to 10 times more" in blocked.json()["detail"]
     # with a week of pro, the same student can keep going
     ref = amina.post("/api/pro/checkout", json={"plan": "pro_week"}).json()["reference"]
     pay.outcome[ref] = {"status": "success", "amount": 25700, "currency": "KES"}

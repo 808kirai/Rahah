@@ -1121,9 +1121,9 @@ const plan_details = {
     free: { name: "Free", tag: "Try Rahah", note: "Free for every student", steps: 1,
         features: ["Ask anything, any subject", "Tests, flashcards and summaries", "Mage, 10 answers a day", "5 web searches a day", "5 photo markings a day", "Files up to about 40 pages", "Your 5 newest chats", "Friends and leaderboard"] },
     pro: { name: "Pro", tag: "For steady study", steps: 2, popular: true, plus: "Everything in Free, plus:",
-        features: ["10x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 100 pages", "200 notes, double uploads"] },
+        features: ["Up to 10x the daily limit, on the days you need it", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 100 pages", "200 notes, double uploads"] },
     max: { name: "Max", tag: "For intense study", steps: 3, plus: "Everything in Free, plus:",
-        features: ["20x the daily limit", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 200 pages", "500 notes, double uploads", "A Max badge on the leaderboard"] },
+        features: ["Up to 20x the daily limit, on the days you need it", "Unlimited Mage", "Unlimited web searches and photo marking", "All your chats, searchable", "Weekly report for a parent", "Files up to about 200 pages", "500 notes, double uploads", "A Max badge on the leaderboard"] },
 };
 const plan_lengths = { week: "Week", month: "Month", term: "Term" };
 
@@ -1775,7 +1775,7 @@ function offer_upgrade() {
     const toast = document.createElement("div");
     toast.className = "toast upgrade-toast";
     toast.innerHTML = `<img class="toast-logo" src="/static/img/icon-192.png" alt="" aria-hidden="true">
-        <div class="toast-text"><strong>You've used today's study limit</strong><span>Upgrade for 10 times more each day.</span></div>
+        <div class="toast-text"><strong>You've used today's study limit</strong><span>Upgrade for up to 10 times more a day.</span></div>
         <div class="toast-actions">
             <button class="btn btn-accent btn-small" type="button" data-upgrade>Upgrade</button>
             <button class="icon-btn" type="button" data-toast-close aria-label="Dismiss">${icons.close}</button>

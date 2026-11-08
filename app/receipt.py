@@ -13,8 +13,8 @@ fonts = {"regular": here / "fonts" / "Inter-Regular.ttf", "semi": here / "fonts"
 
 # what each tier gives, listed on the receipt
 perks = {
-    "pro": ["10x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "Files up to about 100 pages", "A weekly report for a parent"],
-    "max": ["20x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "Files up to about 200 pages", "500 notes and a Max badge"],
+    "pro": ["Up to 10x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "Files up to about 100 pages", "A weekly report for a parent"],
+    "max": ["Up to 20x your daily study limit", "Unlimited Mage", "Unlimited web searches and photo marking", "Files up to about 200 pages", "500 notes and a Max badge"],
 }
 
 # drawn at twice the size it's shown, so it stays sharp on phones
@@ -26,7 +26,7 @@ def receipt_text(first: str, tier_name: str, plan_name: str, multiplier: int, ke
                  reference: str, base: str, support: str) -> str:
     return (
         f"Hi {first},\n\nThanks for getting Rahah {tier_name}. Your receipt is attached, and here it is in short:\n\n"
-        f"- Plan: {plan_name}, {multiplier}x your daily study limit\n"
+        f"- Plan: {plan_name}, up to {multiplier}x your daily study limit\n"
         f"- Total: ${usd:.2f} (KES {kes:,})\n"
         f"- Runs: {runs}\n"
         f"- Reference: {reference}\n\n"
@@ -62,7 +62,7 @@ def receipt_image(first: str, tier: str, tier_name: str, plan_name: str, multipl
         draw.text(((width - pad) * s, (30 + 17 * i) * s), line, font=top, fill="#b6c2d1", anchor="ra")
     draw.text((pad * s, 92 * s), f"Thanks for getting {tier_name},", font=font("bold", 28), fill="#ffffff")
     draw.text((pad * s, 128 * s), first, font=font("bold", 28), fill="#ffffff")
-    draw.text((pad * s, 176 * s), f"Your study time just went up {multiplier}x.", font=font("regular", 15), fill="#c9d6e3")
+    draw.text((pad * s, 176 * s), f"Your study time can now go up to {multiplier}x.", font=font("regular", 15), fill="#c9d6e3")
     big = logo.resize((80 * s, 80 * s), Image.LANCZOS)
     page.paste(big, ((width - pad - 80) * s, (banner_h - 104) * s), big)
 
@@ -73,7 +73,7 @@ def receipt_image(first: str, tier: str, tier_name: str, plan_name: str, multipl
     y += 52
     draw.line((pad * s, y * s, (width - pad) * s, y * s), fill="#e4e7ec", width=s)
     y += 16
-    for label, value, strong in (("Plan", plan_name, False), ("Daily study limit", f"{multiplier}x", False), ("Runs", runs, False),
+    for label, value, strong in (("Plan", plan_name, False), ("Daily study limit", f"Up to {multiplier}x", False), ("Runs", runs, False),
                                  ("Charged", f"KES {kes:,}", True), ("Reference", reference, False)):
         kind = "semi" if strong else "regular"
         draw.text((pad * s, y * s), label, font=font(kind, 14), fill="#475467")

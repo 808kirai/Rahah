@@ -607,7 +607,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             elif a["pro"]:
                 extra = " What you don't use on your pass carries on, so days ahead get more."
             elif payments and not a["pro"]:
-                extra = " Upgrade to Rahah Pro for 10 times more each day."
+                extra = " Upgrade to Rahah Pro for up to 10 times more a day."
             raise HTTPException(429, f"You've used today's study limit. It resets in about {wait}. Saved flashcards and tests still work.{extra}")
         # a ceiling for everyone on the free plan together, so many accounts can't run up the bill. pro doesn't count
         if not user["is_admin"] and not pro_active(a) and cfg.daily_budget > 0 and db.free_student_cost_since(day_start(time.time())) >= cfg.daily_budget:
