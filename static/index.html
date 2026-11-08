@@ -351,6 +351,28 @@
         </div>
     </dialog>
 
+    <dialog class="sheet pages-sheet" id="pages-sheet" aria-labelledby="pages-title">
+        <form class="sheet-form" id="pages-form" novalidate>
+            <div class="sheet-top">
+                <h2 id="pages-title">Pick pages</h2>
+                <button class="icon-btn" type="button" id="pages-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </div>
+            <p class="field-hint" id="pages-about"></p>
+            <div class="field">
+                <label class="field-label" for="pages-input">Pages</label>
+                <input class="text-input" id="pages-input" inputmode="numeric" autocomplete="off" maxlength="500" placeholder="e.g. 5-12, 30, 41-60">
+                <p class="field-hint pages-count" id="pages-count" aria-live="polite"></p>
+            </div>
+            <div class="camera-actions">
+                <span class="spacer"></span>
+                <button class="btn btn-ghost" type="button" id="pages-cancel">Cancel</button>
+                <button class="btn btn-accent" type="submit" id="pages-use">Use these pages</button>
+            </div>
+        </form>
+    </dialog>
+
     <dialog class="sheet" id="reminder-sheet" aria-labelledby="reminder-title">
         <form class="sheet-form" id="reminder-form" novalidate>
             <div class="sheet-top">

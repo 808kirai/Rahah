@@ -594,3 +594,46 @@ def test_chat_asks_claude_to_drop_old_reasoning_that_no_longer_fits(setup):
     sent = claude.beta.messages.calls[-1]
     assert sent["thinking"] == {"type": "adaptive", "block_binding": {"prefix_mismatch_behavior": "drop_block"}}
     assert "thinking-binding-controls-2026-08-01" in sent["betas"]
+
+
+def make_pdf(pages):
+    import io
+    from pypdf import PdfWriter
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=200, height=200)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def test_a_long_pdf_waits_for_the_student_to_pick_any_pages(tmp_path):
+    import io
+    from pypdf import PdfReader
+    claude = fake_client()
+    app = create_app(settings(db_path=tmp_path / "pages.db"), client=claude)
+    signed_in(TestClient(app), "runie")
+    web = signed_in(TestClient(app), "amina")
+    chat = new_chat(web)
+    book = make_pdf(60)
+
+    def upload(pages="", replaces=""):
+        return web.post("/api/files", data={"conversation_id": chat, "pages": pages, "replaces": replaces}, files={"file": ("book.pdf", book)})
+
+    # longer than the free plan reads at a time, so nothing goes to claude until pages are picked
+    asked = upload().json()
+    assert asked["pick_pages"] and asked["pages"] == 60 and asked["max_pages"] == 40 and not claude.files.uploads
+    # any pages, in any order, not just from the start
+    got = upload("41-60, 3, 7 - 5").json()
+    assert got["picked"] == "3, 5-7, 41-60" and got["name"] == "book (pages 3, 5-7, 41-60).pdf" and got["pages"] == 60
+    sent_name, sent_data, sent_type = claude.files.uploads[-1]
+    assert sent_type == "application/pdf" and len(PdfReader(io.BytesIO(sent_data)).pages) == 24
+    assert "up to 40 pages" in upload("1-41").json()["detail"]
+    assert "pages 1 to 60" in upload("0-3").json()["detail"]
+    assert "like 5-12" in upload("the intro").json()["detail"]
+    # picking again swaps the earlier copy, which was never sent
+    again = upload("1-2", replaces=got["id"]).json()
+    assert again["picked"] == "1-2" and claude.files.deleted == [got["id"]]
+    # a short pdf goes whole, and says how many pages it has
+    short = web.post("/api/files", data={"conversation_id": chat}, files={"file": ("notes.pdf", make_pdf(5))}).json()
+    assert short["pages"] == 5 and short["picked"] is None and short["id"]

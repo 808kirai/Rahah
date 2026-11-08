@@ -313,7 +313,8 @@ function update_send_button() {
         send_btn.disabled = false;
         return;
     }
-    const uploading = state.pending.some((f) => f.status === "uploading");
+    // a file still uploading, or a long pdf waiting for its pages to be picked, holds the send button
+    const uploading = state.pending.some((f) => f.status === "uploading" || f.status === "pick");
     send_btn.disabled = state.busy || uploading || !input.value.trim();
 }
 
@@ -875,9 +876,22 @@ function render_attachments() {
     state.pending.forEach((file) => {
         const pill = document.createElement("span");
         pill.className = `file-pill ${file.status === "ready" ? "" : file.status}`;
-        const label = file.status === "uploading" ? "Uploading…" : file.status === "failed" ? `Failed: ${file.error}` : "";
+        const label = file.status === "uploading" ? "Uploading…" : file.status === "failed" ? `Failed: ${file.error}` : file.status === "pick" ? "Pick the pages to send" : "";
         pill.title = label || file.name;
-        pill.innerHTML = `${file.kind === "image" ? icons.image : icons.doc}<span>${escape_html(file.name)}${file.status === "uploading" ? " · uploading" : ""}${file.status === "failed" ? ` · ${escape_html(file.error)}` : ""}</span>`;
+        // a whole pdf says how many pages it has, a picked one already has its pages in its name
+        const detail = file.status === "uploading" ? " · uploading" : file.status === "failed" ? ` · ${escape_html(file.error)}`
+            : file.status === "pick" ? ` · ${file.total} pages, pick some` : file.total && !file.picked ? ` · ${plural(file.total, "page")}` : "";
+        pill.innerHTML = `${file.kind === "image" ? icons.image : icons.doc}<span>${escape_html(file.name)}${detail}</span>`;
+        // a pdf's pages can be picked, or picked again
+        if (file.total && file.status !== "uploading") {
+            const choose = document.createElement("button");
+            choose.type = "button";
+            choose.className = "pill-pages";
+            choose.textContent = "Pages";
+            choose.setAttribute("aria-label", `Pick pages of ${file.name}`);
+            choose.addEventListener("click", () => open_page_picker(file));
+            pill.appendChild(choose);
+        }
         const remove = document.createElement("button");
         remove.type = "button";
         remove.setAttribute("aria-label", `Remove ${file.name}`);
@@ -895,23 +909,83 @@ function render_attachments() {
 async function upload_files(files) {
     for (const file of files) {
         const kind = /\.(png|jpe?g|webp|gif)$/i.test(file.name) ? "image" : "document";
-        const item = { key: ++file_key, id: null, name: file.name, kind, status: "uploading" };
+        const item = { key: ++file_key, id: null, name: file.name, kind, status: "uploading", file };
         state.pending.push(item);
-        render_attachments();
-        try {
-            const conversation_id = await ensure_conversation();
-            const form = new FormData();
-            form.append("conversation_id", conversation_id);
-            form.append("file", file);
-            const response = await api("/api/files", { method: "POST", body: form });
-            const saved = await response.json();
-            Object.assign(item, { id: saved.id, kind: saved.kind, status: "ready" });
-        } catch (error) {
-            Object.assign(item, { status: "failed", error: error.message });
-        }
-        render_attachments();
+        await send_upload(item);
     }
 }
+
+// sends one attached file. a pdf can go with just the pages picked, swapping the copy sent before. one too long
+// for the plan comes back asking for pages first
+async function send_upload(item, pages = "", replaces = "") {
+    item.status = "uploading";
+    render_attachments();
+    try {
+        const conversation_id = await ensure_conversation();
+        const form = new FormData();
+        form.append("conversation_id", conversation_id);
+        form.append("file", item.file);
+        if (pages) form.append("pages", pages);
+        if (replaces) form.append("replaces", replaces);
+        const saved = await (await api("/api/files", { method: "POST", body: form })).json();
+        if (saved.pick_pages) {
+            Object.assign(item, { status: "pick", total: saved.pages, max: saved.max_pages });
+            render_attachments();
+            open_page_picker(item);
+            return;
+        }
+        Object.assign(item, { id: saved.id, name: saved.name, kind: saved.kind, status: "ready", total: saved.pages, max: saved.max_pages, picked: saved.picked });
+    } catch (error) {
+        Object.assign(item, { status: "failed", error: error.message });
+    }
+    render_attachments();
+}
+
+// picking pages of a pdf: any pages in any order, like 5-12, 30, 41-60, counted as they're typed
+const pages_sheet = el("pages-sheet");
+const pages_input = el("pages-input");
+let picking = null;
+
+function picked_pages(text, total) {
+    const parts = text.trim().replace(/\s*[-–—]\s*/g, "-").split(/[,;\s]+/).filter(Boolean);
+    const pages = new Set();
+    for (const part of parts) {
+        const found = part.match(/^(\d{1,6})(?:-(\d{1,6}))?$/);
+        if (!found) return { error: "Write the pages like 5-12, 30, 41-60." };
+        const [start, end] = [Number(found[1]), Number(found[2] || found[1])].sort((a, b) => a - b);
+        if (start < 1 || end > total) return { error: `This file has pages 1 to ${total}.` };
+        for (let page = start; page <= end; page++) pages.add(page);
+    }
+    return { count: pages.size };
+}
+
+function show_page_count() {
+    const text = pages_input.value;
+    const got = text.trim() ? picked_pages(text, picking.total) : { count: 0 };
+    const over = got.count > picking.max;
+    el("pages-count").textContent = got.error || (over ? `${got.count} pages. Rahah reads up to ${picking.max} at a time, pick fewer.` : got.count ? `${plural(got.count, "page")} picked.` : "");
+    el("pages-count").classList.toggle("bad", Boolean(got.error) || over);
+    el("pages-use").disabled = !got.count || Boolean(got.error) || over;
+}
+
+function open_page_picker(item) {
+    picking = item;
+    el("pages-about").textContent = `${item.file.name} has ${plural(item.total, "page")}. Rahah reads up to ${item.max} at a time. Pick any of them, in any order.`;
+    pages_input.value = item.picked || "";
+    show_page_count();
+    if (!pages_sheet.open) pages_sheet.showModal();
+    pages_input.focus();
+}
+
+pages_input.addEventListener("input", show_page_count);
+el("pages-close").addEventListener("click", () => pages_sheet.close());
+el("pages-cancel").addEventListener("click", () => pages_sheet.close());
+el("pages-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (el("pages-use").disabled) return;
+    pages_sheet.close();
+    send_upload(picking, pages_input.value.trim(), picking.status === "ready" ? picking.id : "");
+});
 
 file_input.addEventListener("change", () => {
     upload_files([...file_input.files]);

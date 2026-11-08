@@ -1075,6 +1075,11 @@ class store:
                 (file_id, conversation_id, name, kind, media_type, size, time.time()),
             )
 
+    def delete_unsent_file(self, conversation_id: str, file_id: str) -> bool:
+        """forgets a file that was attached but never sent, says whether there was one"""
+        with self._connect() as db:
+            return db.execute("delete from files where id = ? and conversation_id = ? and used = 0", (file_id, conversation_id)).rowcount == 1
+
     def get_files(self, conversation_id: str, file_ids: list[str]) -> list[stored_file]:
         if not file_ids:
             return []

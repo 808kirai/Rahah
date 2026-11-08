@@ -4,6 +4,7 @@ import asyncio
 import gzip
 import hashlib
 import hmac
+import io
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import json
@@ -17,6 +18,7 @@ import time
 from pathlib import Path
 
 import anthropic
+from pypdf import PdfReader, PdfWriter
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -312,6 +314,56 @@ def sse(event: dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
+def read_pdf(data: bytes) -> PdfReader | None:
+    """the pdf's pages, or None when it can't be read here, locked or broken, so it goes to claude whole"""
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted or not len(reader.pages):
+            return None
+        return reader
+    except Exception:
+        return None
+
+
+def parse_pages(text: str, total: int) -> list[int]:
+    """the pages a student typed, like 5-12, 30, 41-60, in any order, as page numbers in order, each once"""
+    text = re.sub(r"\s*[-–—]\s*", "-", text.strip())
+    picked = set()
+    for part in re.split(r"[,;\s]+", text):
+        if not part:
+            continue
+        found = re.fullmatch(r"(\d{1,6})(?:-(\d{1,6}))?", part)
+        if not found:
+            raise ValueError("Write the pages like 5-12, 30, 41-60.")
+        start, end = sorted((int(found.group(1)), int(found.group(2) or found.group(1))))
+        if start < 1 or end > total:
+            raise ValueError(f"This file has pages 1 to {total}.")
+        picked.update(range(start, end + 1))
+    if not picked:
+        raise ValueError("Pick at least one page.")
+    return sorted(picked)
+
+
+def pages_label(pages: list[int]) -> str:
+    """page numbers back in their short form, 5-12, 30, 41-60"""
+    runs, start = [], pages[0]
+    for before, page in zip(pages, pages[1:] + [None]):
+        if page != before + 1:
+            runs.append(str(start) if start == before else f"{start}-{before}")
+            start = page
+    return ", ".join(runs)
+
+
+def pdf_with(reader: PdfReader, pages: list[int]) -> bytes:
+    """a new pdf of just these pages"""
+    writer = PdfWriter()
+    for page in pages:
+        writer.add_page(reader.pages[page - 1])
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
 def sniff_upload(name: str, data: bytes) -> tuple[str, str]:
     # checks the extension and the first bytes agree, so a renamed file can't slip through
     suffix = Path(name).suffix.lower()
@@ -594,6 +646,12 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     def free_mage_left(user: dict) -> bool:
         return is_pro(user) or mage_used_today(user) < billing.free_mage_a_day
+
+    def prompt_cap_of(tier: str | None) -> int:
+        # pro and max can send bigger files in one question, about 100 and 200 pages to free's 40. 0 is no cap
+        if tier and cfg.max_prompt_tokens > 0:
+            return max(cfg.max_prompt_tokens, billing.paid_prompt_tokens[tier])
+        return cfg.max_prompt_tokens
 
     def check_allowance(user: dict) -> None:
         # asked before anything that calls claude, the admin has no limit
@@ -1574,7 +1632,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         return {"ok": True}
 
     @app.post("/api/files")
-    async def upload_file(conversation_id: str = Form(...), file: UploadFile = File(...), user: dict = Depends(signed_in)):
+    async def upload_file(conversation_id: str = Form(...), file: UploadFile = File(...), pages: str = Form("", max_length=500),
+                          replaces: str = Form("", max_length=200), user: dict = Depends(signed_in)):
         conversation_or_404(user, conversation_id)
         upload_mb = cfg.max_upload_mb * (2 if is_pro(user) else 1)
         limit = upload_mb * 1024 * 1024
@@ -1585,6 +1644,27 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             raise HTTPException(400, "That file is empty.")
         name = Path(file.filename or "file").name[:120]
         media_type, kind = sniff_upload(name, data)
+        # a pdf can be cut down to the pages the student picks, any pages in any order. one longer than their plan
+        # reads at a time isn't sent until they pick
+        total = picked = most = None
+        if media_type == "application/pdf":
+            reader = await asyncio.to_thread(read_pdf, data)
+            if reader is not None:
+                total = len(reader.pages)
+                cap = prompt_cap_of(tier_of(user))
+                most = pages_for(cap) if cap > 0 else total
+                if pages.strip():
+                    try:
+                        chosen = parse_pages(pages, total)
+                    except ValueError as error:
+                        raise HTTPException(400, str(error))
+                    if len(chosen) > most:
+                        raise HTTPException(400, f"Rahah reads up to {most} pages at a time, that's {len(chosen)}. Pick fewer.")
+                    picked = pages_label(chosen)
+                    data = await asyncio.to_thread(pdf_with, reader, chosen)
+                    name = f"{Path(name).stem[:80]} (pages {picked}).pdf"
+                elif total > most:
+                    return {"pick_pages": True, "pages": total, "max_pages": most, "name": name}
         try:
             uploaded = await claude().files.upload(file=(name, data, media_type))
         except Exception as error:
@@ -1593,7 +1673,15 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             log.warning("file upload failed: %s", error)
             raise HTTPException(502, friendly_error(error))
         db.add_file(uploaded.id, conversation_id, name, kind, media_type, len(data))
-        return {"id": uploaded.id, "name": name, "kind": kind, "size": len(data)}
+        # picking again swaps the earlier copy, which was never sent, for this one
+        if replaces and db.delete_unsent_file(conversation_id, replaces):
+            try:
+                await claude().files.delete(replaces)
+            except Exception as error:
+                if not is_claude_error(error):
+                    raise
+                log.warning("couldn't remove file %s from claude: %s", replaces, error)
+        return {"id": uploaded.id, "name": name, "kind": kind, "size": len(data), "pages": total, "picked": picked, "max_pages": most}
 
     @app.get("/api/notes")
     def list_notes(user: dict = Depends(signed_in)):
@@ -1725,7 +1813,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         # pro and max can send bigger files in one question, about 100 and 200 pages to free's 40
         tier = tier_of(user)
         paid = tier is not None
-        prompt_cap = max(cfg.max_prompt_tokens, billing.paid_prompt_tokens[tier]) if paid and cfg.max_prompt_tokens > 0 else cfg.max_prompt_tokens
+        prompt_cap = prompt_cap_of(tier)
         pages = {t: pages_for(n) for t, n in billing.paid_prompt_tokens.items()}
         upgrade_note = {None: f"Pro reads about {pages['pro']} pages, Max about {pages['max']}.", "pro": f"Max reads about {pages['max']} pages."}.get(tier, "")
         messages = trimmed_history(messages)

@@ -7005,3 +7005,28 @@ body:not(.is-page) .me-face {
     color: var(--on-accent);
     background: var(--accent-fill);
 }
+
+/* picking pages of a long pdf, from its pill above the message box */
+.file-pill .pill-pages {
+    padding: 0.1rem 0.55rem;
+    border-radius: var(--pill);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent-text);
+    box-shadow: inset 0 0 0 1px var(--panel-line);
+}
+
+.file-pill.pick {
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+
+.pages-count {
+    min-height: 1.2em;
+    margin-top: 0.4rem;
+}
+
+.pages-count.bad {
+    color: var(--mauve-text);
+}
