@@ -307,6 +307,11 @@ class store:
             if "calendar_token" not in columns:
                 db.execute("alter table users add column calendar_token text")
                 db.execute("create unique index if not exists users_by_calendar on users(calendar_token)")
+            # passes the admin gave before 8 nov 2026 got a seventh of the allowance they should have. they're raised
+            # to 10 cents a day for pro and 14 for max, what they're given now. ones already right are left alone
+            for plan, per_day in (("given_pro", 0.10), ("given_max", 0.14)):
+                db.execute("update passes set budget = round((ends - starts) / 86400.0 * ?, 2) "
+                           "where plan = ? and budget < round((ends - starts) / 86400.0 * ?, 2) / 2", (per_day, plan, per_day))
             # rows from before accounts have no owner until the first account claims them
             for table in owned_tables:
                 columns = {r["name"] for r in db.execute(f"pragma table_info({table})").fetchall()}

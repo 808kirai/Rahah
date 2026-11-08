@@ -48,10 +48,10 @@ for p in passes.values():
 free_passes = {
     "trial": {"name": "Free trial", "tier": "pro", "days": 3, "budget": 0.30},
     "gift": {"name": "Friend reward", "tier": "pro", "days": 1, "budget": 0.20},
-    # given by the admin from the students page, as a prize, to make up for a problem, or to test. days are chosen
-    # there, the allowance grows with them at about what a month pass gives a day
-    "given_pro": {"name": "Pro from Rahah", "tier": "pro", "days": 7, "budget": 0.10},
-    "given_max": {"name": "Max from Rahah", "tier": "max", "days": 7, "budget": 0.14},
+    # given by the admin from the students page, as a prize, to make up for a problem, or to test. the allowance
+    # is for a week, about what a month pass gives a day, and grows or shrinks with the days chosen there
+    "given_pro": {"name": "Pro from Rahah", "tier": "pro", "days": 7, "budget": 0.70},
+    "given_max": {"name": "Max from Rahah", "tier": "max", "days": 7, "budget": 0.98},
 }
 # passes bought before max existed were all pro
 old_passes = {"week": "pro_week", "month": "pro_month", "term": "pro_term"}

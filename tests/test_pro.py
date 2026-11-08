@@ -426,6 +426,32 @@ def test_the_admin_can_give_pro_or_max_without_it_counting_as_revenue(tmp_path):
     assert admin.post(f"/api/admin/users/{amina_id}/give", json={"tier": "gold", "days": 7}).status_code == 422
 
 
+def test_a_given_pass_has_about_a_month_passes_allowance_a_day_and_old_ones_are_raised(tmp_path):
+    import sqlite3
+    import time
+    from app.store import store
+    app, pay = pro_app(tmp_path, daily_budget=0)
+    admin = signed_in(TestClient(app), "runie")
+    amina = signed_in(TestClient(app), "amina")
+    uid = amina.get("/api/me").json()["id"]
+    admin.post(f"/api/admin/users/{uid}/give", json={"tier": "pro", "days": 1})
+    db_path = tmp_path / "pro.db"
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("select budget from passes where user_id = ?", (uid,)).fetchone()[0] == 0.10
+    # one big question doesn't use up a day of pro
+    spend(db_path, uid, 0.20, time.time())
+    assert amina.get("/api/me").json()["allowance"]["pro"]["active"]
+    # a week of max given before the fix had a seventh of its allowance, and is raised when the server starts
+    now = time.time()
+    with sqlite3.connect(db_path) as db:
+        db.execute("insert into passes (reference, user_id, plan, starts, ends, budget, created) values ('old', ?, 'given_max', ?, ?, 0.14, ?)",
+                   (uid, now, now + 7 * 86400, now))
+    store(db_path)
+    store(db_path)
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("select budget from passes where reference = 'old'").fetchone()[0] == 0.98
+
+
 def spend(db_path, uid, cost, when):
     """records what a student's question cost, at a chosen time"""
     import sqlite3
