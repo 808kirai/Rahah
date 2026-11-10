@@ -1,9 +1,9 @@
 // rahah, the slides from the promo video on the sign in page, in a 3d stack that shuffles the same way as the
 // certificates in runie's portfolio: the top slide swings open like a door and tucks in behind the deck while
-// the rest step forward. it shuffles by itself every few seconds, and a tap shuffles it too
+// the rest step forward. it shuffles by itself every few seconds for everyone, reduced motion included as runie
+// asked, and a tap shuffles it too
 
 const slides = [
-    ["exams", "Exams coming up."],
     ["meet", "Meet Rahah, your AI study companion."],
     ["explains", "Explains anything."],
     ["marks", "Marks your work."],
@@ -12,12 +12,11 @@ const slides = [
     ["plans-dark", "Plans your revision, with reminders and a timetable."],
     ["progress", "Tracks your progress."],
     ["compete", "Compete with friends on the leaderboard."],
-    ["end", "#StudyWithRahah"],
 ];
 const slide_every_ms = 4000;
 // how many slides fan out behind the top one, the rest wait unseen behind the last
 const slide_fan = 3;
-const slide_state = { cards: [], order: [], animating: false, paused_until: 0, hovering: false, timer: 0 };
+const slide_state = { cards: [], order: [], animating: false, paused_until: 0, timer: 0 };
 
 // slides behind the top one fan out up and to the right, slightly turned
 function slide_pose(pos) {
@@ -49,20 +48,16 @@ function shuffle_slides() {
     const old_order = slide_state.order.slice();
     const leaving = old_order[0];
     slide_state.order = old_order.slice(1).concat(leaving);
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        apply_slide_poses();
-        return;
-    }
     slide_state.animating = true;
     const back = slide_pose(cards.length - 1);
     const moves = [];
-    // the leaving slide swings open to the right like a door, then tucks in behind the deck
+    // the leaving slide swings open to the right like a door, then tucks in behind the deck, 1.5 times the portfolio's pace
     moves.push(cards[leaving].animate([
         { transform: slide_pose(0).transform, filter: "brightness(1)", opacity: 1, zIndex: 200, offset: 0 },
         { transform: "translate3d(62%, -6%, 60px) rotateY(-58deg) rotate(6deg)", filter: "brightness(1)", opacity: 1, zIndex: 200, offset: 0.45 },
         { transform: "translate3d(60%, -6%, -60px) rotateY(-50deg) rotate(6deg)", filter: "brightness(0.95)", opacity: 1, zIndex: 0, offset: 0.5 },
         { transform: back.transform, filter: back.filter, opacity: back.opacity, zIndex: 0, offset: 1 },
-    ], { duration: 900, easing: "cubic-bezier(0.65, 0, 0.35, 1)" }));
+    ], { duration: 600, easing: "cubic-bezier(0.65, 0, 0.35, 1)" }));
     // everyone else steps one place forward
     slide_state.order.forEach((index, pos) => {
         if (index === leaving) return;
@@ -71,7 +66,7 @@ function shuffle_slides() {
         moves.push(cards[index].animate([
             { transform: from.transform, filter: from.filter, opacity: from.opacity },
             { transform: to.transform, filter: to.filter, opacity: to.opacity },
-        ], { duration: 700, delay: 120, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards" }));
+        ], { duration: 467, delay: 80, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards" }));
     });
     apply_slide_poses();
     Promise.all(moves.map((move) => move.finished)).finally(() => {
@@ -96,12 +91,9 @@ function start_slides() {
         slide_state.paused_until = Date.now() + 8000;
         shuffle_slides();
     });
-    deck.addEventListener("mouseenter", () => { slide_state.hovering = true; });
-    deck.addEventListener("mouseleave", () => { slide_state.hovering = false; });
-    // shuffles by itself while the sign in page shows, like a slow photo carousel
+    // shuffles by itself while the sign in page shows, like a slow photo carousel, resting a little after a tap
     slide_state.timer = setInterval(() => {
-        if (el("auth").hidden || slide_state.hovering || document.visibilityState !== "visible" || Date.now() < slide_state.paused_until) return;
-        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        if (el("auth").hidden || document.visibilityState !== "visible" || Date.now() < slide_state.paused_until) return;
         shuffle_slides();
     }, slide_every_ms);
 }

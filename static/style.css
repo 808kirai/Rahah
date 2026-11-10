@@ -7064,13 +7064,13 @@ body:not(.is-page) .me-face {
     align-items: center;
     justify-content: center;
     gap: 1.25rem;
-    padding: 0 120px 0 48px;
+    padding: 0 88px 0 32px;
 }
 
 .slide-deck {
     position: relative;
-    width: min(100%, 560px);
-    aspect-ratio: 16 / 9;
+    width: min(100%, 640px);
+    aspect-ratio: 4 / 3;
     perspective: 1400px;
     cursor: pointer;
 }
