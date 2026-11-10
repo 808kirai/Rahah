@@ -215,7 +215,7 @@ function ease_in_view() {
     for (const part of thread.children) {
         part.animate(
             [{ opacity: 0.45, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }],
-            { duration: 450, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+            { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
         );
     }
 }

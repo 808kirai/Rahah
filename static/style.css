@@ -51,12 +51,18 @@
     --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
 
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-    --dur: 0.4s;
+    /* a quick arrival with a touch of spring, for menus, boxes and toasts that open */
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.1);
+    --dur: 0.3s;
+    /* a serif italic for the big headings, inter for everything else */
+    --font-display: 'Newsreader', Georgia, "Times New Roman", serif;
+    /* floating boxes lift on a few soft shadows instead of one heavy one */
+    --float-shadow: 0 0 0 1px rgba(160, 215, 255, 0.07), 0 24px 54px rgba(0, 0, 0, 0.42), 0 10px 20px rgba(0, 0, 0, 0.26), 0 2px 4px rgba(0, 0, 0, 0.2);
     --gutter: 2rem;
     --pill: 999px;
     /* the chat column, three quarters of the screen on wide screens and never under 760px */
     --chat-w: max(760px, 75vw);
-    --card: 18px;
+    --card: 12px;
 }
 
 [data-theme="light"] {
@@ -73,6 +79,7 @@
     --mauve-text: #85527f;
     --record: var(--accent);
     --shadow: rgba(12, 26, 38, 0.16);
+    --float-shadow: 0 0 0 1px rgba(12, 26, 38, 0.05), 0 26px 54px rgba(12, 26, 38, 0.06), 0 16px 32px rgba(12, 26, 38, 0.05), 0 10px 16px rgba(12, 26, 38, 0.04), 0 5px 8px rgba(12, 26, 38, 0.03), 0 2px 4px rgba(12, 26, 38, 0.03);
     --glass: rgba(255, 255, 255, 0.86);
     --dock-bg: rgba(226, 235, 242, 0.94);
     --dock-line: rgba(12, 26, 38, 0.14);
@@ -112,6 +119,8 @@ body {
     background-attachment: fixed;
     color: var(--text);
     line-height: 1.6;
+    /* inter set a hair tighter, the way benji's site sets it */
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
@@ -205,7 +214,7 @@ svg {
     padding: 0.65rem 1.4rem;
     border-radius: var(--pill);
     font-size: 0.92rem;
-    font-weight: 600;
+    font-weight: 500;
     transition: background-color 0.2s, box-shadow 0.3s var(--ease-out), transform var(--dur) var(--ease-out);
 }
 
@@ -326,7 +335,7 @@ svg {
     align-items: center;
     gap: 0.3rem;
     font-size: 1.55rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1;
     letter-spacing: -0.035em;
     color: #ffffff;
@@ -468,7 +477,7 @@ svg {
     background: var(--accent-soft);
     color: var(--accent-text);
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 /* the logo exactly as designed, a dark circle with three rising chevrons, the same in every theme */
@@ -501,7 +510,7 @@ svg {
     min-width: 0;
     text-align: center;
     font-size: 1.12rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: -0.02em;
     white-space: nowrap;
     overflow: hidden;
@@ -524,7 +533,7 @@ body:not(.is-page) .back-btn {
 body:not(.is-page) .chat-title {
     display: inline;
     font-size: 1.05rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0;
 }
 
@@ -552,7 +561,7 @@ body:not(.is-page) .chat-title {
     background: var(--glass);
     box-shadow: inset 0 0 0 1px var(--line-strong);
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text);
     cursor: pointer;
     transition: background-color 0.2s, box-shadow 0.2s;
@@ -597,10 +606,10 @@ body:not(.is-page) .chat-title {
     overflow-x: hidden;
     padding: 0.6rem;
     border: 1px solid var(--border);
-    border-radius: 24px;
+    border-radius: 16px;
     background: var(--surface);
-    box-shadow: 0 18px 50px var(--shadow);
-    animation: picker-in 0.22s var(--ease-out);
+    box-shadow: var(--float-shadow);
+    animation: picker-in 0.22s var(--ease-spring);
 }
 
 .picker-menu[hidden],
@@ -621,21 +630,21 @@ body:not(.is-page) .chat-title {
 @keyframes picker-in {
     from {
         opacity: 0;
-        transform: translateY(-6px) scale(0.98);
+        transform: translateY(-4px) scale(0.97);
     }
 }
 
 @keyframes picker-in-up {
     from {
         opacity: 0;
-        transform: translateY(6px) scale(0.98);
+        transform: translateY(4px) scale(0.97);
     }
 }
 
 .picker-heading {
     padding: 0.4rem 0.8rem 0.3rem;
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -767,7 +776,7 @@ button.picker-heading:focus-visible {
 .picker-option[aria-selected="true"] {
     background: var(--accent-soft);
     color: var(--accent-text);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .picker-option svg {
@@ -834,9 +843,11 @@ button.picker-heading:focus-visible {
 
 .greeting h2 {
     font-size: clamp(1.5rem, 3vw, 2.1rem);
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
     line-height: 1.2;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
 }
 
 .row {
@@ -853,20 +864,22 @@ button.picker-heading:focus-visible {
     padding: 0 var(--gutter);
     margin-bottom: 0.35rem;
     font-size: clamp(1.5rem, 2.6vw, 1.9rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
 }
 
 .category .row-title {
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-2);
 }
 
 .row-title {
     padding: 0 var(--gutter);
     font-size: 1.2rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.01em;
 }
 
@@ -962,7 +975,7 @@ button.picker-heading:focus-visible {
 
 .tile strong {
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1096,7 +1109,7 @@ button.picker-heading:focus-visible {
 
 .chat-card-text strong {
     font-size: 0.88rem;
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1212,7 +1225,7 @@ button.picker-heading:focus-visible {
     background: var(--glass);
     box-shadow: inset 0 0 0 1px var(--line-strong);
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text);
     transition: box-shadow 0.2s;
 }
@@ -1332,7 +1345,7 @@ button.picker-heading:focus-visible {
     flex-direction: column;
     gap: 0.1rem;
     padding: 0.75rem 0.9rem;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--surface-2);
 }
 
@@ -1371,7 +1384,7 @@ button.picker-heading:focus-visible {
 .usage-kinds strong {
     margin-left: 0.25rem;
     color: var(--text);
-    font-weight: 600;
+    font-weight: 500;
 }
 
 @media (max-width: 480px) {
@@ -1398,7 +1411,7 @@ tr.pick-row:focus-visible {
 /* the details box, a smaller and squarer sheet than the others */
 .detail-sheet {
     width: min(460px, calc(100vw - 24px));
-    border-radius: 20px;
+    border-radius: 14px;
 }
 
 .detail-body {
@@ -1424,7 +1437,7 @@ tr.pick-row:focus-visible {
     flex-direction: column;
     gap: 0.15rem;
     padding: 0.6rem 0.75rem;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--surface-2);
 }
 
@@ -1443,7 +1456,7 @@ tr.pick-row:focus-visible {
 .detail-heading {
     margin-top: 0.25rem;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -1463,7 +1476,7 @@ tr.pick-row:focus-visible {
     align-items: center;
     gap: 0.75rem;
     padding: 0.45rem 0.75rem;
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--surface-2);
     font-size: 0.88rem;
 }
@@ -1509,7 +1522,7 @@ tr.pick-row:focus-visible {
     align-items: flex-start;
     gap: 0.75rem;
     padding: 0.65rem 0.8rem;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--surface-2);
 }
 
@@ -1537,7 +1550,7 @@ tr.pick-row:focus-visible {
 
 .plan-date {
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-2);
 }
 
@@ -1601,7 +1614,7 @@ button.plan-task:focus-visible {
     flex-direction: column;
     gap: 0.15rem;
     padding: 0.7rem 0.95rem;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--panel-line), var(--card-shadow);
     color: inherit;
@@ -1635,7 +1648,7 @@ button.plan-task:focus-visible {
     margin: 0.9rem 0;
     padding: 1rem;
     border: 1px solid var(--panel-line);
-    border-radius: 18px;
+    border-radius: 12px;
     background: var(--panel-bg);
     overflow-x: auto;
 }
@@ -1689,7 +1702,7 @@ button.plan-task:focus-visible {
     gap: 0.2rem;
     padding: 0.85rem 1rem;
     border: 1px solid var(--panel-line);
-    border-radius: 18px;
+    border-radius: 12px;
     background: var(--card-bg);
     min-width: 0;
 }
@@ -1701,7 +1714,7 @@ button.plan-task:focus-visible {
 
 .week-tile strong {
     font-size: 1.35rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .week-tile small {
@@ -1869,8 +1882,10 @@ body.signed-out .toasts {
 .auth-title {
     margin: 0 0 1.5rem;
     font-size: 1.85rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
 }
 
 .auth-art {
@@ -1915,7 +1930,7 @@ body.signed-out .toasts {
     background: none;
     font: inherit;
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text);
     text-decoration: underline;
     text-underline-offset: 3px;
@@ -2014,7 +2029,7 @@ body.signed-out .toasts {
     align-items: center;
     gap: 0.75rem;
     padding: 0.6rem 0.75rem;
-    border-radius: 16px;
+    border-radius: 12px;
     background: var(--surface-2);
 }
 
@@ -2026,7 +2041,7 @@ body.signed-out .toasts {
 .board-place {
     width: 1.6rem;
     text-align: center;
-    font-weight: 700;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: var(--text-2);
 }
@@ -2056,7 +2071,7 @@ body.signed-out .toasts {
 .board-row.silver .board-place,
 .board-row.bronze .board-place {
     font-size: 1.05rem;
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .board-medal {
@@ -2164,7 +2179,7 @@ body.signed-out .toasts {
 
 .standing-race strong {
     font-size: 2.2rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
 }
@@ -2205,7 +2220,7 @@ body.signed-out .toasts {
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.55rem 0.75rem;
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--surface-2);
     font-size: 0.85rem;
 }
@@ -2216,7 +2231,7 @@ body.signed-out .toasts {
 
 .standing-facts dd {
     margin: 0;
-    font-weight: 600;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
 
@@ -2380,7 +2395,7 @@ body:not(.is-page) .me-face {
     display: inline-block;
     margin-left: 0.35rem;
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
     vertical-align: middle;
     --ink: #fff;
     --edge: rgba(0, 0, 0, 0.55);
@@ -2395,8 +2410,10 @@ body:not(.is-page) .me-face {
 
 .plans-title {
     font-size: 1.35rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
 }
 
 .plans-sub {
@@ -2433,7 +2450,7 @@ body:not(.is-page) .me-face {
     border-radius: 999px;
     font: inherit;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     background: none;
     cursor: pointer;
@@ -2471,7 +2488,7 @@ body:not(.is-page) .me-face {
     padding: 0.15rem 0.6rem;
     border-radius: 999px;
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--accent-text);
     background: var(--accent-soft);
 }
@@ -2487,7 +2504,7 @@ body:not(.is-page) .me-face {
 .plan-name {
     margin-top: 0.9rem;
     font-size: 1.55rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: -0.02em;
 }
 
@@ -2500,14 +2517,14 @@ body:not(.is-page) .me-face {
 .plan-price {
     margin-top: 1.6rem;
     font-size: 1.5rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
 }
 
 .plan-price small {
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0;
     color: var(--text-2);
 }
@@ -2540,7 +2557,7 @@ body:not(.is-page) .me-face {
 .plan-plus {
     margin-bottom: 0.7rem;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .plan-features {
@@ -2608,7 +2625,7 @@ body:not(.is-page) .me-face {
     gap: 0.9rem;
     margin-top: 1rem;
     padding: 0.9rem 1.1rem;
-    border-radius: 20px;
+    border-radius: 14px;
     background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--panel-line);
 }
@@ -2637,7 +2654,7 @@ body:not(.is-page) .me-face {
     gap: 0.6rem;
     margin-top: 1rem;
     padding: 0.85rem 1rem;
-    border-radius: 18px;
+    border-radius: 12px;
     background: var(--surface-2);
     color: var(--text);
     font-size: 0.88rem;
@@ -2781,7 +2798,7 @@ body:not(.is-page) .me-face {
 .pace-note {
     margin: 0.85rem 0 0;
     padding: 0.6rem 0.8rem;
-    border-radius: 12px;
+    border-radius: 10px;
     font-size: 0.85rem;
     color: var(--text);
     background: var(--surface-2);
@@ -2795,7 +2812,7 @@ body:not(.is-page) .me-face {
     gap: 1rem;
     margin: 1rem 0 0.25rem;
     padding: 0.7rem 0.85rem;
-    border-radius: 16px;
+    border-radius: 12px;
     background: var(--surface-2);
 }
 
@@ -2868,7 +2885,7 @@ body:not(.is-page) .me-face {
 
 .support-link {
     color: var(--accent-text);
-    font-weight: 600;
+    font-weight: 500;
     text-decoration: underline;
     text-underline-offset: 3px;
 }
@@ -3150,7 +3167,7 @@ body:not(.is-page) .me-face {
     margin-bottom: 1rem;
     padding: 0.85rem 1rem;
     border: 1px solid var(--panel-line);
-    border-radius: 18px;
+    border-radius: 12px;
     background: var(--card-bg);
 }
 
@@ -3261,7 +3278,7 @@ body:not(.is-page) .me-face {
     border-radius: 50%;
     background: var(--accent);
     color: #fff;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .account-text {
@@ -3361,7 +3378,7 @@ body:not(.is-page) .me-face {
     gap: 0.75rem;
     padding: 0.6rem 0.75rem 0.6rem 0.9rem;
     border: 1px solid var(--panel-line);
-    border-radius: 18px;
+    border-radius: 12px;
     background: var(--panel-bg);
 }
 
@@ -3382,7 +3399,7 @@ body:not(.is-page) .me-face {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .note-text small {
@@ -3508,7 +3525,7 @@ body:not(.is-page) .me-face {
     }
 
     #print-area .print-question {
-        font-weight: 700;
+        font-weight: 600;
         margin-bottom: 8pt;
     }
 
@@ -3525,8 +3542,10 @@ body:not(.is-page) .me-face {
 .section-title {
     margin: 1.1rem 0 0.2rem;
     font-size: clamp(1.3rem, 2.2vw, 1.6rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
 }
 
 /* the new chat drop down, the same rounded box as the + menu but opening down from the button */
@@ -3546,10 +3565,10 @@ body:not(.is-page) .me-face {
     max-width: calc(100vw - 24px);
     padding: 0.45rem;
     border: 1px solid var(--border);
-    border-radius: 24px;
+    border-radius: 16px;
     background: var(--surface);
-    box-shadow: 0 18px 50px var(--shadow);
-    animation: picker-in 0.22s var(--ease-out);
+    box-shadow: var(--float-shadow);
+    animation: picker-in 0.22s var(--ease-spring);
 }
 
 .new-chat-menu[hidden] {
@@ -3559,7 +3578,7 @@ body:not(.is-page) .me-face {
 .new-chat-heading {
     margin: 0.45rem 0.9rem 0.15rem;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -3653,14 +3672,14 @@ body:not(.is-page) .me-face {
 
 .countdown strong {
     font-size: 2.1rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: -0.03em;
     line-height: 1;
 }
 
 .countdown span {
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
@@ -3679,7 +3698,7 @@ body:not(.is-page) .me-face {
 
 .reminder-info > strong {
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3754,8 +3773,10 @@ body:not(.is-page) .me-face {
 
 .planner-title {
     font-size: clamp(1.3rem, 2.2vw, 1.6rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
 }
 
 /* one line under the title, with the notifications switch on the right of the reminders one */
@@ -3804,7 +3825,7 @@ body:not(.is-page) .me-face {
 .timetable-day-title {
     margin-bottom: 0.4rem;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -3820,7 +3841,7 @@ body:not(.is-page) .me-face {
     gap: 0.75rem;
     margin-bottom: 0.4rem;
     padding: 0.5rem 0.35rem 0.5rem 0.85rem;
-    border-radius: 18px;
+    border-radius: 12px;
     background: var(--surface-2);
 }
 
@@ -3840,7 +3861,7 @@ body:not(.is-page) .me-face {
 
 .class-time strong {
     font-size: 0.88rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .class-time span {
@@ -3866,7 +3887,7 @@ body:not(.is-page) .me-face {
 /* a long class name wraps onto a second line rather than being cut off */
 .class-info strong {
     font-size: 0.92rem;
-    font-weight: 600;
+    font-weight: 500;
     white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -3885,7 +3906,7 @@ body:not(.is-page) .me-face {
     background: var(--accent-fill);
     color: var(--on-accent);
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .class-row .icon-btn {
@@ -3937,17 +3958,17 @@ body:not(.is-page) .me-face {
     gap: 0.8rem;
     padding: 0.7rem 0.7rem 0.7rem 0.9rem;
     border: 1px solid var(--border);
-    border-radius: 22px;
+    border-radius: 14px;
     background: var(--surface);
-    box-shadow: 0 18px 50px var(--shadow);
+    box-shadow: var(--float-shadow);
     pointer-events: auto;
-    animation: toast-in 0.45s var(--ease-out);
+    animation: toast-in 0.3s var(--ease-spring);
 }
 
 @keyframes toast-in {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(-6px) scale(0.97);
     }
 }
 
@@ -3966,7 +3987,7 @@ body:not(.is-page) .me-face {
 }
 
 .toast-text strong {
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .toast-text span {
@@ -4030,10 +4051,10 @@ body:not(.is-page) .me-face {
     max-width: calc(100vw - 24px);
     padding: 0.45rem;
     border: 1px solid var(--border);
-    border-radius: 24px;
+    border-radius: 16px;
     background: var(--surface);
-    box-shadow: 0 18px 50px var(--shadow);
-    animation: picker-in-up 0.22s var(--ease-out);
+    box-shadow: var(--float-shadow);
+    animation: picker-in-up 0.22s var(--ease-spring);
 }
 
 .input-menu[hidden],
@@ -4078,7 +4099,7 @@ body:not(.is-page) .me-face {
 .input-option strong {
     display: block;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .input-option small {
@@ -4320,7 +4341,7 @@ body:not(.is-page) .me-face {
     background: var(--accent-soft);
     color: var(--accent-text);
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .rec-chip svg {
@@ -4339,7 +4360,7 @@ body:not(.is-page) .me-face {
 .rec-subject {
     margin-top: 0.35rem;
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-2);
@@ -4348,7 +4369,7 @@ body:not(.is-page) .me-face {
 .group-title {
     margin: 0.75rem 0 0.7rem;
     font-size: 1.2rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.01em;
 }
 
@@ -4388,17 +4409,17 @@ body:not(.is-page) .me-face {
     max-height: calc(100dvh - 24px);
     padding: 0;
     border: none;
-    border-radius: 28px;
+    border-radius: 18px;
     background: var(--surface);
     color: var(--text);
-    box-shadow: 0 30px 80px var(--shadow);
+    box-shadow: var(--float-shadow);
 }
 
 /* boxes ease in when they open and out when they close, the page adds closing for the way out */
 .sheet {
     opacity: 0;
-    transform: translateY(24px) scale(0.96);
-    transition: opacity 0.28s var(--ease-out), transform 0.4s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+    transform: translateY(10px) scale(0.97);
+    transition: opacity 0.2s var(--ease-out), transform 0.32s var(--ease-spring), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
 }
 
 .sheet[open] {
@@ -4408,25 +4429,27 @@ body:not(.is-page) .me-face {
 
 .sheet[open].closing {
     opacity: 0;
-    transform: translateY(16px) scale(0.97);
-    transition-duration: 0.22s, 0.22s;
+    transform: translateY(6px) scale(0.98);
+    transition-duration: 0.16s, 0.16s;
     transition-timing-function: ease-in, ease-in;
 }
 
 @starting-style {
     .sheet[open] {
         opacity: 0;
-        transform: translateY(24px) scale(0.96);
+        transform: translateY(10px) scale(0.97);
     }
 }
 
 .sheet::backdrop {
     background: rgba(2, 6, 12, 0);
-    transition: background-color 0.3s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+    backdrop-filter: blur(0);
+    transition: background-color 0.3s var(--ease-out), backdrop-filter 0.3s var(--ease-out), overlay 0.3s allow-discrete, display 0.3s allow-discrete;
 }
 
 .sheet[open]::backdrop {
     background: rgba(2, 6, 12, 0.55);
+    backdrop-filter: blur(6px);
 }
 
 .sheet[open].closing::backdrop {
@@ -4456,7 +4479,7 @@ body:not(.is-page) .me-face {
 
 .sheet-top h2 {
     font-size: 1.25rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .field {
@@ -4468,7 +4491,7 @@ body:not(.is-page) .me-face {
 
 .field-label {
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
@@ -4476,7 +4499,7 @@ body:not(.is-page) .me-face {
     min-height: 88px;
     padding: 0.8rem 1rem;
     border: none;
-    border-radius: 18px;
+    border-radius: 12px;
     outline: none;
     resize: vertical;
     background: var(--surface-2);
@@ -4544,7 +4567,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text);
     text-align: left;
     transition: background-color 0.2s, color 0.2s;
@@ -4614,7 +4637,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     transition: background-color 0.2s, color 0.2s;
 }
@@ -4626,7 +4649,7 @@ body:not(.is-page) .me-face {
 
 .sheet-error {
     padding: 0.65rem 1rem;
-    border-radius: 16px;
+    border-radius: 12px;
     background: rgba(167, 131, 166, 0.18);
     font-size: 0.88rem;
 }
@@ -4656,14 +4679,14 @@ body:not(.is-page) .me-face {
     margin-bottom: 0.75rem;
     text-align: center;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
 .flashcard {
     display: block;
     height: clamp(260px, 50vh, 440px);
-    border-radius: 26px;
+    border-radius: 16px;
     perspective: 1400px;
     cursor: pointer;
 }
@@ -4687,12 +4710,12 @@ body:not(.is-page) .me-face {
     justify-content: center;
     align-items: center;
     padding: 2.5rem 2rem 2rem;
-    border-radius: 26px;
+    border-radius: 16px;
     text-align: center;
     overflow-y: auto;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    box-shadow: 0 16px 40px var(--shadow);
+    box-shadow: var(--float-shadow);
 }
 
 .face.front {
@@ -4710,14 +4733,14 @@ body:not(.is-page) .me-face {
     top: 1.1rem;
     left: 1.4rem;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
 .face-text {
     max-width: 34rem;
     font-size: 1.3rem;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.45;
 }
 
@@ -4743,7 +4766,7 @@ body:not(.is-page) .me-face {
 
 .quiz-timer.low {
     color: var(--mauve-text);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 /* after a card is flipped, say how it went */
@@ -4759,7 +4782,7 @@ body:not(.is-page) .me-face {
 }
 
 .box-name {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .box-1 {
@@ -4831,7 +4854,7 @@ body:not(.is-page) .me-face {
 
 .quiz-question {
     font-size: 1.3rem;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.45;
 }
 
@@ -4872,7 +4895,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .option.correct {
@@ -4898,7 +4921,7 @@ body:not(.is-page) .me-face {
 .feedback {
     margin-top: 1rem;
     padding: 1rem 1.25rem;
-    border-radius: 20px;
+    border-radius: 14px;
     background: var(--surface);
 }
 
@@ -4939,14 +4962,14 @@ body:not(.is-page) .me-face {
 
 .review-head {
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--text-2);
 }
 
 .review-question {
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .review-answers {
@@ -4958,7 +4981,7 @@ body:not(.is-page) .me-face {
 
 .review-answer {
     padding: 0.6rem 0.8rem;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--surface-2);
 }
 
@@ -4966,7 +4989,7 @@ body:not(.is-page) .me-face {
     display: block;
     margin-bottom: 0.2rem;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .review-answer.wrong > span {
@@ -5004,7 +5027,7 @@ body:not(.is-page) .me-face {
     width: 100%;
     min-height: 8rem;
     padding: 0.9rem 1.1rem;
-    border-radius: 20px;
+    border-radius: 14px;
     resize: vertical;
     line-height: 1.5;
 }
@@ -5044,7 +5067,7 @@ body:not(.is-page) .me-face {
     display: block;
     max-width: min(100%, 360px);
     max-height: 260px;
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -5065,7 +5088,7 @@ body:not(.is-page) .me-face {
 .model-answer summary {
     cursor: pointer;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--accent-text);
 }
 
@@ -5080,7 +5103,7 @@ body:not(.is-page) .me-face {
 
 .score {
     font-size: 3.5rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.1;
     letter-spacing: -0.03em;
     color: var(--text-2);
@@ -5131,14 +5154,14 @@ body:not(.is-page) .me-face {
 
 .score-ring-inner strong {
     font-size: 2.7rem;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: -0.03em;
 }
 
 .score-ring-sign {
     margin-left: 0.05em;
     font-size: 0.55em;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--ring);
 }
 
@@ -5206,7 +5229,7 @@ body:not(.is-page) .me-face {
 
 .stat-label {
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
@@ -5215,7 +5238,7 @@ body:not(.is-page) .me-face {
     align-items: center;
     gap: 0.5rem;
     font-size: 1.9rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.2;
     letter-spacing: -0.02em;
 }
@@ -5253,7 +5276,7 @@ body:not(.is-page) .me-face {
     justify-content: center;
     gap: 0.3rem;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     transition: background-color 0.2s, color 0.2s, transform var(--dur) var(--ease-out);
 }
@@ -5273,12 +5296,12 @@ body:not(.is-page) .me-face {
     background: var(--accent-soft);
     color: var(--accent-text);
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0;
 }
 
 .delta {
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .delta.up {
@@ -5306,14 +5329,14 @@ body:not(.is-page) .me-face {
 .perf-card {
     position: relative;
     padding: 1.1rem 1.25rem 1.25rem;
-    border-radius: 22px;
+    border-radius: 14px;
     background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--panel-line), var(--card-shadow);
 }
 
 .perf-head h3 {
     font-size: 1.05rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .perf-head p {
@@ -5376,7 +5399,7 @@ body:not(.is-page) .me-face {
 .chart .end-label {
     fill: var(--text);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .chart .crosshair {
@@ -5398,9 +5421,9 @@ body:not(.is-page) .me-face {
     min-width: 9rem;
     max-width: 16rem;
     padding: 0.55rem 0.8rem;
-    border-radius: 14px;
+    border-radius: 10px;
     background: var(--surface-2);
-    box-shadow: 0 10px 30px var(--shadow);
+    box-shadow: var(--float-shadow);
     font-size: 0.78rem;
     color: var(--text-2);
     transform: translate(-50%, calc(-100% - 14px));
@@ -5434,7 +5457,7 @@ body:not(.is-page) .me-face {
     grid-template-columns: minmax(90px, 10rem) 1fr;
     align-items: center;
     gap: 0.75rem;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 .bar-label {
@@ -5463,7 +5486,7 @@ body:not(.is-page) .me-face {
 .bar-value,
 .col-value {
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
@@ -5480,7 +5503,7 @@ body:not(.is-page) .me-face {
     flex-direction: column;
     align-items: center;
     gap: 0.4rem;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 .col-plot {
@@ -5506,7 +5529,7 @@ body:not(.is-page) .me-face {
 
 .col-label {
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-2);
 }
 
@@ -5531,7 +5554,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     list-style: none;
 }
@@ -5556,7 +5579,7 @@ body:not(.is-page) .me-face {
     border-bottom: 1px solid var(--border);
     text-align: left;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     white-space: nowrap;
 }
@@ -5583,7 +5606,7 @@ body:not(.is-page) .me-face {
 /* chat messages */
 .message {
     margin-bottom: 1.25rem;
-    animation: rise 0.45s var(--ease-out);
+    animation: rise 0.35s var(--ease-out);
 }
 
 .message.user {
@@ -5613,7 +5636,7 @@ body:not(.is-page) .me-face {
 
 .message.assistant {
     padding: 1rem 1.3rem 1.15rem;
-    border-radius: 22px;
+    border-radius: 14px;
     background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--panel-line), var(--card-shadow);
 }
@@ -5662,7 +5685,7 @@ body:not(.is-page) .me-face {
     gap: 0.45rem;
     margin-bottom: 0.35rem;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
@@ -5748,7 +5771,7 @@ body:not(.is-page) .me-face {
 
 .answer pre {
     position: relative;
-    border-radius: 16px;
+    border-radius: 12px;
     background: var(--code-bg);
     overflow: hidden;
 }
@@ -5791,7 +5814,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     transition: background-color 0.2s, color 0.2s;
 }
@@ -5830,7 +5853,7 @@ body:not(.is-page) .me-face {
     gap: 0.55rem;
     padding: 0.6rem 0.9rem;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .run-head svg {
@@ -5857,7 +5880,7 @@ body:not(.is-page) .me-face {
     padding: 0.15rem 0.7rem;
     border-radius: var(--pill);
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .run-status.ok {
@@ -5919,7 +5942,7 @@ body:not(.is-page) .me-face {
     display: block;
     max-width: 100%;
     max-height: 26rem;
-    border-radius: 12px;
+    border-radius: 10px;
     background: #ffffff;
 }
 
@@ -5931,7 +5954,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     background: var(--surface-2);
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text);
     text-decoration: none;
 }
@@ -5957,7 +5980,7 @@ body:not(.is-page) .me-face {
 .hljs-built_in,
 .hljs-title,
 .hljs-section {
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .hljs-keyword,
@@ -5995,7 +6018,7 @@ body:not(.is-page) .me-face {
     background: var(--accent-soft);
     color: var(--accent-text);
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: 600;
     vertical-align: 0.15em;
     transition: background-color 0.2s, color 0.2s;
 }
@@ -6014,12 +6037,12 @@ body:not(.is-page) .me-face {
 .sources-title {
     margin-bottom: 0.4rem;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
 }
 
 .source {
-    border-radius: 14px;
+    border-radius: 10px;
     transition: background-color 0.3s;
 }
 
@@ -6042,7 +6065,7 @@ body:not(.is-page) .me-face {
 
 .source .n {
     min-width: 1.25rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--accent-text);
 }
 
@@ -6077,7 +6100,7 @@ body:not(.is-page) .me-face {
 .notice {
     margin-top: 0.75rem;
     padding: 0.75rem 1rem;
-    border-radius: 16px;
+    border-radius: 12px;
     background: var(--surface-2);
     font-size: 0.9rem;
     color: var(--text-2);
@@ -6115,7 +6138,7 @@ body:not(.is-page) .me-face {
     padding: 0.25rem 0.8rem 0.2rem;
     border-radius: var(--pill);
     font-size: 0.64rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     transition: background-color 0.2s, color 0.2s;
 }
@@ -6148,7 +6171,7 @@ body:not(.is-page) .me-face {
     color: var(--on-accent);
     font-size: 0.65rem;
     font-style: normal;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .tab-badge[hidden] {
@@ -6257,7 +6280,7 @@ body:not(.is-page) .me-face {
     background: var(--accent-soft);
     color: var(--accent-text);
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .composer-chip button {
@@ -6371,7 +6394,7 @@ body:not(.is-page) .me-face {
 }
 
 @keyframes rise {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: none; }
 }
 
@@ -6392,13 +6415,13 @@ body:not(.is-page) .me-face {
 
 .reveal.shown,
 .reveal-row.shown .row-title {
-    animation: fade-up 0.7s var(--ease-out) backwards;
+    animation: fade-up 0.6s var(--ease-out) backwards;
 }
 
 .reveal-row.shown .row-track > *,
 .reveal-grid.shown > * {
-    animation: fade-up 0.7s var(--ease-out) backwards;
-    animation-delay: calc(var(--i, 0) * 70ms + 60ms);
+    animation: fade-up 0.6s var(--ease-out) backwards;
+    animation-delay: calc(var(--i, 0) * 60ms + 40ms);
 }
 
 .row-track > :nth-child(2), .card-grid > :nth-child(2) { --i: 1; }
@@ -6434,7 +6457,7 @@ body:not(.is-page) .me-face {
 .choice,
 .option {
     transition-property: background-color, color, border-color, opacity, transform;
-    transition-duration: 0.2s;
+    transition-duration: 0.15s;
     transition-timing-function: var(--ease-out);
 }
 
@@ -6446,7 +6469,7 @@ body:not(.is-page) .me-face {
 .choice:active,
 .tile:active {
     transform: scale(0.96);
-    transition-duration: 0.12s;
+    transition-duration: 0.1s;
 }
 
 .row-arrow:active {
@@ -6480,12 +6503,12 @@ body:not(.is-page) .me-face {
 /* switching between light and dark cross fades */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-    animation-duration: 0.35s;
+    animation-duration: 0.3s;
     animation-timing-function: var(--ease-out);
 }
 
 @keyframes fade-up {
-    from { opacity: 0; transform: translateY(18px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: none; }
 }
 
@@ -6573,7 +6596,7 @@ body:not(.is-page) .me-face {
         margin: auto auto 0;
         width: 100%;
         max-width: 100%;
-        border-radius: 28px 28px 0 0;
+        border-radius: 18px 18px 0 0;
         transform: translateY(100%);
     }
 
@@ -6818,7 +6841,7 @@ body:not(.is-page) .me-face {
     flex-shrink: 0;
     width: 40px;
     height: 40px;
-    border-radius: 12px;
+    border-radius: 10px;
 }
 
 /* the install steps can take two lines on a phone */
@@ -6928,7 +6951,7 @@ body:not(.is-page) .me-face {
 .edit-box textarea {
     width: 100%;
     resize: vertical;
-    border-radius: 18px;
+    border-radius: 12px;
     line-height: 1.45;
 }
 
@@ -6995,7 +7018,7 @@ body:not(.is-page) .me-face {
     border-radius: 999px;
     font: inherit;
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-2);
     background: none;
     cursor: pointer;
@@ -7012,7 +7035,7 @@ body:not(.is-page) .me-face {
     border-radius: var(--pill);
     font: inherit;
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--accent-text);
     box-shadow: inset 0 0 0 1px var(--panel-line);
 }
