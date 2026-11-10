@@ -912,11 +912,13 @@ async function upload_files(files) {
         const item = { key: ++file_key, id: null, name: file.name, kind, status: "uploading", file };
         state.pending.push(item);
         await send_upload(item);
+        // a pdf of more than a page asks which pages to send, one box at a time when several are chosen
+        if (item.total > 1 && (item.status === "pick" || item.status === "ready")) await open_page_picker(item);
     }
 }
 
 // sends one attached file. a pdf can go with just the pages picked, swapping the copy sent before. one too long
-// for the plan comes back asking for pages first
+// for the plan comes back asking for pages first, and isn't sent until they're picked
 async function send_upload(item, pages = "", replaces = "") {
     item.status = "uploading";
     render_attachments();
@@ -931,7 +933,6 @@ async function send_upload(item, pages = "", replaces = "") {
         if (saved.pick_pages) {
             Object.assign(item, { status: "pick", total: saved.pages, max: saved.max_pages });
             render_attachments();
-            open_page_picker(item);
             return;
         }
         Object.assign(item, { id: saved.id, name: saved.name, kind: saved.kind, status: "ready", total: saved.pages, max: saved.max_pages, picked: saved.picked });
@@ -945,6 +946,8 @@ async function send_upload(item, pages = "", replaces = "") {
 const pages_sheet = el("pages-sheet");
 const pages_input = el("pages-input");
 let picking = null;
+// the upload of the pages just picked, so whatever waits on the box waits for it too
+let repicked = null;
 
 function picked_pages(text, total) {
     const parts = text.trim().replace(/\s*[-–—]\s*/g, "-").split(/[,;\s]+/).filter(Boolean);
@@ -968,13 +971,22 @@ function show_page_count() {
     el("pages-use").disabled = !got.count || Boolean(got.error) || over;
 }
 
+// opens as soon as a pdf is chosen. one that fits the plan is already sent whole, so the other button keeps all
+// its pages. it settles when the box closes, so the next file's box waits its turn
 function open_page_picker(item) {
     picking = item;
-    el("pages-about").textContent = `${item.file.name} has ${plural(item.total, "page")}. Rahah reads up to ${item.max} at a time. Pick any of them, in any order.`;
+    const fits = item.status === "ready";
+    el("pages-about").textContent = fits
+        ? `${item.file.name} has ${plural(item.total, "page")}. Send them all, or pick only the ones you need, in any order.`
+        : `${item.file.name} has ${plural(item.total, "page")}. Rahah reads up to ${item.max} at a time. Pick any of them, in any order.`;
+    el("pages-cancel").textContent = fits && !item.picked ? `All ${item.total} pages` : "Cancel";
     pages_input.value = item.picked || "";
     show_page_count();
     if (!pages_sheet.open) pages_sheet.showModal();
-    pages_input.focus();
+    // on a phone the keyboard waits for a tap, so all pages is one tap away
+    if (!touch_screen) pages_input.focus();
+    repicked = null;
+    return new Promise((resolve) => pages_sheet.addEventListener("close", () => resolve(repicked), { once: true }));
 }
 
 pages_input.addEventListener("input", show_page_count);
@@ -983,8 +995,8 @@ el("pages-cancel").addEventListener("click", () => pages_sheet.close());
 el("pages-form").addEventListener("submit", (event) => {
     event.preventDefault();
     if (el("pages-use").disabled) return;
+    repicked = send_upload(picking, pages_input.value.trim(), picking.status === "ready" ? picking.id : "");
     pages_sheet.close();
-    send_upload(picking, pages_input.value.trim(), picking.status === "ready" ? picking.id : "");
 });
 
 file_input.addEventListener("change", () => {
