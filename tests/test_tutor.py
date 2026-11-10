@@ -1,7 +1,7 @@
 from anthropic.types.beta import BetaFallbackBlock
 
 from app.store import stored_file
-from app.tutor import citation_list, display_from_content, history_blocks, user_content
+from app.tutor import cache_point, citation_list, display_from_content, history_blocks, user_content
 
 from .fakes import page_citation, text_block, thinking_block
 
@@ -59,3 +59,18 @@ def test_saved_display_matches_what_was_streamed():
     display = display_from_content(content)
     assert display["text"] == "Osmosis is water moving across a membrane⟦1⟧."
     assert display["sources"][0]["title"] == "notes.pdf"
+
+
+def test_the_cache_is_marked_on_the_latest_question_not_a_note_after_it():
+    pdf = {"type": "document", "source": {"type": "file", "file_id": "file_a"}}
+    messages = [
+        {"role": "user", "content": [pdf, {"type": "text", "text": "first"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "answer"}]},
+        {"role": "user", "content": "second"},
+        {"role": "system", "content": "search is off today"},
+    ]
+    marked = cache_point(messages)
+    assert marked[2]["content"] == [{"type": "text", "text": "second", "cache_control": {"type": "ephemeral"}}]
+    assert marked[3] == messages[3] and marked[:2] == messages[:2]
+    # what's kept for the chat isn't changed
+    assert messages[2]["content"] == "second" and "cache_control" not in str(messages[0])

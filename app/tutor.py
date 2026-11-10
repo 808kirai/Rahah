@@ -430,6 +430,21 @@ async def fit_prompt(client, model: str, messages: list[dict], cap: int, upgrade
 chat_trimmed_note = "This chat is long, so Rahah read only the latest part. Start a new chat to keep everything in view."
 
 
+def cache_point(messages: list[dict]) -> list[dict]:
+    """a copy with the cache marked at the end of the latest question.
+    a note sent after it only for this turn, like search being off, isn't kept, so if the cache
+    ended on it the next question could never read it back and a pdf would be paid for again each time"""
+    last = max((i for i, m in enumerate(messages) if m["role"] == "user"), default=None)
+    if last is None:
+        return messages
+    content = messages[last]["content"]
+    blocks = [{"type": "text", "text": content}] if isinstance(content, str) else [dict(b) for b in content]
+    if not blocks:
+        return messages
+    blocks[-1]["cache_control"] = {"type": "ephemeral"}
+    return messages[:last] + [{**messages[last], "content": blocks}] + messages[last + 1:]
+
+
 async def stream_reply(
     client, cfg: settings, messages: list[dict], code: bool = False, container: str | None = None,
     model: str = "", effort: str = "", search: bool = True,
@@ -450,6 +465,7 @@ async def stream_reply(
     tools = ([web_tool] if search else []) + ([code_tool] if code else [])
     if tools:
         options["tools"] = tools
+    messages = cache_point(messages)
     content, sent = [], messages
     reported, expires = None, None
     used = []

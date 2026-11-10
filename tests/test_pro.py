@@ -253,6 +253,9 @@ def test_free_students_get_five_searches_a_day(tmp_path):
     # the first five questions could search, the sixth couldn't, and claude was told why
     assert all("web_search" in t for t in tools[:5]) and "web_search" not in tools[5]
     assert "Web search isn't available" in str(claude.beta.messages.calls[5]["messages"][-1])
+    # the note isn't kept, so the cache ends on the question, where the next question can read it back
+    question = claude.beta.messages.calls[5]["messages"][-2]
+    assert question["role"] == "user" and question["content"][-1]["cache_control"] == {"type": "ephemeral"}
 
 
 def test_parent_email_is_checked_and_saved(tmp_path):

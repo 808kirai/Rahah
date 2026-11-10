@@ -118,7 +118,10 @@ def test_history_is_replayed_unchanged_and_mode_notes_only_on_change(setup):
     assert second_call[2]["content"][0] == {"type": "thinking", "thinking": "", "signature": "sig123"}
 
     third_call = calls[2]["messages"]
-    assert third_call[:4] == second_call
+    # the cache mark sits on whichever question is latest, the history itself is the same
+    unmarked = lambda ms: [{**m, "content": [{k: v for k, v in b.items() if k != "cache_control"} for b in m["content"]]}
+                           if isinstance(m["content"], list) else m for m in ms]
+    assert unmarked(third_call[:4]) == unmarked(second_call)
     assert [m["role"] for m in third_call[4:]] == ["assistant", "user", "system"]
     assert third_call[-1]["content"] == modes["maths"]["instruction"]
 
