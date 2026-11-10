@@ -12,9 +12,10 @@
     --accent-soft: rgba(20, 140, 200, 0.14);
     --on-accent: #ffffff;
     /* filled buttons and bubbles, deep enough at every stop for white text */
-    --accent-fill: linear-gradient(135deg, #08699a, #076694);
-    --accent-fill-hover: linear-gradient(135deg, #0977ad, #0873a8);
-    --glow: rgba(16, 140, 200, 0.15);
+    /* flat fills in the accent, with no glow under them */
+    --accent-fill: var(--accent);
+    --accent-fill-hover: var(--accent-hover);
+    --glow: transparent;
     --mauve: #a783a6;
     /* mauve words, a deeper shade in light mode so they stay readable on pale backgrounds */
     --mauve-text: #a783a6;
@@ -39,13 +40,10 @@
     --panel-bg: rgba(16, 28, 40, 0.18);
     --panel-line: rgba(140, 200, 255, 0.06);
     --card-bg: var(--panel-bg);
-    /* the top of a card, lit from below like the cards in the reference */
-    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(20, 140, 200, 0.055), transparent 70%), rgba(22, 38, 54, 0.28);
-    /* the light behind the whole page, a teal wash from the top and a fainter one bottom right */
-    --bg-glow:
-        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.05), transparent 70%),
-        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.03), transparent 70%),
-        radial-gradient(ellipse 40% 35% at -5% 55%, rgba(10, 90, 140, 0.015), transparent 70%);
+    /* the top of a card, one flat step lighter than the card */
+    --art-bg: rgba(22, 38, 54, 0.28);
+    /* the page is one flat colour */
+    --bg-glow: none;
 
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -74,7 +72,7 @@
     --text-2: #5a6b7b;
     --accent-text: #085c85;
     --accent-soft: rgba(8, 105, 154, 0.08);
-    --glow: rgba(8, 105, 154, 0.1);
+    --glow: transparent;
     --mint-text: #2f8a4a;
     --mauve-text: #85527f;
     --record: var(--accent);
@@ -95,16 +93,18 @@
     --panel-bg: rgba(255, 255, 255, 0.28);
     --panel-line: rgba(12, 26, 38, 0.06);
     --card-bg: rgba(255, 255, 255, 0.45);
-    --art-bg: radial-gradient(90% 75% at 50% 115%, rgba(8, 105, 154, 0.03), transparent 70%), rgba(226, 236, 243, 0.55);
-    --bg-glow:
-        radial-gradient(ellipse 75% 50% at 50% -12%, rgba(12, 130, 180, 0.025), transparent 70%),
-        radial-gradient(ellipse 55% 45% at 105% 105%, rgba(10, 100, 155, 0.012), transparent 70%);
+    --art-bg: rgba(226, 236, 243, 0.55);
+    --bg-glow: none;
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+html {
+    font-size: 93.75%;
 }
 
 html,
@@ -218,16 +218,16 @@ svg {
     transition: background-color 0.2s, box-shadow 0.3s var(--ease-out), transform var(--dur) var(--ease-out);
 }
 
-/* a blue gradient with a light top edge and a soft glow under it */
+/* a flat blue fill, a shade lighter on hover */
 .btn-accent {
     background: var(--accent-fill);
     color: var(--on-accent);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 4px 14px var(--glow);
+    box-shadow: 0 4px 14px var(--glow);
 }
 
 .btn-accent:hover {
     background: var(--accent-fill-hover);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 20px var(--glow);
+    box-shadow: 0 6px 20px var(--glow);
 }
 
 /* disabled buttons go quiet grey instead of a washed out accent */
@@ -852,35 +852,37 @@ button.picker-heading:focus-visible {
 
 .row {
     position: relative;
-    margin-bottom: 1rem;
+    margin-bottom: 1.4rem;
 }
 
-/* study, exam and code are the big headings, the rows under them read as subtitles */
+/* study, exam and code are small grey labels with room above, the rows under them are named plainly */
 .category {
-    margin-top: 1.5rem;
+    margin-top: 2.75rem;
 }
 
 .category-title {
     padding: 0 var(--gutter);
-    margin-bottom: 0.35rem;
-    font-size: clamp(1.5rem, 2.6vw, 1.9rem);
-    font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    margin-bottom: 0.6rem;
+    font-family: inherit;
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-2);
 }
 
 .category .row-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-2);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text);
 }
 
 .row-title {
     padding: 0 var(--gutter);
-    font-size: 1.2rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
 }
 
 .row-track {
@@ -943,8 +945,8 @@ button.picker-heading:focus-visible {
     }
 }
 
-/* cards are dark gradients with a hairline edge, and the accent marks what matters on them:
-   the sketch, the label, the play button and a lit edge with a glow when hovered */
+/* cards are flat with a hairline edge, and the accent marks what matters on them:
+   the sketch, the label and the play button. hovered, the edge firms up and the card lifts a little */
 .poster {
     background: var(--card-bg);
     box-shadow: inset 0 0 0 1px var(--panel-line), var(--card-shadow);
@@ -963,14 +965,13 @@ button.picker-heading:focus-visible {
     text-align: left;
     color: var(--text);
     scroll-snap-align: start;
-    transition: transform 0.5s var(--ease-out), box-shadow 0.3s var(--ease-out);
+    transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
 }
 
 .tile:hover,
 .tile:focus-visible {
-    transform: translateY(-4px);
-    background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--accent-soft) 65%, transparent), transparent 65%), var(--card-bg);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 55%, transparent), 0 16px 36px var(--shadow), 0 0 12px color-mix(in srgb, var(--accent-soft) 60%, transparent);
+    transform: translateY(-2px);
+    box-shadow: inset 0 0 0 1px var(--line-strong), 0 12px 28px -14px var(--shadow);
 }
 
 .tile strong {
@@ -1006,43 +1007,20 @@ button.picker-heading:focus-visible {
     box-shadow: inset 0 0 0 1px var(--panel-line), var(--card-shadow);
     overflow: hidden;
     scroll-snap-align: start;
-    transition: transform 0.5s var(--ease-out), box-shadow 0.3s var(--ease-out);
+    transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
 }
 
 .chat-card:hover,
 .chat-card:focus-within {
-    transform: translateY(-4px);
-    box-shadow: inset 0 0 0 1px var(--panel-line), 0 16px 36px var(--shadow);
+    transform: translateY(-2px);
+    box-shadow: inset 0 0 0 1px var(--line-strong), 0 12px 28px -14px var(--shadow);
 }
 
-/* on hover only the bottom strip lights up, a glowing line along its sides and base like a basin,
-   brightest at the bottom and fading out up the sides */
 .chat-card-info {
     position: relative;
 }
 
-.chat-card-info::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border: 1px solid color-mix(in srgb, var(--accent-text) 60%, transparent);
-    border-top: none;
-    border-radius: 0 0 var(--card) var(--card);
-    -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
-    mask-image: linear-gradient(to top, #000 45%, transparent);
-    filter: drop-shadow(0 1px 3px var(--glow));
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s var(--ease-out);
-}
-
-.chat-card:hover .chat-card-info::after,
-.chat-card:focus-within .chat-card-info::after {
-    opacity: 1;
-}
-
-/* the top of a chat, deck or reminder card sits one step lighter with a blue glow at its base,
-   so the card reads as picture and caption */
+/* the top of a chat, deck or reminder card sits one flat step lighter, so the card reads as picture and caption */
 .chat-card-art.poster,
 .reminder-art.poster {
     background: var(--art-bg);
@@ -1067,12 +1045,11 @@ button.picker-heading:focus-visible {
 .play {
     display: grid;
     place-items: center;
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--pill);
     background: var(--accent-fill);
     color: var(--on-accent);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 16px var(--glow);
     transition: background-color 0.2s, transform var(--dur) var(--ease-out);
 }
 
@@ -1082,15 +1059,14 @@ button.picker-heading:focus-visible {
 }
 
 .play svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     margin-left: 2px;
     fill: currentColor;
 }
 
 .chat-card-art:hover .play {
     background: var(--accent-fill-hover);
-    transform: scale(1.06);
 }
 
 .chat-card-info {
@@ -3083,6 +3059,11 @@ body:not(.is-page) .me-face {
 }
 
 /* the suggested for you row on home, with its refresh button beside the heading */
+/* the recent flashcards row keeps the same room from the suggestions above it as the sections below */
+#home-decks:not(:empty) {
+    margin-top: 2.75rem;
+}
+
 .category-head {
     display: flex;
     align-items: center;
@@ -3540,12 +3521,14 @@ body:not(.is-page) .me-face {
 
 /* the big headings that split a page into parts, like tests and chats */
 .section-title {
-    margin: 1.1rem 0 0.2rem;
-    font-size: clamp(1.3rem, 2.2vw, 1.6rem);
-    font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    margin: 2.25rem 0 0.7rem;
+    font-family: inherit;
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-2);
 }
 
 /* the new chat drop down, the same rounded box as the + menu but opening down from the button */
@@ -4367,10 +4350,14 @@ body:not(.is-page) .me-face {
 }
 
 .group-title {
-    margin: 0.75rem 0 0.7rem;
-    font-size: 1.2rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    margin: 1.25rem 0 0.6rem;
+    font-family: inherit;
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-2);
 }
 
 .card-grid {
