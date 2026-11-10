@@ -45,6 +45,13 @@ create table if not exists payments (
     created real not null,
     paid real
 );
+create table if not exists limit_hits (
+    user_id text not null references users(id) on delete cascade,
+    day real not null,
+    tries integer not null default 1,
+    first real not null,
+    primary key (user_id, day)
+);
 create table if not exists passes (
     id integer primary key autoincrement,
     user_id text not null references users(id) on delete cascade,
@@ -603,6 +610,25 @@ class store:
                 (start,),
             ).fetchone()
         return row[0]
+
+    # days a student was turned away on the free limit, one row a day with how many tries were refused
+
+    def add_limit_hit(self, uid: str, day: float) -> None:
+        with self._connect() as db:
+            db.execute(
+                "insert into limit_hits (user_id, day, tries, first) values (?, ?, 1, ?) "
+                "on conflict(user_id, day) do update set tries = tries + 1",
+                (uid, day, time.time()),
+            )
+
+    def limit_hits_since(self, start: float) -> dict[str, dict]:
+        """for each student turned away since start, on how many days and how many tries in all"""
+        with self._connect() as db:
+            rows = db.execute(
+                "select user_id, count(*) as days, sum(tries) as tries, max(first) as last from limit_hits where first >= ? group by user_id",
+                (start,),
+            ).fetchall()
+        return {r["user_id"]: {"days": r["days"], "tries": r["tries"], "last": r["last"]} for r in rows}
 
     def cost_by_user(self, start: float) -> dict[str, float]:
         with self._connect() as db:

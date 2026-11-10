@@ -666,6 +666,9 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
                 extra = " What you don't use on your pass carries on, so days ahead get more."
             elif payments and not a["pro"]:
                 extra = " Upgrade to Rahah Pro for up to 10 times more a day."
+            # turned away on the free limit is counted for the admin, it's who would gain most from pro
+            if not pro_active(a):
+                db.add_limit_hit(user["id"], my_day_start(user))
             raise HTTPException(429, f"You've used today's study limit. It resets in about {wait}. Saved flashcards and tests still work.{extra}")
         # a ceiling for everyone on the free plan together, so many accounts can't run up the bill. pro doesn't count
         if not user["is_admin"] and not pro_active(a) and cfg.daily_budget > 0 and db.free_student_cost_since(day_start(time.time())) >= cfg.daily_budget:
@@ -1356,7 +1359,7 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
 
     # the admin page, every student with what they've used, their limit and whether they can sign in
 
-    def admin_row(user: dict, costs: dict) -> dict:
+    def admin_row(user: dict, costs: dict, hits: dict | None = None) -> dict:
         today = db.user_cost_since(user["id"], my_day_start(user))
         cap = None if user["is_admin"] else (user["daily_cap"] if user["daily_cap"] is not None else cfg.daily_cap)
         return {
@@ -1373,6 +1376,8 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "today": round(today, 4), "timezone": user.get("timezone") or cfg.leaderboard_zone,
             "week": round(costs["week"].get(user["id"], 0), 4),
             "all": round(costs["all"].get(user["id"], 0), 4),
+            # days this week they were turned away on the free limit
+            "limit_days": (hits or {}).get(user["id"], {}).get("days", 0),
         }
 
     def pass_of(user: dict) -> dict:
@@ -1400,9 +1405,10 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
         now = time.time()
         return {"today": db.cost_by_user(day_start(now)), "week": db.cost_by_user(now - 7 * 86400), "all": db.cost_by_user(0)}
 
-    def admin_summary(rows: list[dict]) -> dict:
+    def admin_summary(rows: list[dict], hits: dict | None = None) -> dict:
         """the numbers that say how students are doing as a group, the admin's own account left out"""
         now = time.time()
+        hits = hits or {}
         students = [r for r in rows if not r["is_admin"]]
         spending = [r for r in students if r["today"] > 0]
         return {
@@ -1414,16 +1420,21 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             "avg_today": round(sum(r["today"] for r in spending) / len(spending), 4) if spending else 0,
             "at_limit": sum(1 for r in students if r["percent"] is not None and r["percent"] >= 100),
             "near_limit": sum(1 for r in students if r["percent"] is not None and 80 <= r["percent"] < 100),
+            # students turned away on the free limit this week and today, and how many tries were refused
+            "limit_hit_week": len(hits),
+            "limit_hit_today": sum(1 for h in hits.values() if h["last"] >= day_start(now)),
+            "limit_tries_week": sum(h["tries"] for h in hits.values()),
         }
 
     @app.get("/api/admin/users")
     def admin_users(user: dict = Depends(admin_only)):
         costs = all_costs()
-        rows = [admin_row(u, costs) for u in db.list_users()]
+        hits = db.limit_hits_since(time.time() - 7 * 86400)
+        rows = [admin_row(u, costs, hits) for u in db.list_users()]
         return {
             "users": rows, "default_cap": cfg.daily_cap, "total": {k: round(sum(v.values()), 4) for k, v in costs.items()},
             "budget": cfg.daily_budget, "budget_used": round(db.student_cost_since(day_start(time.time())), 4),
-            "summary": admin_summary(rows),
+            "summary": admin_summary(rows, hits),
             "revenue": {**db.revenue_summary(time.time() - 7 * 86400), "kes_per_usd": billing.kes_per_usd,
                         "students": sum(1 for r in rows if not r["is_admin"])},
         }

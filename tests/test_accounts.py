@@ -230,6 +230,11 @@ def test_each_student_has_a_daily_allowance_and_the_admin_has_none(make):
     assert student.post(f"/api/conversations/{chat}/retry", json={}).status_code == 429
     # saved things still open
     assert student.get(f"/api/conversations/{chat}").status_code == 200
+    # the admin sees brian was turned away on the free limit today, three tries on one day
+    listed = admin.get("/api/admin/users").json()
+    assert {u["username"]: u["limit_days"] for u in listed["users"]}["brian"] == 1
+    summary = listed["summary"]
+    assert summary["limit_hit_week"] == 1 and summary["limit_hit_today"] == 1 and summary["limit_tries_week"] == 3
 
     # back to the default limit, and the admin is never stopped
     admin.patch(f"/api/admin/users/{me['id']}", json={"use_default_cap": True})

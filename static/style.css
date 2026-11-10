@@ -6980,6 +6980,13 @@ body:not(.is-page) .me-face {
     color: var(--accent-text) !important;
 }
 
+/* how much of a student's pass is used, a slim bar under the pass name */
+.admin-pass-bar {
+    display: block;
+    max-width: 14rem;
+    margin-top: 0.3rem;
+}
+
 .admin-give {
     display: inline-flex;
     align-items: center;

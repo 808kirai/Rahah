@@ -427,6 +427,7 @@ function admin_summary_html(s) {
         ${stat_card("New students", s.signups_week, `${s.signups_today} today. ${growth}`)}
         ${stat_card("Active today", s.active_today, s.active_today ? `${dollars(s.avg_today)} each on average. ${s.active_week} active this week` : `${s.active_week} active this week`)}
         ${stat_card("At their limit", s.at_limit, `${s.near_limit} more are over 80% of today's limit`)}
+        ${stat_card("Hit the free limit", s.limit_hit_week ?? 0, s.limit_hit_week ? `Students this week, ${s.limit_hit_today} today. ${plural(s.limit_tries_week, "try", "tries")} turned away` : "Nobody was turned away this week")}
     </div>`;
 }
 
@@ -481,11 +482,11 @@ function render_admin() {
             <div class="table-wrap"><table class="admin-table">
                 <thead><tr><th>Student</th><th>Last seen</th><th class="num">Today</th><th class="num">Left today</th><th>Limit used</th><th class="num">7 days</th><th class="num">All</th><th>Daily limit</th><th></th></tr></thead>
                 <tbody>${a.users.map((u) => `<tr class="${u.disabled ? "is-off" : ""}">
-                    <td><strong>${escape_html(u.name || u.username)}</strong>${u.tier ? ` ${tier_badge(u.tier)}` : ""}<small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small>${u.tier ? `<small class="admin-pass">${escape_html(u.pass_name)} until ${escape_html(student_time(u.pro_until, u.timezone))} · ${u.pass_percent}% of the pass used</small>` : ""}</td>
+                    <td><strong>${escape_html(u.name || u.username)}</strong>${u.tier ? ` ${tier_badge(u.tier)}` : ""}<small>@${escape_html(u.username)}${u.email ? ` · ${escape_html(u.email)}` : ""}${u.is_admin ? " · Admin" : ""}${u.disabled ? " · Turned off" : ""}</small>${u.tier ? `<small class="admin-pass">${escape_html(u.pass_name)} until ${escape_html(student_time(u.pro_until, u.timezone))}</small><span class="admin-pass-bar" title="How much of the pass is used">${usage_bar(u.pass_percent)}</span>` : ""}</td>
                     <td>${seen(u)}<small>Joined ${short_date(u.created)}</small></td>
                     <td class="num">${dollars(u.today)}</td>
                     <td class="num">${u.cap === null ? "–" : dollars(u.left)}</td>
-                    <td>${u.percent === null ? '<span class="admin-tag">No limit</span>' : usage_bar(u.percent)}</td>
+                    <td>${u.percent === null ? '<span class="admin-tag">No limit</span>' : usage_bar(u.percent)}${u.limit_days ? `<small>Hit the free limit ${plural(u.limit_days, "day")} this week</small>` : ""}</td>
                     <td class="num">${dollars(u.week)}</td>
                     <td class="num">${dollars(u.all)}</td>
                     <td>${limit(u)}</td>
