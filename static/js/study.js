@@ -75,14 +75,18 @@ function set_group(s) {
     return s.kind === "quiz" && group === "study" ? "exam" : group;
 }
 
+// home shows the five newest decks from any subject near the top, the rest are on the chats and tests page
+const recent_decks = 5;
+
 function render_set_rows() {
+    const deck_slot = el("home-decks");
+    if (deck_slot) {
+        const decks = state.sets.filter((s) => s.kind === "flashcards").sort((a, b) => b.updated - a.updated).slice(0, recent_decks);
+        deck_slot.innerHTML = decks.length ? row_html("Recent flashcards", decks.map(set_card).join("")) : "";
+    }
     Object.keys(continue_titles).forEach((group) => {
-        const mine = state.sets.filter((s) => set_group(s) === group);
-        const decks = mine.filter((s) => s.kind === "flashcards");
-        const quizzes = mine.filter((s) => s.kind === "quiz");
-        const deck_slot = el(`decks-${group}`);
+        const quizzes = state.sets.filter((s) => set_group(s) === group && s.kind === "quiz");
         const quiz_slot = el(`quizzes-${group}`);
-        if (deck_slot) deck_slot.innerHTML = decks.length ? row_html("Your flashcards", decks.map(set_card).join("")) : "";
         if (quiz_slot) quiz_slot.innerHTML = quizzes.length ? row_html("Your tests", quizzes.map(set_card).join("")) : "";
     });
 }

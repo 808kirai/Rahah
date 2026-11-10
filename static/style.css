@@ -1175,8 +1175,8 @@ button.picker-heading:focus-visible {
     margin-left: auto;
 }
 
-/* on the chats and tests page the new test button sits beside new chat on the right */
-#chats .page-tools > [data-tool="quiz"] {
+/* on the chats and tests page the flashcards and new test buttons sit beside new chat on the right */
+#chats .page-tools > [data-tool="flashcards"] {
     margin-left: auto;
 }
 

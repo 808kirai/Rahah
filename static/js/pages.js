@@ -114,7 +114,8 @@ function render_rows() {
         .map((shelf) => row_html(shelf.title, shelf.items.slice(0, max_suggestions).map(card).join("")))
         .join("");
     const saved = (group) => `<div id="continue-${group}"></div>`;
-    const sets = (group) => `<div id="decks-${group}"></div><div id="quizzes-${group}"></div>`;
+    // flashcards have one row of the newest near the top, tests stay with their section
+    const sets = (group) => `<div id="quizzes-${group}"></div>`;
     const study_subjects = state.modes.filter((m) => m.group === "study");
     const sections = {
         study: saved("study")
@@ -125,7 +126,7 @@ function render_rows() {
         exam: '<div id="reminders-exam"></div><div id="performance-exam"></div>' + saved("exam") + sets("exam") + shelf_rows("exam"),
         code: saved("code") + sets("code") + shelf_rows("code"),
     };
-    rows.innerHTML = '<div id="home-suggestions"></div>' + Object.entries(sections).map(([group, html]) => `
+    rows.innerHTML = '<div id="home-suggestions"></div><div id="home-decks"></div>' + Object.entries(sections).map(([group, html]) => `
         <section class="category">
             <h2 class="category-title">${escape_html(state.groups[group] || group)}</h2>
             ${html}
@@ -229,7 +230,7 @@ function day_group(seconds) {
     return "Earlier";
 }
 
-// the chats and tests page, saved tests first with a card to make a new one, then chats by day
+// the chats and tests page, saved tests then flashcards, each with a card to make a new one, then chats by day
 function render_chats() {
     const list = el("chat-groups");
     if (!list) return;
@@ -238,6 +239,7 @@ function render_chats() {
     const words = el("chat-search").value.trim().toLowerCase();
     const matches = (title) => !words || title.toLowerCase().includes(words);
     const tests = all_tests.filter((s) => matches(s.title));
+    const decks = state.sets.filter((s) => s.kind === "flashcards" && matches(s.title));
     const chats = state.conversations.filter((c) => matches(c.title));
 
     // the make a test card only shows when nothing is being searched for
@@ -249,6 +251,14 @@ function render_chats() {
     const test_cards = tests.map(set_card).join("") + (words ? "" : new_test);
     const tests_html = `<h2 class="section-title">Tests</h2>
         ${test_cards ? `<div class="card-grid">${test_cards}</div>` : '<p class="page-note">No tests match that search.</p>'}`;
+    const new_deck = `<button class="tile tool poster new-test" type="button" data-tool="flashcards" data-mode="general">
+        ${sketch_html("cards")}
+        <strong>New flashcards</strong>
+        <span class="tile-sub">Cards on a topic or your notes, to learn by heart</span>
+    </button>`;
+    const deck_cards = decks.map(set_card).join("") + (words ? "" : new_deck);
+    const decks_html = `<h2 class="section-title">Flashcards</h2>
+        ${deck_cards ? `<div class="card-grid">${deck_cards}</div>` : '<p class="page-note">No flashcards match that search.</p>'}`;
 
     let chats_html;
     if (!state.conversations.length) {
@@ -273,7 +283,7 @@ function render_chats() {
     // while searching, the found list covers chats, titles included
     const searching = words.length >= 2;
     const people = searching ? `<h2 class="section-title">People</h2>${people_html(people_search.found, people_search.words)}` : "";
-    list.innerHTML = found_html(words) + tests_html + notes_html(words) + people + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
+    list.innerHTML = found_html(words) + tests_html + decks_html + notes_html(words) + people + (searching ? "" : `<h2 class="section-title">Chats</h2>` + chats_html);
     if (words.length >= 2 && state.found_words !== words) search_chats(words);
     if (searching && people_search.words !== words) find_people(words, render_chats);
 }
@@ -470,7 +480,8 @@ function show_chats() {
     if (state.busy) return;
     enter_page("#/chats", "Chats & Tests", `<div class="list-page" id="chats">
         <div class="page-tools">
-            <input class="search" id="chat-search" type="search" placeholder="Search chats, tests and people" aria-label="Search chats, tests and people">
+            <input class="search" id="chat-search" type="search" placeholder="Search chats, tests, flashcards and people" aria-label="Search chats, tests, flashcards and people">
+            <button class="btn btn-soft btn-small" type="button" data-tool="flashcards" data-mode="general">${icons.cards}Flashcards</button>
             <button class="btn btn-soft btn-small" type="button" data-tool="quiz" data-mode="exam">${icons.quiz}New test</button>
             <div class="new-chat">
                 <button class="btn btn-accent btn-small" type="button" id="new-chat-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-chat-menu">${icons.plus}New chat</button>
