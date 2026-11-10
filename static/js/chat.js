@@ -344,7 +344,15 @@ async function read_events(response, on_event) {
     const decoder = new TextDecoder();
     let buffer = "";
     while (true) {
-        const { value, done } = await reader.read();
+        let part;
+        try {
+            part = await reader.read();
+        } catch (error) {
+            // the stop button cancels on purpose, anything else is the connection dropping mid answer
+            if (error.name === "AbortError") throw error;
+            throw plain_error("The connection dropped before the answer finished. Try again.");
+        }
+        const { value, done } = part;
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         let cut;
@@ -449,7 +457,7 @@ async function run_answer(reply, request, on_fail, again) {
                 fail(event.v);
             }
         });
-        if (!finished) fail("The connection dropped before the answer finished.");
+        if (!finished) fail("The connection dropped before the answer finished. Try again.");
     } catch (error) {
         if (controller.signal.aborted) {
             // what arrived stays on the page, the server saved the same
@@ -459,7 +467,7 @@ async function run_answer(reply, request, on_fail, again) {
             add_notice(reply, "You stopped this answer.");
             saved = true;
         } else {
-            fail(error.message || "Rahah couldn't send that message.");
+            fail(nice_error(error));
         }
     } finally {
         state.answer_controller = null;
@@ -937,7 +945,7 @@ async function send_upload(item, pages = "", replaces = "") {
         }
         Object.assign(item, { id: saved.id, name: saved.name, kind: saved.kind, status: "ready", total: saved.pages, max: saved.max_pages, picked: saved.picked });
     } catch (error) {
-        Object.assign(item, { status: "failed", error: error.message });
+        Object.assign(item, { status: "failed", error: nice_error(error) });
     }
     render_attachments();
 }

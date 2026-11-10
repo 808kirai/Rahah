@@ -73,7 +73,7 @@ async function load_leaderboard() {
         state.board = await board.json();
         state.friends = await friends.json();
     } catch (error) {
-        if (el("leaderboard")) el("leaderboard").innerHTML = `<p class="page-note wait">${escape_html(error.message)}</p>`;
+        if (el("leaderboard")) el("leaderboard").innerHTML = `<p class="page-note wait">${escape_html(nice_error(error))}</p>`;
         return;
     }
     render_leaderboard();
@@ -208,7 +208,7 @@ thread.addEventListener("click", async (event) => {
         if (el("chat-groups")) render_chats();
     } catch (error) {
         button.disabled = false;
-        alert(error.message);
+        alert(nice_error(error));
     }
 });
 

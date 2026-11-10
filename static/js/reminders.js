@@ -182,7 +182,7 @@ async function open_calendar_sheet() {
     try {
         url = (await (await api("/api/calendar")).json()).url;
     } catch (error) {
-        alert(error.message);
+        alert(nice_error(error));
         return;
     }
     const webcal = url.replace(/^https?:/, "webcal:");
@@ -218,7 +218,7 @@ el("detail-sheet").addEventListener("click", async (event) => {
             await api("/api/calendar/new", { method: "POST" });
             open_calendar_sheet();
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
     }
 });
@@ -505,7 +505,7 @@ el("class-form").addEventListener("submit", async (event) => {
         class_sheet.close();
         await load_timetable();
     } catch (error) {
-        show_error(error.message);
+        show_error(nice_error(error));
     } finally {
         el("class-submit").disabled = false;
     }
@@ -530,7 +530,7 @@ document.addEventListener("click", async (event) => {
         try {
             await api(`/api/timetable/${c.id}`, { method: "DELETE" });
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
         load_timetable();
     }
@@ -633,7 +633,7 @@ el("reminder-form").addEventListener("submit", async (event) => {
         reminder_sheet.close();
         await load_reminders();
     } catch (error) {
-        show_error(error.message);
+        show_error(nice_error(error));
     } finally {
         el("reminder-submit").disabled = false;
     }
@@ -710,7 +710,7 @@ async function make_revision_plan(id) {
         render_reminder_row();
         if (plan_sheet.open) show_plan(id);
     } catch (e) {
-        error.textContent = e.message;
+        error.textContent = nice_error(e);
         error.hidden = false;
         button.disabled = false;
         button.textContent = "Make my plan";
@@ -729,7 +729,7 @@ async function tick_plan_day(id, day, done) {
         render_reminders();
         show_plan(id);
     } catch (e) {
-        alert(e.message);
+        alert(nice_error(e));
     }
 }
 
@@ -806,7 +806,7 @@ document.addEventListener("click", async (event) => {
                 body: JSON.stringify({ done: !r.done }),
             });
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
         load_reminders();
         return;
@@ -818,7 +818,7 @@ document.addEventListener("click", async (event) => {
         try {
             await api(`/api/reminders/${r.id}`, { method: "DELETE" });
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
         load_reminders();
     }

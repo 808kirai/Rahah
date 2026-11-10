@@ -411,7 +411,7 @@ async function load_admin() {
     try {
         state.admin = await (await api("/api/admin/users")).json();
     } catch (error) {
-        if (el("admin")) el("admin").innerHTML = `<p class="page-note">${escape_html(error.message)}</p>`;
+        if (el("admin")) el("admin").innerHTML = `<p class="page-note">${escape_html(nice_error(error))}</p>`;
         return;
     }
     render_admin();
@@ -509,7 +509,7 @@ async function admin_update(id, body) {
         })).json();
         state.admin.users = state.admin.users.map((u) => (u.id === id ? row : u));
     } catch (error) {
-        alert(error.message);
+        alert(nice_error(error));
     }
     render_admin();
 }
@@ -556,7 +556,7 @@ thread.addEventListener("click", async (event) => {
             })).json();
             state.admin.users = state.admin.users.map((u) => (u.id === user.id ? row : u));
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
         render_admin();
     }
@@ -573,7 +573,7 @@ thread.addEventListener("click", async (event) => {
             });
             alert(`Done. ${user.username} was signed out everywhere and can sign in with the new password.`);
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
     }
 });

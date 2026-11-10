@@ -20,7 +20,9 @@ from pathlib import Path
 import anthropic
 from pypdf import PdfReader, PdfWriter
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -49,6 +51,7 @@ from .recommend import has_activity, recommend, signature
 from .reminders import calendar_file, is_upcoming, kinds as reminder_kinds, reminder_days, reminder_in
 from .store import store
 from .timetable import calendar_file as timetable_file, class_in
+from .errors import plain_detail, server_error, validation_message
 from .usage import cost_of, summarise as summarise_usage
 from .study import kinds, make_set, mark_answer, max_items, study_error, styles, total_marks, upload
 from .tutor import (
@@ -276,27 +279,34 @@ def settings_notes(body) -> tuple:
     return (language_note(body.language), low_data_note if body.low_data else "", voice_note if voice else "")
 
 
+# what a student is told when rahah can't answer at all, the details go to the admin
+cant_answer = "Rahah can't answer right now. Try again later."
+
+
 def friendly_error(error: Exception) -> str:
+    """a short message for the student. a problem only the admin can fix, like the api key, is logged as an
+    error so the admin gets an email, and the student isn't shown the details"""
     # most specific first, since these classes inherit from each other
-    if isinstance(error, anthropic.AuthenticationError):
-        return "Rahah's API key isn't valid. Check ANTHROPIC_API_KEY in the .env file."
-    if isinstance(error, anthropic.PermissionDeniedError):
-        return "Rahah's API key doesn't have access to this model."
+    if isinstance(error, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+        log.error("claude turned down rahah's api key: %s", error)
+        return cant_answer
     if isinstance(error, anthropic.NotFoundError):
-        return "Rahah couldn't find an attached file. Try attaching it again."
+        return "An attached file is gone. Attach it again."
     if isinstance(error, anthropic.RateLimitError):
-        return "Rahah is busy right now. Wait a moment and try again."
+        return "Rahah is busy. Try again in a moment."
     if isinstance(error, prompt_too_big):
         return str(error) or "Message too long. Send it in smaller parts."
     if prompt_too_long(error):
-        return "This chat, with its files, has grown too long for Rahah to read. Start a new chat to keep going."
+        return "This chat is too long now. Start a new chat to keep going."
     if isinstance(error, anthropic.BadRequestError):
-        return f"Rahah couldn't handle that request: {error.message}"
+        log.warning("claude couldn't take a request: %s", error.message)
+        return "Rahah couldn't read that. Try rephrasing, or send fewer files."
     if isinstance(error, anthropic.APIStatusError):
-        return f"Rahah is having trouble right now (error {error.status_code}). Try again in a moment."
+        return "Rahah's AI is having trouble. Try again in a moment."
     if isinstance(error, anthropic.APIConnectionError):
-        return "Rahah couldn't connect right now. Try again in a moment."
-    return "Rahah isn't set up yet. Add ANTHROPIC_API_KEY to the .env file and restart the server."
+        return "Couldn't reach Rahah's AI. Try again in a moment."
+    log.error("claude isn't set up: %s", error)
+    return cant_answer
 
 
 def prompt_too_long(error: Exception) -> bool:
@@ -528,6 +538,21 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
     app.state.send_due_pushes = send_due_pushes
     app.state.send_parent_reports = lambda now=None: send_parent_reports(now)
     install_security(app, cfg, max(cfg.max_upload_mb * 2, max_set_mb) + 5)
+
+    # every error leaves as one short sentence: a form that fails its checks names the field, a stock phrase
+    # like Not Found becomes a plain message, and a crash says only that something broke
+    @app.exception_handler(RequestValidationError)
+    async def form_problem(request: Request, error: RequestValidationError):
+        return JSONResponse({"detail": validation_message(error.errors())}, status_code=422)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def plain_error(request: Request, error: StarletteHTTPException):
+        return JSONResponse({"detail": plain_detail(error.status_code, error.detail)}, status_code=error.status_code,
+                            headers=getattr(error, "headers", None))
+
+    @app.exception_handler(Exception)
+    async def crash(request: Request, error: Exception):
+        return JSONResponse({"detail": server_error}, status_code=500)
 
     @app.middleware("http")
     async def note_crashes(request: Request, call_next):
@@ -1900,6 +1925,16 @@ def create_app(cfg: settings | None = None, client=None, verifiers: dict | None 
             db.add_turn(conversation_id, rows + [{"role": "assistant", "content": content, "display": display}], mode, title, drop_from=drop_from)
 
         async def events():
+            # a crash anywhere in an answer, while it streams or as it's saved, is emailed to the admin, and the
+            # student gets a short message instead of a dropped line
+            try:
+                async for chunk in answer_events():
+                    yield chunk
+            except Exception:
+                log.exception("an answer broke")
+                yield sse({"t": "error", "v": server_error})
+
+        async def answer_events():
             final, ended, partial, searches = None, False, "", []
             try:
                 async for event in routed():

@@ -152,13 +152,15 @@ def test_refusals_are_not_saved(setup):
     assert web.get(f"/api/conversations/{conversation_id}").json()["messages"] == []
 
 
-def test_missing_api_key_gives_a_clear_message(setup):
+def test_missing_api_key_gives_a_clear_message(setup, caplog):
     error = TypeError("Could not resolve authentication method. Expected one of api_key")
     web, _ = setup([error])
     conversation_id = new_chat(web)
-    events = ask(web, conversation_id, "hello")
-    assert events == [{"t": "error", "v": events[0]["v"]}]
-    assert "ANTHROPIC_API_KEY" in events[0]["v"]
+    with caplog.at_level("ERROR", logger="rahah"):
+        events = ask(web, conversation_id, "hello")
+    # the student is told plainly, the setup problem goes to the admin's log and alert email
+    assert events == [{"t": "error", "v": "Rahah can't answer right now. Try again later."}]
+    assert "isn't set up" in caplog.text
 
 
 def test_uploads_are_checked(setup):

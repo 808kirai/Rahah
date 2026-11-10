@@ -369,7 +369,7 @@ el("notes-file-input").addEventListener("change", async () => {
         } catch (error) {
             failed += 1;
             pill.classList.add("failed");
-            pill.querySelector("span").textContent = `${file.name} · ${error.message}`;
+            pill.querySelector("span").textContent = `${file.name} · ${nice_error(error)}`;
         }
     }
     await load_notes();
@@ -617,7 +617,7 @@ async function make_recommendations() {
         const response = await api("/api/recommendations", { method: "POST" });
         state.recs = await response.json();
     } catch (error) {
-        state.recs_error = error.message;
+        state.recs_error = nice_error(error);
     }
     state.recs_loading = false;
     render_recommendations();
@@ -629,7 +629,7 @@ async function load_recommendations() {
         state.recs = await response.json();
     } catch (error) {
         state.recs = { items: [], has_activity: true, created: null, fresh: false };
-        state.recs_error = error.message;
+        state.recs_error = nice_error(error);
     }
     if (changed("recs", [state.recs, state.recs_error])) render_recommendations();
     // new picks are asked for when there are none, or when something new was studied and the last ones are half a day old

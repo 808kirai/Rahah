@@ -13,7 +13,7 @@ async function delete_conversation(c) {
     try {
         await api(`/api/conversations/${c.id}`, { method: "DELETE" });
     } catch (error) {
-        alert(error.message);
+        alert(nice_error(error));
         return;
     }
     if (c.id === state.conversation_id) start_new_chat();
@@ -433,7 +433,7 @@ async function send_provider_token(path, body, on_error) {
         }
         await finish_sign_in(me);
     } catch (error) {
-        on_error(error.message);
+        on_error(nice_error(error));
     }
 }
 
@@ -622,7 +622,7 @@ el("auth-forgot-note").addEventListener("click", async (event) => {
         el("auth-reset-sent").textContent = "If that account exists, a link is on its way. Check your inbox and spam, it works for 30 minutes.";
         el("auth-reset-sent").hidden = false;
     } catch (error) {
-        show_auth_error(error.message);
+        show_auth_error(nice_error(error));
     }
     button.disabled = false;
 });
@@ -773,7 +773,7 @@ function show_two_step(info) {
             await finish_sign_in(await response.json());
         } catch (error) {
             const note = el("two-step-error");
-            note.textContent = error.message;
+            note.textContent = nice_error(error);
             note.hidden = false;
             button.disabled = false;
             el("two-step-code").select();
@@ -817,7 +817,7 @@ el("auth-form").addEventListener("submit", async (event) => {
         });
         await finish_sign_in(await response.json());
     } catch (error) {
-        show_auth_error(error.message);
+        show_auth_error(nice_error(error));
         el("auth-submit").disabled = false;
         // the cursor goes to whichever part was wrong
         if (!signup && error.message.startsWith("There's no account")) el("auth-login").select();
@@ -846,7 +846,7 @@ async function save_new_password() {
         });
         await finish_sign_in(await response.json());
     } catch (error) {
-        show_auth_error(error.message);
+        show_auth_error(nice_error(error));
         el("auth-submit").disabled = false;
     }
 }
@@ -895,7 +895,7 @@ async function upload_profile_photo(blob) {
         render_account();
         render_me_face();
     } catch (error) {
-        account_note("photo-note", error.message);
+        account_note("photo-note", nice_error(error));
     }
 }
 
@@ -1272,7 +1272,7 @@ thread.addEventListener("click", async (event) => {
             load_history();
         } catch (error) {
             trial.disabled = false;
-            account_note("pro-note", error.message);
+            account_note("pro-note", nice_error(error));
         }
     }
 });
@@ -1308,7 +1308,7 @@ thread.addEventListener("click", async (event) => {
         el("pro-note").hidden = true;
     } catch (error) {
         plan.disabled = false;
-        account_note("pro-note", error.message);
+        account_note("pro-note", nice_error(error));
     }
 });
 
@@ -1343,7 +1343,7 @@ async function verify_payment(reference) {
             alert("That payment didn't go through, so you weren't charged. Try again any time.");
         }
     } catch (error) {
-        alert(error.message);
+        alert(nice_error(error));
     }
     if (el("pro-slot")) {
         render_account();
@@ -1410,7 +1410,7 @@ el("thread").addEventListener("click", async (event) => {
         location.reload();
     } catch (error) {
         go.disabled = false;
-        account_note("delete-note", error.message);
+        account_note("delete-note", nice_error(error));
     }
 });
 
@@ -1451,7 +1451,7 @@ thread.addEventListener("click", async (event) => {
             remember_me(state.me);
             render_account();
         } catch (error) {
-            account_note("profile-note", error.message);
+            account_note("profile-note", nice_error(error));
         }
     }
     if (event.target.closest("[data-photo-remove]")) {
@@ -1461,7 +1461,7 @@ thread.addEventListener("click", async (event) => {
             render_account();
             render_me_face();
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
     }
     const parent_save = event.target.closest("[data-save-parent]");
@@ -1477,7 +1477,7 @@ thread.addEventListener("click", async (event) => {
             render_account();
             account_note("parent-note", parent_remove ? "Removed." : state.me.pro ? "Saved. The first report comes on Sunday." : "Saved. Reports start once you're on Pro.");
         } catch (error) {
-            account_note("parent-note", error.message);
+            account_note("parent-note", nice_error(error));
         }
     }
     const findable = event.target.closest("[data-findable]");
@@ -1491,7 +1491,7 @@ thread.addEventListener("click", async (event) => {
             remember_me(state.me);
             render_account();
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
     }
     // a forgotten password, the same emailed link as the sign in page, sent to the email on the account
@@ -1502,7 +1502,7 @@ thread.addEventListener("click", async (event) => {
             await api("/api/auth/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: state.me.email }) });
             account_note("password-note", `A link is on its way to ${state.me.email}. Check your inbox and spam, it works for 30 minutes.`);
         } catch (error) {
-            account_note("password-note", error.message);
+            account_note("password-note", nice_error(error));
             reset.disabled = false;
         }
     }
@@ -1519,7 +1519,7 @@ thread.addEventListener("click", async (event) => {
             render_account();
             account_note("profile-note", "Saved.");
         } catch (error) {
-            account_note("profile-note", error.message);
+            account_note("profile-note", nice_error(error));
         }
     }
     if (event.target.closest("[data-save-password]")) {
@@ -1537,7 +1537,7 @@ thread.addEventListener("click", async (event) => {
             render_account();
             account_note("password-note", "Password saved. Your other devices were signed out.");
         } catch (error) {
-            account_note("password-note", error.message);
+            account_note("password-note", nice_error(error));
         }
     }
 });

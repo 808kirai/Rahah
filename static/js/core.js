@@ -148,24 +148,119 @@ function changed(key, value) {
     return true;
 }
 
+// every error a student sees is one short sentence that says what to do, whatever went wrong
+
+// what a status means, when the server didn't say more, like a proxy's own error page
+const status_messages = {
+    400: "That didn't work. Check it and try again.",
+    401: "Sign in to keep going.",
+    403: "You can't do that.",
+    404: "That isn't here any more.",
+    408: "That took too long. Try again.",
+    413: "That's too big to send.",
+    429: "Too many tries. Wait a moment, then try again.",
+    500: "Something broke on our side. Try again.",
+    502: "Rahah couldn't reach a service it needs. Try again soon.",
+    503: "Rahah is busy or restarting. Try again in a minute.",
+    504: "That took too long. Try again.",
+};
+
+function status_message(status) {
+    return status_messages[status] || (status >= 500 ? status_messages[500] : status_messages[400]);
+}
+
+// an error with a message ready for a student
+function plain_error(message, status = 0) {
+    const error = new Error(message);
+    error.friendly = true;
+    error.status = status;
+    return error;
+}
+
+function connection_error() {
+    return plain_error(navigator.onLine === false
+        ? "You're offline. Connect to the internet and try again."
+        : "Couldn't reach Rahah. Check your connection and try again.");
+}
+
+// the browser's own errors, like a blocked camera, said plainly
+const browser_errors = {
+    NotAllowedError: "That was blocked. Allow it in your browser's settings and try again.",
+    SecurityError: "That was blocked. Allow it in your browser's settings and try again.",
+    NotFoundError: "No camera or microphone was found.",
+    NotReadableError: "Your camera or microphone is busy in another app.",
+    QuotaExceededError: "Your browser's storage is full. Free some space and try again.",
+    NotSupportedError: "Your browser can't do that. Try another browser.",
+    AbortError: "That was stopped.",
+};
+
+// what to show for any error: the server's own words, a plain line for the browser's, or a general one
+function nice_error(error) {
+    if (!error) return status_messages[500];
+    if (error.friendly) return error.message;
+    if (browser_errors[error.name]) return browser_errors[error.name];
+    // a dropped connection shows up as a type error from fetch
+    if (error.name === "TypeError" && /fetch|network|load failed/i.test(error.message || "")) return connection_error().message;
+    // the page's own slips are never shown as they are
+    if (["TypeError", "ReferenceError", "SyntaxError", "RangeError"].includes(error.name) || !error.message) {
+        return "Something went wrong on this page. Refresh and try again.";
+    }
+    return error.message;
+}
+
 async function api(path, options = {}) {
-    const response = await fetch(path, options);
+    let response;
+    try {
+        response = await fetch(path, options);
+    } catch (error) {
+        // a stop button cancels on purpose, everything else here is the connection
+        if (error.name === "AbortError") throw error;
+        throw connection_error();
+    }
     // a session that ran out or was signed out elsewhere goes back to the sign in screen
     if (response.status === 401 && !path.startsWith("/api/auth/") && typeof show_auth === "function") show_auth();
     if (!response.ok) {
-        let detail = `Something went wrong (${response.status}). Try again.`;
+        let detail = status_message(response.status);
         try {
             const body = await response.json();
-            if (typeof body.detail === "string") detail = body.detail;
-            // a form the server turned down lists what was wrong with each field
-            else if (Array.isArray(body.detail)) detail = body.detail.map((d) => String(d.msg || "").replace(/^Value error, /, "")).join(" ");
+            if (typeof body.detail === "string" && body.detail.trim()) detail = body.detail;
+            // a list of form problems shows only the first, one thing to fix at a time
+            else if (Array.isArray(body.detail) && body.detail[0]?.msg) detail = String(body.detail[0].msg).replace(/^Value error, /, "");
         } catch (e) {}
         // out of today's study limit: outside a chat, a card at the top offers the plans
         if (response.status === 429 && is_limit_message(detail) && !options.in_chat && typeof offer_upgrade === "function") offer_upgrade();
-        throw new Error(detail);
+        throw plain_error(detail, response.status);
     }
     return response;
 }
+
+// anything that went wrong and wasn't caught where it happened shows in a small box at the top,
+// once, so a student is never left wondering why nothing happened
+let last_slip = { text: "", at: 0 };
+
+function show_slip(error) {
+    if (error?.name === "AbortError") return;
+    const text = nice_error(error);
+    // the same message twice in a few seconds is one problem
+    if (text === last_slip.text && Date.now() - last_slip.at < 5000) return;
+    last_slip = { text, at: Date.now() };
+    const toasts = document.getElementById("toasts");
+    if (!toasts || document.body.classList.contains("signed-out")) return;
+    toasts.querySelector(".slip-toast")?.remove();
+    const toast = document.createElement("div");
+    toast.className = "toast slip-toast";
+    toast.setAttribute("role", "alert");
+    toast.innerHTML = `<div class="toast-text"><span>${escape_html(text)}</span></div>
+        <div class="toast-actions"><button class="icon-btn" type="button" data-toast-close aria-label="Dismiss">${icons.close}</button></div>`;
+    toasts.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+}
+
+window.addEventListener("unhandledrejection", (event) => show_slip(event.reason));
+window.addEventListener("error", (event) => {
+    // a script or picture that failed to load isn't the student's problem
+    if (event.error) show_slip(event.error);
+});
 
 function is_limit_message(text) {
     return /today's study limit/.test(text || "");

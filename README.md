@@ -174,6 +174,8 @@ A backup of the database is made on the same disk each day and kept for a week. 
 
 Problems on the server, like Claude failing or anything that breaks a request, are emailed to the admin (RAHAH_ALERT_EMAIL), gathered into one email at most every half hour so a bad spell doesn't flood the inbox. The full details stay in Render's logs.
 
+Every error a student meets is one short sentence that says what to do, and nothing raw from the server, Claude or the browser reaches the page (app/errors.py and nice_error in static/js/core.js). The app's own messages pass through as written. A form that fails its checks names the field, like Title is too long. Keep it under 120 characters. A stock phrase like Not Found becomes a plain line, a crash says only Something broke on our side. Try again, and a crash in the middle of an answer ends it with that message instead of a dropped line. Claude's errors are told plainly, and a problem only the admin can fix, like the API key, shows students Rahah can't answer right now and emails the admin. In the page, a dropped connection says to check the connection or that the student is offline, the browser's own errors like a blocked camera say what to allow, the page's own slips never show their code words, and anything nobody caught shows once in a small box at the top.
+
 The privacy page at /privacy says what Rahah keeps, why, who else sees it and how to have it removed. The terms at /terms set the rules: one account each, fair use of the allowance, answers can be wrong, the student's work stays theirs. Both are linked from the sign in page and the Account tab, and Google asks for the privacy address, with the homepage, before Sign in with Google can be published for everyone.
 
 Sign in with Google

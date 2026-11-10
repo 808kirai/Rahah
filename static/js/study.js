@@ -188,7 +188,7 @@ async function delete_set(s) {
     try {
         await api(`/api/sets/${s.id}`, { method: "DELETE" });
     } catch (error) {
-        alert(error.message);
+        alert(nice_error(error));
         return;
     }
     if (el("study") && state.study && state.study.set.id === s.id) start_new_chat();
@@ -334,7 +334,7 @@ function make_picker(select, on_pick = null) {
         } catch (error) {
             field.disabled = false;
             field.value = "";
-            field.placeholder = error.message;
+            field.placeholder = nice_error(error);
             field.focus();
         }
     };
@@ -372,7 +372,7 @@ function make_picker(select, on_pick = null) {
                 load_reminders();
                 if (el("timetable")) load_timetable();
             } catch (error) {
-                alert(error.message);
+                alert(nice_error(error));
             }
             return;
         }
@@ -706,7 +706,7 @@ el("sheet-form").addEventListener("submit", async (event) => {
         }
     } catch (error) {
         if (sheet_state.opened === opened) {
-            show_sheet_error(error.message);
+            show_sheet_error(nice_error(error));
             set_sheet_busy(false);
         }
     }
@@ -1237,7 +1237,7 @@ async function mark_written() {
         feedback.querySelector("[data-quiz]").focus({ preventScroll: true });
     } catch (error) {
         if (state.study !== s || !el("study")) return;
-        feedback.innerHTML = `<p class="sheet-error">${escape_html(error.message)}</p>`;
+        feedback.innerHTML = `<p class="sheet-error">${escape_html(nice_error(error))}</p>`;
         button.disabled = false;
         button.textContent = "Mark my answer";
     } finally {
@@ -1500,7 +1500,7 @@ async function open_share_sheet(study_set, url = "") {
         try {
             url = (await (await api(`/api/sets/${study_set.id}/share`, { method: "POST" })).json()).url;
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
             return;
         }
     }
@@ -1545,7 +1545,7 @@ el("detail-sheet").addEventListener("click", async (event) => {
             body.innerHTML = `<p class="detail-sub">Sharing stopped. The old link doesn't work any more, and copies friends already added stay theirs.</p>
                 <div class="sheet-actions"><button class="btn btn-accent" type="button" data-detail-close>Done</button></div>`;
         } catch (error) {
-            alert(error.message);
+            alert(nice_error(error));
         }
     }
 });
@@ -1559,7 +1559,7 @@ async function show_shared(token) {
     try {
         found = await (await api(`/api/shared/${token}`)).json();
     } catch (error) {
-        el("shared").innerHTML = `<div class="page-empty"><strong>That link doesn't open</strong>${escape_html(error.message)}</div>`;
+        el("shared").innerHTML = `<div class="page-empty"><strong>That link doesn't open</strong>${escape_html(nice_error(error))}</div>`;
         return;
     }
     const word = found.kind === "flashcards" ? "deck" : "test";
@@ -1584,7 +1584,7 @@ thread.addEventListener("click", async (event) => {
         location.hash = `#/set/${id}`;
     } catch (error) {
         add.disabled = false;
-        alert(error.message);
+        alert(nice_error(error));
     }
 });
 
