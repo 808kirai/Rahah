@@ -1864,21 +1864,12 @@ body.signed-out .toasts {
     letter-spacing: -0.01em;
 }
 
-/* the right half: the halftone picture, faded back, with the demo over it */
+/* the right half, with the slides on it */
 .auth-stage {
     position: sticky;
     top: 0;
     height: 100dvh;
     overflow: hidden;
-}
-
-.auth-art {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    opacity: 0.35;
 }
 
 .auth-form {
@@ -3062,7 +3053,6 @@ body:not(.is-page) .me-face {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .auth-art,
     .auth-stage {
         display: none;
     }
@@ -7064,334 +7054,47 @@ body:not(.is-page) .me-face {
     color: var(--mauve-text);
 }
 
-/* the sign in demo, a rahah chat on the right half: a question is asked and answered, then turned into a
-   flashcard that flies out to sit over the window's edge. it plays once and stays on the finished picture */
-.demo {
-    --gut: 40px;
-    --card-w: 230px;
-    /* the window is at most about 690px tall, so on a tall screen it sits lower rather than gaining an empty band */
-    --win-top: max(12%, 100% - 660px);
+/* the promo slides on the right half, a 3d stack like the certificates in runie's portfolio.
+   positions come from slides.js so every move can be animated */
+.slides {
     position: absolute;
     inset: 0;
-    font-size: 13.5px;
-    line-height: 1.5;
-}
-
-/* the window sits a card's half width in from the left, so the card can straddle its edge, and runs off
-   the right and bottom of the panel. its right padding keeps every word inside the panel */
-.demo-win {
-    position: absolute;
-    left: calc(var(--gut) + var(--card-w) / 2);
-    right: -120px;
-    top: var(--win-top);
-    bottom: -28px;
     display: flex;
     flex-direction: column;
-    border-radius: 12px;
-    background: var(--surface);
-    box-shadow: var(--float-shadow);
-    overflow: hidden;
-}
-
-.demo-top {
-    display: flex;
     align-items: center;
-    gap: 10px;
-    height: 48px;
-    flex: none;
-    padding: 0 144px 0 16px;
-    border-bottom: 1px solid var(--line);
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 0 120px 0 48px;
 }
 
-.demo-top svg {
-    width: 16px;
-    height: 16px;
-    color: var(--text-2);
-}
-
-.demo-title {
-    font-weight: 500;
-}
-
-.demo-pill {
-    margin-left: auto;
-    padding: 3px 12px;
-    border-radius: var(--pill);
-    box-shadow: inset 0 0 0 1px var(--line-strong);
-    font-size: 12px;
-    color: var(--text-2);
-}
-
-.demo-body {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    padding: 16px 144px 56px 22px;
-}
-
-/* the thread sits on the message box, the way the chat does, so what arrives pushes older turns up */
-.demo-thread {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    gap: 14px;
-    min-height: 0;
-    overflow: hidden;
-    padding-bottom: 16px;
-}
-
-.demo-past {
-    display: grid;
-    gap: 9px;
-}
-
-.demo-bar {
-    display: block;
-    height: 8px;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--text) 9%, transparent);
-}
-
-.demo-bar-q {
-    justify-self: end;
-    width: 40%;
-    height: 30px;
-    border-radius: 15px;
-    margin-bottom: 4px;
-}
-
-/* each new part opens to its own height while it fades up, so the thread moves once and smoothly */
-.demo-fold {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 0.45s var(--ease-out);
-}
-
-.demo-fold > div {
-    min-height: 0;
-    overflow: hidden;
-}
-
-.demo-fold > div > * {
-    opacity: 0;
-    transform: translateY(6px);
-    transition: opacity 0.3s var(--ease-out), transform 0.45s var(--ease-out);
-}
-
-.demo-fold.open {
-    grid-template-rows: 1fr;
-}
-
-.demo-fold.open > div > * {
-    opacity: 1;
-    transform: none;
-}
-
-.demo-q {
-    width: fit-content;
-    max-width: 76%;
-    margin-left: auto;
-    padding: 7px 14px;
-    border-radius: 16px;
-    background: var(--accent-fill);
-    color: var(--on-accent);
-}
-
-.demo-thinking {
-    color: var(--text-2);
-}
-
-.demo-thinking span {
-    color: var(--accent-text);
-}
-
-.demo-a {
-    display: grid;
-    gap: 8px;
-}
-
-.demo-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-2);
-}
-
-.demo-logo .logo-img {
-    display: block;
-    width: 14px;
-    height: 14px;
-}
-
-/* every word is there from the start and shows in turn, so the answer never reflows as it streams */
-.demo-stream .w {
-    opacity: 0;
-    transition: opacity 0.2s var(--ease-out);
-}
-
-.demo-stream .w.on {
-    opacity: 1;
-}
-
-.demo-actions {
-    display: flex;
-    gap: 6px;
-    opacity: 0;
-    transform: translateY(4px);
-    transition: opacity 0.3s var(--ease-out), transform 0.45s var(--ease-out);
-}
-
-.demo-actions.on {
-    opacity: 1;
-    transform: none;
-}
-
-.demo-chip {
-    padding: 4px 12px;
-    border-radius: var(--pill);
-    box-shadow: inset 0 0 0 1px var(--line-strong);
-    font-size: 12px;
-    color: var(--text-2);
-    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
-}
-
-.demo-chip.chosen {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-text) 40%, transparent);
-}
-
-.demo-composer {
-    display: flex;
-    align-items: center;
-    height: 46px;
-    padding: 0 6px 0 16px;
-    border-radius: 23px;
-    background: var(--dock-bg);
-    box-shadow: inset 0 0 0 1px var(--dock-line);
-}
-
-.demo-caret {
-    width: 1.5px;
-    height: 17px;
-    margin: 0 1px;
-    background: var(--accent-text);
-}
-
-.demo-placeholder {
-    color: var(--text-2);
-}
-
-.demo-composer.typing .demo-placeholder {
-    display: none;
-}
-
-.demo-send {
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    margin-left: auto;
-    border-radius: 50%;
-    background: var(--surface-2);
-    color: var(--text-2);
-    transition: background-color 0.15s, color 0.15s, transform 0.1s;
-}
-
-.demo-send svg {
-    width: 16px;
-    height: 16px;
-}
-
-.demo-send.ready {
-    background: var(--accent-fill);
-    color: var(--on-accent);
-}
-
-.demo-chip.pressed,
-.demo-send.pressed {
-    transform: scale(0.92);
-}
-
-/* the flashcard, straddling the window's left edge over the earlier turn, and flipping to its answer */
-.demo-card {
-    position: absolute;
-    left: var(--gut);
-    top: calc(var(--win-top) + 64px);
-    width: var(--card-w);
-    height: 150px;
-    perspective: 900px;
-    opacity: 0;
-    z-index: 2;
-}
-
-.demo-card-inner {
+.slide-deck {
     position: relative;
+    width: min(100%, 560px);
+    aspect-ratio: 16 / 9;
+    perspective: 1400px;
+    cursor: pointer;
+}
+
+.slide-card {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: 0 22px 44px -18px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.12);
+    backface-visibility: hidden;
+    transform-origin: 50% 50%;
+}
+
+.slide-card img {
+    display: block;
     width: 100%;
     height: 100%;
-    transform-style: preserve-3d;
-    transition: transform 0.6s cubic-bezier(0.45, 0, 0.1, 1);
+    object-fit: cover;
+    pointer-events: none;
 }
 
-.demo-card.flipped .demo-card-inner {
-    transform: rotateY(180deg);
-}
-
-.demo-face {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 14px 16px;
-    border-radius: 12px;
-    background: var(--surface-2);
-    box-shadow: var(--float-shadow);
-    backface-visibility: hidden;
-}
-
-.demo-face small {
-    font-size: 11px;
+.slide-hint {
+    font-size: 0.78rem;
     color: var(--text-2);
-}
-
-.demo-face strong {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-size: 28px;
-    font-weight: 400;
-    line-height: 1.1;
-}
-
-.demo-back {
-    transform: rotateY(180deg);
-}
-
-.demo-back span {
-    line-height: 1.45;
-}
-
-.demo-cursor {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 22px;
-    height: 22px;
-    z-index: 3;
-    opacity: 0;
-    transition: opacity 0.3s var(--ease-out);
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
-}
-
-.demo-cursor path {
-    fill: #ffffff;
-    stroke: #0b1220;
-    stroke-width: 1.2;
-    stroke-linejoin: round;
-}
-
-.demo-cursor.on {
-    opacity: 1;
 }

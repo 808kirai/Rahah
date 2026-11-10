@@ -344,8 +344,7 @@ async function show_auth() {
     el("auth").hidden = false;
     set_auth_mode(auth.mode);
     set_up_providers();
-    requestAnimationFrame(draw_auth_art);
-    play_demo();
+    start_slides();
     (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
 }
 
@@ -633,100 +632,8 @@ function show_reset(token) {
     document.body.classList.add("signed-out");
     el("auth").hidden = false;
     set_auth_mode("reset");
-    requestAnimationFrame(draw_auth_art);
     el("auth-password").focus();
 }
-
-// the halftone picture beside the form
-// a seeded random keeps the same picture on every visit, it only stretches to fit
-// the picture is kept as a small map of how dark each spot is, and redrawn here as diamond dots at the screen's
-// own size, so it stays sharp on any screen and takes the page's colours
-const auth_picture = { tones: null, width: 0, height: 0, loading: null };
-
-function load_auth_picture() {
-    if (!auth_picture.loading) {
-        auth_picture.loading = new Promise((resolve) => {
-            const image = new Image();
-            image.onload = () => {
-                const off = document.createElement("canvas");
-                off.width = image.width;
-                off.height = image.height;
-                const octx = off.getContext("2d");
-                octx.drawImage(image, 0, 0);
-                const data = octx.getImageData(0, 0, image.width, image.height).data;
-                // dark is 1 and white is 0
-                auth_picture.tones = new Float32Array(image.width * image.height);
-                for (let i = 0; i < auth_picture.tones.length; i += 1) auth_picture.tones[i] = 1 - data[i * 4] / 255;
-                auth_picture.width = image.width;
-                auth_picture.height = image.height;
-                resolve();
-            };
-            image.onerror = () => resolve();
-            image.src = "/static/img/auth-art.png";
-        });
-    }
-    return auth_picture.loading;
-}
-
-// how dark the picture is at a point, blended between its neighbours so the shading is smooth
-function picture_tone(x, y) {
-    const { tones, width, height } = auth_picture;
-    const fx = Math.min(Math.max(x, 0), width - 1.001);
-    const fy = Math.min(Math.max(y, 0), height - 1.001);
-    const x0 = Math.floor(fx), y0 = Math.floor(fy);
-    const tx = fx - x0, ty = fy - y0;
-    const at = (cx, cy) => tones[cy * width + cx];
-    const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
-    const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
-    return top * (1 - ty) + bottom * ty;
-}
-
-async function draw_auth_art() {
-    const canvas = el("auth-art");
-    if (!canvas || el("auth").hidden || getComputedStyle(canvas).display === "none") return;
-    await load_auth_picture();
-    if (!auth_picture.tones) return;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
-    const ctx = canvas.getContext("2d");
-    ctx.scale(ratio, ratio);
-    ctx.clearRect(0, 0, width, height);
-    // dark dots on the light page and light dots on the dark one, the page's own text colour
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#edf5fa";
-    ctx.globalAlpha = 0.92;
-
-    // the picture covers the panel, centred, the way a background photo would
-    const scale = Math.max(width / auth_picture.width, height / auth_picture.height);
-    const left = (width - auth_picture.width * scale) / 2;
-    const top = (height - auth_picture.height * scale) / 2;
-
-    // dots on a diagonal grid, every other row shifted half a step, sized by how dark the picture is under them
-    const step = 11;
-    const half = step / 2;
-    for (let row = 0, y = 0; y < height + step; row += 1, y += half) {
-        for (let x = (row % 2) * half; x < width + step; x += step) {
-            const tone = Math.min(Math.max((picture_tone((x - left) / scale, (y - top) / scale) - 0.06) / 0.78, 0), 1);
-            if (tone < 0.07) continue;
-            const r = half * Math.min(0.9, Math.sqrt(tone) * 0.95);
-            ctx.beginPath();
-            ctx.moveTo(x, y - r);
-            ctx.lineTo(x + r, y);
-            ctx.lineTo(x, y + r);
-            ctx.lineTo(x - r, y);
-            ctx.closePath();
-            ctx.fill();
-        }
-    }
-}
-
-let auth_art_timer = 0;
-window.addEventListener("resize", () => {
-    clearTimeout(auth_art_timer);
-    auth_art_timer = setTimeout(draw_auth_art, 150);
-});
 
 // the six digit code from the email: to finish a new account, or the admin's second step, which can trust this device
 function show_two_step(info) {

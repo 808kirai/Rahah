@@ -123,56 +123,12 @@
                 <p class="auth-legal"><a href="/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="/terms" target="_blank" rel="noopener">Terms</a></p>
             </div>
         </div>
-        <!-- a halftone pattern beside the form, drawn to fit the screen -->
+        <!-- the promo slides beside the form -->
         <div class="auth-stage" aria-hidden="true">
-            <canvas class="auth-art" id="auth-art"></canvas>
-            <!-- a short demo over it, a question asked, answered, and turned into a flashcard, played once -->
-            <div class="demo" id="demo">
-                <div class="demo-win">
-                    <div class="demo-top">
-                        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
-                        <span class="demo-title">Osmosis</span>
-                        <span class="demo-pill">Biology</span>
-                    </div>
-                    <div class="demo-body">
-                        <div class="demo-thread">
-                            <div class="demo-past">
-                                <i class="demo-bar demo-bar-q" style="width: 34%"></i>
-                                <i class="demo-bar" style="width: 78%"></i>
-                                <i class="demo-bar" style="width: 52%"></i>
-                            </div>
-                            <div class="demo-past">
-                                <i class="demo-bar demo-bar-q"></i>
-                                <i class="demo-bar" style="width: 84%"></i>
-                                <i class="demo-bar" style="width: 61%"></i>
-                                <i class="demo-bar" style="width: 72%"></i>
-                            </div>
-                            <div class="demo-fold" data-part="question"><div><p class="demo-q">What is osmosis?</p></div></div>
-                            <div class="demo-fold" data-part="thinking"><div><p class="demo-thinking"><span>✻</span> Rizzing</p></div></div>
-                            <div class="demo-fold" data-part="answer"><div>
-                                <div class="demo-a">
-                                    <p class="demo-label"><span class="demo-logo"></span>Rahah</p>
-                                    <p class="demo-stream" id="demo-stream"></p>
-                                    <div class="demo-actions">
-                                        <span class="demo-chip">Test me</span>
-                                        <span class="demo-chip" id="demo-cards">Flashcards</span>
-                                    </div>
-                                </div>
-                            </div></div>
-                        </div>
-                        <div class="demo-composer">
-                            <span class="demo-draft" id="demo-draft"></span><span class="demo-caret"></span><span class="demo-placeholder">Ask anything, or drop a PDF</span>
-                            <span class="demo-send" id="demo-send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="demo-card" id="demo-card">
-                    <div class="demo-card-inner">
-                        <div class="demo-face"><small>Biology · 1 of 8</small><strong>Osmosis</strong></div>
-                        <div class="demo-face demo-back"><small>Answer</small><span>Water moving across a membrane, from where there's more water to where there's less</span></div>
-                    </div>
-                </div>
-                <svg class="demo-cursor" id="demo-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6.2 1.6L10 19z"/></svg>
+            <!-- the slides from the promo video, shuffled in a 3d stack -->
+            <div class="slides">
+                <div class="slide-deck" id="slide-deck"></div>
+                <p class="slide-hint">Tap to shuffle</p>
             </div>
         </div>
     </section>
@@ -588,7 +544,7 @@
     <script src="/static/js/study.js"></script>
     <script src="/static/js/performance.js"></script>
     <script src="/static/js/friends.js"></script>
-    <script src="/static/js/demo.js"></script>
+    <script src="/static/js/slides.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
 </html>
