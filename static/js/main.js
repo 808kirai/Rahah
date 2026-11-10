@@ -345,6 +345,7 @@ async function show_auth() {
     set_auth_mode(auth.mode);
     set_up_providers();
     requestAnimationFrame(draw_auth_art);
+    play_demo();
     (auth.mode === "login" ? el("auth-login") : el("auth-username")).focus();
 }
 
