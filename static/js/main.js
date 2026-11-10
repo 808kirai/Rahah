@@ -250,8 +250,9 @@ input.addEventListener("input", () => {
     update_send_button();
 });
 
+// on a computer enter sends and shift and enter starts a new line. on a phone enter is a new line, the send button sends
 input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !touch_screen) {
         event.preventDefault();
         if (!send_btn.disabled) send_message(input.value);
     }

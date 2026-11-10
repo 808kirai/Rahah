@@ -60,7 +60,7 @@ function start_edit(message_el) {
     area.focus();
     area.setSelectionRange(area.value.length, area.value.length);
     area.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !touch_screen) {
             event.preventDefault();
             send_edit(message_el);
         }

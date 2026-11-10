@@ -615,9 +615,9 @@ async function run_ask(question, mode) {
     send_message(question);
 }
 
-// enter sends a question, shift and enter starts a new line, as in the message box
+// enter sends a question, shift and enter starts a new line, as in the message box. on a phone enter is a new line
 el("sheet-topic").addEventListener("keydown", (event) => {
-    if (sheet_state.tool !== "ask" || event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    if (sheet_state.tool !== "ask" || event.key !== "Enter" || event.shiftKey || event.isComposing || touch_screen) return;
     event.preventDefault();
     el("sheet-form").requestSubmit();
 });
