@@ -430,7 +430,14 @@ async def fit_prompt(client, model: str, messages: list[dict], cap: int, upgrade
 chat_trimmed_note = "This chat is long, so Rahah read only the latest part. Start a new chat to keep everything in view."
 
 
-def cache_point(messages: list[dict]) -> list[dict]:
+def cache_for(messages: list[dict]) -> dict:
+    """how long claude keeps the chat cached. a chat with a file keeps it an hour: saving costs twice plain input
+    instead of a quarter more, but students often read for over five minutes between questions on a pdf, and
+    each time the cache ran out the whole file was paid for again"""
+    return {"type": "ephemeral", "ttl": "1h"} if has_files(messages) else {"type": "ephemeral"}
+
+
+def cache_point(messages: list[dict], cache: dict | None = None) -> list[dict]:
     """a copy with the cache marked at the end of the latest question.
     a note sent after it only for this turn, like search being off, isn't kept, so if the cache
     ended on it the next question could never read it back and a pdf would be paid for again each time"""
@@ -441,7 +448,7 @@ def cache_point(messages: list[dict]) -> list[dict]:
     blocks = [{"type": "text", "text": content}] if isinstance(content, str) else [dict(b) for b in content]
     if not blocks:
         return messages
-    blocks[-1]["cache_control"] = {"type": "ephemeral"}
+    blocks[-1]["cache_control"] = cache or {"type": "ephemeral"}
     return messages[:last] + [{**messages[last], "content": blocks}] + messages[last + 1:]
 
 
@@ -465,7 +472,8 @@ async def stream_reply(
     tools = ([web_tool] if search else []) + ([code_tool] if code else [])
     if tools:
         options["tools"] = tools
-    messages = cache_point(messages)
+    cache = cache_for(messages)
+    messages = cache_point(messages, cache)
     content, sent = [], messages
     reported, expires = None, None
     used = []
@@ -477,7 +485,7 @@ async def stream_reply(
             system=base_prompt,
             messages=sent,
             output_config={"effort": effort},
-            cache_control={"type": "ephemeral"},
+            cache_control=cache,
             **options,
             **extra,
         ) as stream:

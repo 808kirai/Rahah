@@ -19,6 +19,9 @@ def test_costs_follow_the_price_list():
     assert cost_of(use(input_tokens=1_000_000, output_tokens=1_000_000)) == 24.0
     # cache writes cost a quarter more than input, cache reads 20 cents a million, a search a cent
     assert cost_of(use(cache_write=1_000_000)) == 5.0
+    # the hour long cache, used for chats with files, costs twice as much as input to write
+    assert cost_of(use(cache_write=1_000_000, cache_write_1h=1_000_000)) == 8.0
+    assert cost_of(use(cache_write=2_000_000, cache_write_1h=1_000_000)) == 13.0
     assert cost_of(use(cache_read=1_000_000)) == 0.2
     assert cost_of(use(searches=3)) == 0.03
     assert cost_of(use("claude-haiku-5-5", input_tokens=100_000, output_tokens=100_000)) == 0.06

@@ -11,8 +11,9 @@ prices = {
 }
 # haiku costs five times as much per token once a prompt passes 100,000 tokens
 long_prompt = {"claude-haiku-5-5": (100_000, 5)}
-# writing to the five minute cache costs a quarter more than plain input
+# writing to the five minute cache costs a quarter more than plain input, the hour long cache twice as much
 cache_write_rate = 1.25
+hour_cache_write_rate = 2.0
 search_price = 0.01
 
 
@@ -21,12 +22,15 @@ def usage_of(message) -> dict:
     usage = getattr(message, "usage", None)
     count = lambda name: int(getattr(usage, name, 0) or 0)
     tools = getattr(usage, "server_tool_use", None)
+    split = getattr(usage, "cache_creation", None)
     return {
         "model": getattr(message, "model", "") or "",
         "input_tokens": count("input_tokens"),
         "output_tokens": count("output_tokens"),
         "cache_read": count("cache_read_input_tokens"),
         "cache_write": count("cache_creation_input_tokens"),
+        # the part of cache_write kept for an hour, which costs more
+        "cache_write_1h": int(getattr(split, "ephemeral_1h_input_tokens", 0) or 0),
         "searches": int(getattr(tools, "web_search_requests", 0) or 0),
     }
 
@@ -34,10 +38,10 @@ def usage_of(message) -> dict:
 def add_up(parts: list[dict]) -> dict:
     """one request can take several replies, a paused turn is resumed, so their counts are summed"""
     total = {"model": parts[-1]["model"] if parts else "", "input_tokens": 0, "output_tokens": 0,
-             "cache_read": 0, "cache_write": 0, "searches": 0}
+             "cache_read": 0, "cache_write": 0, "cache_write_1h": 0, "searches": 0}
     for part in parts:
-        for key in ("input_tokens", "output_tokens", "cache_read", "cache_write", "searches"):
-            total[key] += part[key]
+        for key in ("input_tokens", "output_tokens", "cache_read", "cache_write", "cache_write_1h", "searches"):
+            total[key] += part.get(key, 0)
     return total
 
 
@@ -48,12 +52,14 @@ def cost_of(use: dict) -> float | None:
         return None
     price = prices[name]
     prompt = use["input_tokens"] + use["cache_read"] + use["cache_write"]
+    hour = min(use.get("cache_write_1h", 0), use["cache_write"])
     limit, times = long_prompt.get(name, (None, 1))
     if limit and prompt > limit:
         price = {k: v * times for k, v in price.items()}
     tokens = (
         use["input_tokens"] * price["input"]
-        + use["cache_write"] * price["input"] * cache_write_rate
+        + (use["cache_write"] - hour) * price["input"] * cache_write_rate
+        + hour * price["input"] * hour_cache_write_rate
         + use["cache_read"] * price["cache_read"]
         + use["output_tokens"] * price["output"]
     ) / 1_000_000

@@ -1,7 +1,7 @@
 from anthropic.types.beta import BetaFallbackBlock
 
 from app.store import stored_file
-from app.tutor import cache_point, citation_list, display_from_content, history_blocks, user_content
+from app.tutor import cache_for, cache_point, citation_list, display_from_content, history_blocks, user_content
 
 from .fakes import page_citation, text_block, thinking_block
 
@@ -74,3 +74,14 @@ def test_the_cache_is_marked_on_the_latest_question_not_a_note_after_it():
     assert marked[3] == messages[3] and marked[:2] == messages[:2]
     # what's kept for the chat isn't changed
     assert messages[2]["content"] == "second" and "cache_control" not in str(messages[0])
+
+
+def test_a_chat_with_a_file_is_cached_for_an_hour():
+    pdf = {"type": "document", "source": {"type": "file", "file_id": "file_a"}}
+    plain = [{"role": "user", "content": "hello"}]
+    with_file = [{"role": "user", "content": [pdf, {"type": "text", "text": "explain"}]},
+                 {"role": "assistant", "content": [{"type": "text", "text": "sure"}]},
+                 {"role": "user", "content": "and page two"}]
+    assert cache_for(plain) == {"type": "ephemeral"}
+    assert cache_for(with_file) == {"type": "ephemeral", "ttl": "1h"}
+    assert cache_point(with_file, cache_for(with_file))[-1]["content"][-1]["cache_control"]["ttl"] == "1h"

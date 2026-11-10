@@ -89,6 +89,9 @@ def test_a_full_turn_streams_saves_and_cites(setup):
     sent = call["messages"]
     assert [m["role"] for m in sent] == ["user", "system"]
     assert sent[0]["content"][0]["source"]["file_id"] == file_id
+    # a chat with a file stays cached for an hour, ending on the question
+    assert call["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    assert sent[0]["content"][-1]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
 
     saved = web.get(f"/api/conversations/{conversation_id}").json()
     assert saved["title"] == "what is osmosis?"
