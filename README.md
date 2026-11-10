@@ -122,7 +122,7 @@ Security
 Look and feel
 
 - The logo is three rising chevrons on a dark circle, the top one in Rahah's blue, used exactly as designed in every theme. It sits beside the name in the top bar and on the sign in page, marks each answer, and is the browser tab icon (static/img/logo.svg) and the app icon on phones and computers
-- A near black navy theme with soft teal glows and a solid blue accent, after a Dribbble reference, and a matching light theme
+- A near black navy theme with soft teal glows and a solid blue accent, after a Dribbble reference, and a matching light theme. Light is the default, on the sign in page too, and a student who switches to dark keeps it on that device. The privacy, terms and offline pages are light
 - Faint see through cards and boxes, with a soft shadow in light mode
 - On a computer Enter sends a message and Shift and Enter starts a new line. On a phone Enter starts a new line and the send button sends
 - The tabs and message box float over the page with a fade underneath, like a streaming app. The message box shows on Home, Chats & Tests and in a chat. On Reminders, Performance, Account, Students and decks and tests it fades and shrinks away while the tabs glide to the middle, and comes back the same way. On phones, on Home and Chats & Tests, the message box sits at the top under the top bar instead of above the tabs, with its menus opening downwards, and in a chat it's back at the bottom where replies are typed. On other pages it folds away
