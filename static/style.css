@@ -6574,9 +6574,15 @@ body:not(.is-page) .me-face {
         height: 16px;
     }
 
-    /* small print still needs to be readable */
+    /* small print still needs to be readable. it sits low, in the top of the strip phones keep for the home bar,
+       so the bar reaches the bottom of the screen with no empty band under it */
     .disclaimer {
+        margin-bottom: 0.15rem;
         font-size: 11px;
+    }
+
+    .dock-wrap {
+        padding-bottom: max(0.15rem, calc(env(safe-area-inset-bottom) - 1.25rem));
     }
 
     .sheet {
