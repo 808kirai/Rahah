@@ -1,10 +1,13 @@
 name: tests
 
 # run the test suite on every push and pull request
+# and check the pinned packages for known security problems, weekly too so new advisories show up
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
 
 jobs:
   test:
@@ -19,3 +22,17 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: test
         run: python -m pytest -q tests
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: install
+        run: pip install -r requirements.txt pip-audit
+      # checks every installed package, including the ones pulled in indirectly, against the osv and pypi advisories
+      - name: audit
+        run: pip-audit --skip-editable
