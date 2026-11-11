@@ -148,7 +148,7 @@ You need Python 3.12 and an API key from platform.claude.com.
 
     C:\Users\altru\venvs\rahah\Scripts\python -m pip install -r requirements-dev.txt
 
-    requirements.txt holds exactly the versions that were tested, which is all the server installs. requirements-dev.txt adds pytest for running the tests. To update a package, change its version there, run the tests, and check it at osv.dev for known problems
+    requirements.txt holds exactly the versions that were tested, which is all the server installs. requirements-dev.txt adds pytest and pytest-xdist for running the tests. To update a package, change its version there, run the tests, and check it at osv.dev for known problems
 
 3. Copy .env.example to .env and paste your key after ANTHROPIC_API_KEY=
 
@@ -192,7 +192,7 @@ Running the tests
 
 The tests use a fake Claude client, so they need no key and cost nothing.
 
-    C:\Users\altru\venvs\rahah\Scripts\python -m pytest -q
+    C:\Users\altru\venvs\rahah\Scripts\python -m pytest -q -n auto
 
 Project layout
 

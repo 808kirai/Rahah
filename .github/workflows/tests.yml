@@ -21,7 +21,8 @@ jobs:
       - name: install
         run: pip install -r requirements-dev.txt
       - name: test
-        run: python -m pytest -q tests
+        # one worker per core, each test has its own database so they can run side by side
+        run: python -m pytest -q -n auto tests
 
   audit:
     runs-on: ubuntu-latest
