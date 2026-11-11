@@ -270,6 +270,9 @@ class store:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as db:
+            # write ahead logging, so a long read like the daily backup or a stats page doesn't lock out writes
+            # it's saved in the file, so this only changes something the first time
+            db.execute("pragma journal_mode = wal")
             db.executescript(schema)
             columns = {r["name"] for r in db.execute("pragma table_info(reminders)").fetchall()}
             if "plan" not in columns:
